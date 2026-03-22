@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "volt": ["../../src/index.ts"],
+      "volt/client": ["../../src/client/index.ts"],
+      "volt/server": ["../../src/server/index.ts"],
+      "volt/vite": ["../../src/vite.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "../../src/virtual-modules.d.ts"]
+}
