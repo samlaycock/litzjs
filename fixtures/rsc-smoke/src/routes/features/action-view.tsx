@@ -34,6 +34,7 @@ function ProjectsPage() {
   return (
     <main>
       <h1>Action + View Route</h1>
+      <p>This route demonstrates a server-backed form action with inline validation feedback.</p>
 
       <route.Form>
         <input name="name" placeholder="New project name" />

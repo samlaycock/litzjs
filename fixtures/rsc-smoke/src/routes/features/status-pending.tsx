@@ -27,6 +27,7 @@ function StatusPage() {
   const action = route.useActionResult();
   const status = route.useStatus();
   const pending = route.usePending();
+  const submitting = status === "submitting";
   const retry = route.useRetry();
   const reload = route.useReload();
 
@@ -52,7 +53,9 @@ function StatusPage() {
       </div>
 
       <route.Form>
-        <button type="submit">Submit slow action</button>
+        <button type="submit" disabled={submitting}>
+          {submitting ? "Submitting..." : "Submit slow action"}
+        </button>
       </route.Form>
     </main>
   );
