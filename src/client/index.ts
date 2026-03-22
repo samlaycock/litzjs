@@ -64,6 +64,7 @@ type ManifestEntry = {
 };
 
 const manifest = sortByPathSpecificity(routeManifest as ManifestEntry[]);
+const exactManifestEntries = new Map<string, ManifestEntry>();
 const ROUTE_CACHE_LIMIT = 200;
 const ROUTE_MODULE_CACHE_LIMIT = Math.max(manifest.length, 1);
 let navigationContext: React.Context<{
@@ -79,6 +80,13 @@ let matchesContext: React.Context<
 > | null = null;
 const routeCache = new Map<string, LoaderHookResult>();
 const routeModuleCache = new Map<string, LoadedRoute>();
+const routeModulePrefetchCache = new Map<string, Promise<void>>();
+
+for (const entry of manifest) {
+  if (!entry.path.includes(":")) {
+    exactManifestEntries.set(entry.path, entry);
+  }
+}
 
 function getNavigationContext(): React.Context<{
   navigate(href: string, options?: { replace?: boolean }): void;
@@ -170,7 +178,18 @@ export function Link(
   },
 ): React.ReactElement {
   const navigate = useNavigate();
-  const { href, replace = false, onClick, target, download, rel, ...rest } = props;
+  const {
+    href,
+    replace = false,
+    onClick,
+    onMouseEnter,
+    onFocus,
+    onTouchStart,
+    target,
+    download,
+    rel,
+    ...rest
+  } = props;
 
   return React.createElement("a", {
     ...rest,
@@ -178,6 +197,33 @@ export function Link(
     target,
     download,
     rel,
+    onMouseEnter(event: React.MouseEvent<HTMLAnchorElement>) {
+      onMouseEnter?.(event);
+
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      prefetchRouteModuleForHref(href, target, download);
+    },
+    onFocus(event: React.FocusEvent<HTMLAnchorElement>) {
+      onFocus?.(event);
+
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      prefetchRouteModuleForHref(href, target, download);
+    },
+    onTouchStart(event: React.TouchEvent<HTMLAnchorElement>) {
+      onTouchStart?.(event);
+
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      prefetchRouteModuleForHref(href, target, download);
+    },
     onClick(event: React.MouseEvent<HTMLAnchorElement>) {
       onClick?.(event);
 
@@ -485,6 +531,15 @@ function findMatch(pathname: string): {
   entry: ManifestEntry;
   params: Record<string, string>;
 } | null {
+  const exactEntry = exactManifestEntries.get(pathname);
+
+  if (exactEntry) {
+    return {
+      entry: exactEntry,
+      params: {},
+    };
+  }
+
   for (const entry of manifest) {
     const params = matchPathname(entry.path, pathname);
 
@@ -1141,6 +1196,59 @@ function setCachedRouteModule(id: string, route: LoadedRoute): void {
 
     routeModuleCache.delete(oldestKey);
   }
+}
+
+function prefetchRouteModuleForHref(
+  href: string,
+  target?: string,
+  download?: string | boolean,
+): void {
+  const currentUrl = new URL(window.location.href);
+  const nextUrl = new URL(href, currentUrl);
+
+  if (
+    !shouldInterceptLinkNavigation({
+      button: 0,
+      metaKey: false,
+      altKey: false,
+      ctrlKey: false,
+      shiftKey: false,
+      target,
+      download,
+      currentUrl,
+      nextUrl,
+    })
+  ) {
+    return;
+  }
+
+  const matched = findMatch(nextUrl.pathname);
+
+  if (!matched || routeModuleCache.has(matched.entry.id)) {
+    return;
+  }
+
+  const inFlight = routeModulePrefetchCache.get(matched.entry.id);
+
+  if (inFlight) {
+    return;
+  }
+
+  const prefetch = matched.entry
+    .load()
+    .then((loaded) => {
+      if (loaded.route) {
+        setCachedRouteModule(matched.entry.id, loaded.route);
+      }
+    })
+    .catch(() => {
+      return;
+    })
+    .finally(() => {
+      routeModulePrefetchCache.delete(matched.entry.id);
+    });
+
+  routeModulePrefetchCache.set(matched.entry.id, prefetch);
 }
 
 function withLoaderStaleState(result: LoaderHookResult, stale: boolean): LoaderHookResult {

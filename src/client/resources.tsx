@@ -22,6 +22,16 @@ type ResourceStoreEntry = {
   inFlight?: Promise<void>;
 };
 
+type NormalizedResourceRequest = {
+  params: Record<string, string>;
+  search: Record<string, string>;
+};
+
+type PreparedResourceRequest = {
+  key: string;
+  normalizedRequest: NormalizedResourceRequest;
+};
+
 const RESOURCE_STORE_LIMIT = 200;
 const resourceStore = new Map<string, ResourceStoreEntry>();
 
@@ -29,22 +39,30 @@ export function useResourceLoader(
   resourcePath: string,
   request?: ResourceRequest,
 ): ResourceLoaderState {
-  const key = React.useMemo(
-    () => createResourceCacheKey(resourcePath, request),
+  const preparedRequest = React.useMemo(
+    () => prepareResourceRequest(resourcePath, request),
     [resourcePath, request],
   );
 
   const snapshot = React.useSyncExternalStore(
-    React.useCallback((listener: () => void) => subscribe(key, listener), [key]),
-    React.useCallback(() => getEntry(key).snapshot, [key]),
-    React.useCallback(() => getEntry(key).snapshot, [key]),
+    React.useCallback(
+      (listener: () => void) => subscribe(preparedRequest.key, listener),
+      [preparedRequest.key],
+    ),
+    React.useCallback(() => getEntry(preparedRequest.key).snapshot, [preparedRequest.key]),
+    React.useCallback(() => getEntry(preparedRequest.key).snapshot, [preparedRequest.key]),
   );
 
   const load = React.useCallback(
     async (nextRequest?: ResourceRequest) => {
-      await performResourceRequest(resourcePath, "loader", undefined, nextRequest ?? request);
+      if (nextRequest) {
+        await performResourceRequest(resourcePath, "loader", undefined, nextRequest);
+        return;
+      }
+
+      await performPreparedResourceRequest(resourcePath, "loader", preparedRequest);
     },
-    [resourcePath, request],
+    [preparedRequest, resourcePath],
   );
 
   React.useEffect(() => {
@@ -70,16 +88,26 @@ export function useResourceAction(
   resourcePath: string,
   request?: ResourceRequest,
 ): ResourceActionState {
+  const preparedRequest = React.useMemo(
+    () => prepareResourceRequest(resourcePath, request),
+    [resourcePath, request],
+  );
+
   return React.useMemo(
     () => ({
       submit: async (
         payload: FormData | Record<string, unknown>,
         nextRequest?: ResourceRequest,
       ) => {
-        await performResourceRequest(resourcePath, "action", payload, nextRequest ?? request);
+        if (nextRequest) {
+          await performResourceRequest(resourcePath, "action", payload, nextRequest);
+          return;
+        }
+
+        await performPreparedResourceRequest(resourcePath, "action", preparedRequest, payload);
       },
     }),
-    [resourcePath, request],
+    [preparedRequest, resourcePath],
   );
 }
 
@@ -89,8 +117,21 @@ async function performResourceRequest(
   payload?: FormData | Record<string, unknown>,
   request?: ResourceRequest,
 ): Promise<void> {
-  const normalizedRequest = normalizeResourceRequest(request);
-  const key = createResourceCacheKey(resourcePath, normalizedRequest);
+  return performPreparedResourceRequest(
+    resourcePath,
+    operation,
+    prepareResourceRequest(resourcePath, request),
+    payload,
+  );
+}
+
+async function performPreparedResourceRequest(
+  resourcePath: string,
+  operation: "loader" | "action",
+  preparedRequest: PreparedResourceRequest,
+  payload?: FormData | Record<string, unknown>,
+): Promise<void> {
+  const { key, normalizedRequest } = preparedRequest;
   const entry = getEntry(key);
 
   if (entry.inFlight) {
@@ -184,10 +225,7 @@ async function performResourceRequest(
   return entry.inFlight;
 }
 
-function normalizeResourceRequest(request?: ResourceRequest): {
-  params: Record<string, string>;
-  search: Record<string, string>;
-} {
+function normalizeResourceRequest(request?: ResourceRequest): NormalizedResourceRequest {
   const params = request?.params ?? {};
   const search = request?.search
     ? request.search instanceof URLSearchParams
@@ -201,12 +239,26 @@ function normalizeResourceRequest(request?: ResourceRequest): {
   };
 }
 
-function createResourceCacheKey(resourcePath: string, request?: ResourceRequest): string {
-  const normalized = normalizeResourceRequest(request);
+function prepareResourceRequest(
+  resourcePath: string,
+  request?: ResourceRequest,
+): PreparedResourceRequest {
+  const normalizedRequest = normalizeResourceRequest(request);
+
+  return {
+    key: createResourceCacheKey(resourcePath, normalizedRequest),
+    normalizedRequest,
+  };
+}
+
+function createResourceCacheKey(
+  resourcePath: string,
+  normalizedRequest: NormalizedResourceRequest,
+): string {
   return JSON.stringify({
     path: resourcePath,
-    params: sortRecord(normalized.params),
-    search: sortRecord(normalized.search),
+    params: sortRecord(normalizedRequest.params),
+    search: sortRecord(normalizedRequest.search),
   });
 }
 
