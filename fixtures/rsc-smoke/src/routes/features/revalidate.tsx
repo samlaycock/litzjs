@@ -27,13 +27,16 @@ function RevalidatePage() {
   const status = route.useStatus();
 
   return (
-    <main>
-      <h1>Revalidation Demo</h1>
-      <p>Status: {status}</p>
-      <p>Count: {String(loader.data.count)}</p>
-      <route.Form>
-        <button type="submit">Increment and revalidate</button>
-      </route.Form>
-    </main>
+    <>
+      <title>Revalidate | Volt RSC Smoke</title>
+      <main>
+        <h1>Revalidation Demo</h1>
+        <p>Status: {status}</p>
+        <p>Count: {String(loader.data.count)}</p>
+        <route.Form>
+          <button type="submit">Increment and revalidate</button>
+        </route.Form>
+      </main>
+    </>
   );
 }

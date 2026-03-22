@@ -17,11 +17,14 @@ function MePage() {
   const result = route.useLoaderResult();
 
   return (
-    <main>
-      <h1>Data Loader Route</h1>
-      <p>Name: {result.data.user.name}</p>
-      <p>Email: {result.data.user.email}</p>
-      <p>Status: {result.status}</p>
-    </main>
+    <>
+      <title>Loader Data | Volt RSC Smoke</title>
+      <main>
+        <h1>Data Loader Route</h1>
+        <p>Name: {result.data.user.name}</p>
+        <p>Email: {result.data.user.email}</p>
+        <p>Status: {result.status}</p>
+      </main>
+    </>
   );
 }

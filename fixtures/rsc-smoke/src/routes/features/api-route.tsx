@@ -11,12 +11,15 @@ function ApiDemoPage() {
   const request = React.useMemo(() => loadHealth(), []);
 
   return (
-    <main>
-      <h1>API Route Demo</h1>
-      <React.Suspense fallback={<p>Loading...</p>}>
-        <ApiHealthResult request={request} />
-      </React.Suspense>
-    </main>
+    <>
+      <title>API Route | Volt RSC Smoke</title>
+      <main>
+        <h1>API Route Demo</h1>
+        <React.Suspense fallback={<p>Loading...</p>}>
+          <ApiHealthResult request={request} />
+        </React.Suspense>
+      </main>
+    </>
   );
 }
 

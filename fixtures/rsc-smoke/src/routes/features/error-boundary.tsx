@@ -18,11 +18,14 @@ function BrokenBoundaryFallback(props: {
   };
 }) {
   return (
-    <main>
-      <h1>Boundary Error Route</h1>
-      <p>
-        {props.error.kind} {props.error.status}: {props.error.message}
-      </p>
-    </main>
+    <>
+      <title>Boundary Error | Volt RSC Smoke</title>
+      <main>
+        <h1>Boundary Error Route</h1>
+        <p>
+          {props.error.kind} {props.error.status}: {props.error.message}
+        </p>
+      </main>
+    </>
   );
 }

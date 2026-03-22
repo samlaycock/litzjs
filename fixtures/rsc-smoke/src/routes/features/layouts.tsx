@@ -21,10 +21,13 @@ function LayoutsFeaturePage() {
   }
 
   return (
-    <main>
-      <h1>Feature: Layouts</h1>
-      <p>{result.data.message}</p>
-      <p>Matches: {matches.map((match) => match.path).join(" -> ")}</p>
-    </main>
+    <>
+      <title>Layouts | Volt RSC Smoke</title>
+      <main>
+        <h1>Feature: Layouts</h1>
+        <p>{result.data.message}</p>
+        <p>Matches: {matches.map((match) => match.path).join(" -> ")}</p>
+      </main>
+    </>
   );
 }

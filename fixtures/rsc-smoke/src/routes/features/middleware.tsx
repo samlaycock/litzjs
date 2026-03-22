@@ -66,10 +66,13 @@ function MiddlewarePage() {
   }
 
   return (
-    <main>
-      <h1>Middleware</h1>
-      <p>Order: {loader.data.trace.join(" -> ")}</p>
-      <p>Note: {loader.data.note}</p>
-    </main>
+    <>
+      <title>Middleware | Volt RSC Smoke</title>
+      <main>
+        <h1>Middleware</h1>
+        <p>Order: {loader.data.trace.join(" -> ")}</p>
+        <p>Note: {loader.data.note}</p>
+      </main>
+    </>
   );
 }

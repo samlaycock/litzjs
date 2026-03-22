@@ -9,11 +9,14 @@ export const route = defineRoute("/features/resource-actions", {
 
 function ResourceActionsPage() {
   return (
-    <main>
-      <h1>Resource Action Route</h1>
-      <React.Suspense fallback={<p>Loading resource action panel...</p>}>
-        {feedPanel.Component ? <feedPanel.Component params={{ id: "team" }} /> : null}
-      </React.Suspense>
-    </main>
+    <>
+      <title>Resource Actions | Volt RSC Smoke</title>
+      <main>
+        <h1>Resource Action Route</h1>
+        <React.Suspense fallback={<p>Loading resource action panel...</p>}>
+          {feedPanel.Component ? <feedPanel.Component params={{ id: "team" }} /> : null}
+        </React.Suspense>
+      </main>
+    </>
   );
 }

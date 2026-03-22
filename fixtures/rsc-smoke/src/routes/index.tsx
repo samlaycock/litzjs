@@ -28,24 +28,27 @@ function HomePage() {
   ] as const;
 
   return (
-    <main>
-      <h1>Volt RSC Smoke</h1>
-      <p>This home route is fully client-rendered.</p>
+    <>
+      <title>Home | Volt RSC Smoke</title>
+      <main>
+        <h1>Volt RSC Smoke</h1>
+        <p>This home route is fully client-rendered.</p>
 
-      <nav>
-        <ul>
-          {links.map(([href, label]) => (
-            <li key={href}>
-              <Link href={href}>{label}</Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+        <nav>
+          <ul>
+            {links.map(([href, label]) => (
+              <li key={href}>
+                <Link href={href}>{label}</Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-      <p>
-        Negative case note: resource path params are required. Removing the `params` prop from the
-        packaged resource below should fail in dev.
-      </p>
-    </main>
+        <p>
+          Negative case note: resource path params are required. Removing the `params` prop from the
+          packaged resource below should fail in dev.
+        </p>
+      </main>
+    </>
   );
 }

@@ -15,11 +15,14 @@ function ReportsPage() {
   const result = route.useLoaderResult();
 
   return (
-    <main>
-      <h1>View Loader Route</h1>
-      <p>Kind: {result.kind}</p>
-      <React.Suspense fallback={<p>Streaming reports...</p>}>{result.render()}</React.Suspense>
-    </main>
+    <>
+      <title>Loader View | Volt RSC Smoke</title>
+      <main>
+        <h1>View Loader Route</h1>
+        <p>Kind: {result.kind}</p>
+        <React.Suspense fallback={<p>Streaming reports...</p>}>{result.render()}</React.Suspense>
+      </main>
+    </>
   );
 }
 

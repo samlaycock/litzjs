@@ -37,31 +37,39 @@ function StatusPage() {
   const reload = route.useReload();
 
   if (loader.kind !== "data") {
-    return <main>Unexpected status loader result.</main>;
+    return (
+      <>
+        <title>Status Pending | Volt RSC Smoke</title>
+        <main>Unexpected status loader result.</main>
+      </>
+    );
   }
 
   return (
-    <main>
-      <h1>Status Demo</h1>
-      <p>Status: {status}</p>
-      <p>Pending: {pending ? "yes" : "no"}</p>
-      <p>Loaded at: {loader.data.loadedAt}</p>
-      <p>Saves: {action?.kind === "data" ? String(action.data.saves) : "0"}</p>
-      <p>Last note: {action?.kind === "data" ? action.data.note : "(none)"}</p>
+    <>
+      <title>Status Pending | Volt RSC Smoke</title>
+      <main>
+        <h1>Status Demo</h1>
+        <p>Status: {status}</p>
+        <p>Pending: {pending ? "yes" : "no"}</p>
+        <p>Loaded at: {loader.data.loadedAt}</p>
+        <p>Saves: {action?.kind === "data" ? String(action.data.saves) : "0"}</p>
+        <p>Last note: {action?.kind === "data" ? action.data.note : "(none)"}</p>
 
-      <div>
-        <button type="button" onClick={() => retry()}>
-          Retry
-        </button>
-        <button type="button" onClick={() => reload()}>
-          Reload
-        </button>
-      </div>
+        <div>
+          <button type="button" onClick={() => retry()}>
+            Retry
+          </button>
+          <button type="button" onClick={() => reload()}>
+            Reload
+          </button>
+        </div>
 
-      <route.Form>
-        <StatusFormFields submitting={submitting} />
-      </route.Form>
-    </main>
+        <route.Form>
+          <StatusFormFields submitting={submitting} />
+        </route.Form>
+      </main>
+    </>
   );
 }
 
@@ -85,5 +93,10 @@ function StatusFormFields(props: { submitting: boolean }) {
 }
 
 function StatusPending() {
-  return <main>Loading status route...</main>;
+  return (
+    <>
+      <title>Status Pending | Volt RSC Smoke</title>
+      <main>Loading status route...</main>
+    </>
+  );
 }

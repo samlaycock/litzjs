@@ -32,18 +32,21 @@ function ProjectsPage() {
   const action = route.useActionResult();
 
   return (
-    <main>
-      <h1>Action + View Route</h1>
-      <p>This route demonstrates a server-backed form action with inline validation feedback.</p>
+    <>
+      <title>Action View | Volt RSC Smoke</title>
+      <main>
+        <h1>Action + View Route</h1>
+        <p>This route demonstrates a server-backed form action with inline validation feedback.</p>
 
-      <route.Form>
-        <input name="name" placeholder="New project name" />
-        {action?.kind === "invalid" ? <p role="alert">{action.fields?.name}</p> : null}
-        <button type="submit">Create</button>
-      </route.Form>
+        <route.Form>
+          <input name="name" placeholder="New project name" />
+          {action?.kind === "invalid" ? <p role="alert">{action.fields?.name}</p> : null}
+          <button type="submit">Create</button>
+        </route.Form>
 
-      <React.Suspense fallback={<p>Refreshing projects...</p>}>{loader.render()}</React.Suspense>
-    </main>
+        <React.Suspense fallback={<p>Refreshing projects...</p>}>{loader.render()}</React.Suspense>
+      </main>
+    </>
   );
 }
 

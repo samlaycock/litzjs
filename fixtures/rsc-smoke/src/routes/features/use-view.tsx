@@ -10,10 +10,13 @@ function UseViewPage() {
   const node = route.useView();
 
   return (
-    <main>
-      <h1>useView Example</h1>
-      <React.Suspense fallback={<p>Streaming useView fragment...</p>}>{node}</React.Suspense>
-    </main>
+    <>
+      <title>useView | Volt RSC Smoke</title>
+      <main>
+        <h1>useView Example</h1>
+        <React.Suspense fallback={<p>Streaming useView fragment...</p>}>{node}</React.Suspense>
+      </main>
+    </>
   );
 }
 

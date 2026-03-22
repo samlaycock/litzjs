@@ -20,24 +20,27 @@ export const route = defineRoute("/features/redirect-action", {
 
 function RedirectActionPage() {
   return (
-    <main>
-      <h1>Redirect Action</h1>
-      <p>This route demonstrates hidden form fields plus a route action redirect.</p>
-      <route.Form>
-        <input type="hidden" name="from" value="action-form" />
+    <>
+      <title>Redirect Action | Volt RSC Smoke</title>
+      <main>
+        <h1>Redirect Action</h1>
+        <p>This route demonstrates hidden form fields plus a route action redirect.</p>
+        <route.Form>
+          <input type="hidden" name="from" value="action-form" />
 
-        <fieldset>
-          <legend>History mode</legend>
-          <label>
-            <input type="radio" name="mode" value="push" defaultChecked /> Push
-          </label>
-          <label>
-            <input type="radio" name="mode" value="replace" /> Replace
-          </label>
-        </fieldset>
+          <fieldset>
+            <legend>History mode</legend>
+            <label>
+              <input type="radio" name="mode" value="push" defaultChecked /> Push
+            </label>
+            <label>
+              <input type="radio" name="mode" value="replace" /> Replace
+            </label>
+          </fieldset>
 
-        <button type="submit">Submit redirect action</button>
-      </route.Form>
-    </main>
+          <button type="submit">Submit redirect action</button>
+        </route.Form>
+      </main>
+    </>
   );
 }

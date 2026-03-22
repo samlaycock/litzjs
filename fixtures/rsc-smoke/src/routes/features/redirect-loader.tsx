@@ -8,5 +8,10 @@ export const route = defineRoute("/features/redirect-loader", {
 });
 
 function RedirectLoaderPage() {
-  return <main>Redirecting from loader...</main>;
+  return (
+    <>
+      <title>Redirect Loader | Volt RSC Smoke</title>
+      <main>Redirecting from loader...</main>
+    </>
+  );
 }

@@ -6,5 +6,10 @@ export const route = defineRoute("/features/error-default", {
 });
 
 function BrokenDefaultPage() {
-  return <main>This should not render.</main>;
+  return (
+    <>
+      <title>Default Error | Volt RSC Smoke</title>
+      <main>This should not render.</main>
+    </>
+  );
 }
