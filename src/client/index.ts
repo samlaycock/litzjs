@@ -7,7 +7,7 @@ import type { RouteRuntimeState } from "./runtime";
 import { createFormDataPayload } from "../form-data";
 import { extractRouteLikeParams, matchPathname, sortByPathSpecificity } from "../path-matching";
 import { installClientBindings } from "./bindings";
-import { shouldInterceptLinkNavigation, toNavigationHref } from "./navigation";
+import { shouldInterceptLinkNavigation, shouldPrefetchLink, toNavigationHref } from "./navigation";
 import { useResourceAction, useResourceLoader } from "./resources";
 import {
   RouteRuntimeProvider,
@@ -1210,12 +1210,7 @@ function prefetchRouteModuleForHref(
   const nextUrl = new URL(href, currentUrl);
 
   if (
-    !shouldInterceptLinkNavigation({
-      button: 0,
-      metaKey: false,
-      altKey: false,
-      ctrlKey: false,
-      shiftKey: false,
+    !shouldPrefetchLink({
       target,
       download,
       currentUrl,

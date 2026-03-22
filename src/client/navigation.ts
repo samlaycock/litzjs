@@ -50,3 +50,22 @@ export function shouldInterceptLinkNavigation(options: {
 export function toNavigationHref(url: URL): string {
   return url.pathname + url.search + url.hash;
 }
+
+export function shouldPrefetchLink(options: {
+  target?: string | null;
+  download?: string | boolean | null;
+  currentUrl: URL;
+  nextUrl: URL;
+}): boolean {
+  return shouldInterceptLinkNavigation({
+    button: 0,
+    metaKey: false,
+    altKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    target: options.target,
+    download: options.download,
+    currentUrl: options.currentUrl,
+    nextUrl: options.nextUrl,
+  });
+}

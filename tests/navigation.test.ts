@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { shouldInterceptLinkNavigation } from "../src/client/navigation";
+import { shouldInterceptLinkNavigation, shouldPrefetchLink } from "../src/client/navigation";
 
 describe("client navigation interception", () => {
   test("keeps native hash-only navigation", () => {
@@ -29,5 +29,31 @@ describe("client navigation interception", () => {
         nextUrl: new URL("https://example.com/docs/getting-started"),
       }),
     ).toBe(true);
+  });
+
+  test("prefetches same-origin route links", () => {
+    expect(
+      shouldPrefetchLink({
+        currentUrl: new URL("https://example.com/docs"),
+        nextUrl: new URL("https://example.com/docs/getting-started"),
+      }),
+    ).toBe(true);
+  });
+
+  test("does not prefetch downloads or external links", () => {
+    expect(
+      shouldPrefetchLink({
+        download: true,
+        currentUrl: new URL("https://example.com/docs"),
+        nextUrl: new URL("https://example.com/docs/archive.zip"),
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldPrefetchLink({
+        currentUrl: new URL("https://example.com/docs"),
+        nextUrl: new URL("https://other.example.com/docs"),
+      }),
+    ).toBe(false);
   });
 });
