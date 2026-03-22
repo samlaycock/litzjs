@@ -1,3 +1,5 @@
+import type { SearchParamsUpdate } from "../index";
+
 export function isHashOnlyNavigation(currentUrl: URL, nextUrl: URL): boolean {
   return (
     currentUrl.origin === nextUrl.origin &&
@@ -68,4 +70,41 @@ export function shouldPrefetchLink(options: {
     currentUrl: options.currentUrl,
     nextUrl: options.nextUrl,
   });
+}
+
+export function applySearchParams(
+  currentUrl: URL,
+  updates: SearchParamsUpdate,
+): {
+  changed: boolean;
+  href: string;
+} {
+  const nextUrl = new URL(currentUrl.href);
+  const nextSearch = new URLSearchParams(currentUrl.search);
+
+  for (const [key, value] of Object.entries(updates)) {
+    nextSearch.delete(key);
+
+    if (value == null) {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        nextSearch.append(key, entry);
+      }
+
+      continue;
+    }
+
+    nextSearch.set(key, value);
+  }
+
+  const nextSearchString = nextSearch.toString();
+  nextUrl.search = nextSearchString;
+
+  return {
+    changed: nextUrl.search !== currentUrl.search,
+    href: toNavigationHref(nextUrl),
+  };
 }

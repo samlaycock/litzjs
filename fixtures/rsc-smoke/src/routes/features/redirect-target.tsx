@@ -5,7 +5,7 @@ export const route = defineRoute("/features/redirect-target", {
 });
 
 function LoginPage() {
-  const search = route.useSearch();
+  const [search] = route.useSearch();
 
   return (
     <main>

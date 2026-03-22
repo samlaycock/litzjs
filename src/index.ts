@@ -63,6 +63,15 @@ export type SubmitOptions<TResult extends ServerResult = ServerResult> = {
   revalidate?: boolean | string[];
 };
 
+export type SearchParamsUpdate = Record<string, string | string[] | null | undefined>;
+
+export type SetSearchParams = (
+  params: SearchParamsUpdate,
+  options?: {
+    replace?: boolean;
+  },
+) => void;
+
 export type RouteFormProps = Omit<React.ComponentPropsWithoutRef<"form">, "action" | "method"> & {
   replace?: boolean;
   revalidate?: boolean | string[];
@@ -540,7 +549,7 @@ export type VoltLayout<
     options: LayoutBaseOptions<TPath, TContext> &
       LayoutLoaderOption<TPath, TContext, TLoaderResult>;
     useParams(): PathParams<TPath>;
-    useSearch(): URLSearchParams;
+    useSearch(): [URLSearchParams, SetSearchParams];
     useStatus(): RouteStatus;
     usePending(): boolean;
   } & ([TLoaderResult] extends [never]
@@ -580,7 +589,7 @@ export type VoltRoute<
       RouteLoaderOption<TPath, TContext, TLoaderResult> &
       RouteActionOption<TPath, TContext, TActionResult>;
     useParams(): PathParams<TPath>;
-    useSearch(): URLSearchParams;
+    useSearch(): [URLSearchParams, SetSearchParams];
     useStatus(): RouteStatus;
     usePending(): boolean;
   } & ([TLoaderResult] extends [never]
@@ -853,7 +862,13 @@ export function defineRoute(path: string, options: DefineRouteOptions<any, any, 
     useStatus: () => getRequiredRouteRuntime(path).status as RouteStatus,
     usePending: () => getRequiredRouteRuntime(path).pending,
     useParams: () => getRequiredRouteRuntime(path).params as PathParams<string>,
-    useSearch: () => getRequiredRouteRuntime(path).search,
+    useSearch: () => {
+      const runtime = getRequiredRouteRuntime(path);
+      return [
+        runtime.search,
+        (params, options) => runtime.setSearch(params, options),
+      ] as [URLSearchParams, SetSearchParams];
+    },
     useRetry: () => {
       const runtime = getRequiredRouteRuntime(path);
       return () => runtime.retry();
@@ -919,7 +934,13 @@ export function defineLayout(path: string, options: DefineLayoutOptions<any, any
     useStatus: () => getRequiredRouteRuntime(path).status as RouteStatus,
     usePending: () => getRequiredRouteRuntime(path).pending,
     useParams: () => getRequiredRouteRuntime(path).params as PathParams<string>,
-    useSearch: () => getRequiredRouteRuntime(path).search,
+    useSearch: () => {
+      const runtime = getRequiredRouteRuntime(path);
+      return [
+        runtime.search,
+        (params, options) => runtime.setSearch(params, options),
+      ] as [URLSearchParams, SetSearchParams];
+    },
     useRetry: () => {
       const runtime = getRequiredRouteRuntime(path);
       return () => runtime.retry();

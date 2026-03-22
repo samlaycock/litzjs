@@ -6,6 +6,8 @@ import type {
   ResourceRequest,
   RouteFormProps,
   RouteStatus,
+  SearchParamsUpdate,
+  SetSearchParams,
   SubmitOptions,
 } from "../index";
 
@@ -22,6 +24,7 @@ export type RouteRuntimeState = {
   id: string;
   params: Record<string, string>;
   search: URLSearchParams;
+  setSearch: SetSearchParams;
   status: RouteStatus;
   pending: boolean;
   loaderResult: LoaderHookResult | null;
@@ -84,6 +87,9 @@ export function createPendingRuntimeState(routeId: string): RouteRuntimeState {
     id: routeId,
     params: {},
     search: new URLSearchParams(),
+    setSearch() {
+      throw new Error(`Route "${routeId}" cannot update search params before it is mounted.`);
+    },
     status: "loading",
     pending: true,
     loaderResult: null,
@@ -187,4 +193,5 @@ function normalizeRequest(request: ResourceRequest): {
   };
 }
 
+export type { SearchParamsUpdate };
 export { isRedirectSignal, isRouteLikeError, matchPathname };

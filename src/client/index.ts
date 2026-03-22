@@ -7,7 +7,12 @@ import type { RouteRuntimeState } from "./runtime";
 import { createFormDataPayload } from "../form-data";
 import { extractRouteLikeParams, matchPathname, sortByPathSpecificity } from "../path-matching";
 import { installClientBindings } from "./bindings";
-import { shouldInterceptLinkNavigation, shouldPrefetchLink, toNavigationHref } from "./navigation";
+import {
+  applySearchParams,
+  shouldInterceptLinkNavigation,
+  shouldPrefetchLink,
+  toNavigationHref,
+} from "./navigation";
 import { useResourceAction, useResourceLoader } from "./resources";
 import { resolveLoadedRouteState, resolveRouteModuleLoadState } from "./route-transition";
 import {
@@ -526,6 +531,7 @@ function RouteHost(props: {
     renderedRoute,
     activeMatches,
     pageState,
+    displayLocation,
     navigate,
     (mode?: "loading" | "revalidating") =>
       reloadCurrentRoute({
@@ -809,6 +815,7 @@ function renderMatchChain(
   route: LoadedRoute,
   matches: ActiveMatch[],
   pageState: PageState,
+  location: string,
   navigate: (next: string, replace?: boolean) => void,
   reloadImpl: (mode?: "loading" | "revalidating") => Promise<void>,
   setPageState: React.Dispatch<React.SetStateAction<PageState>>,
@@ -836,7 +843,15 @@ function renderMatchChain(
       continue;
     }
 
-    const runtime = createMatchRuntime(match, route, pageState, navigate, reloadImpl, setPageState);
+    const runtime = createMatchRuntime(
+      match,
+      route,
+      pageState,
+      location,
+      navigate,
+      reloadImpl,
+      setPageState,
+    );
 
     let content: React.ReactElement;
 
@@ -942,6 +957,7 @@ function createMatchRuntime(
   match: ActiveMatch,
   route: LoadedRoute,
   pageState: PageState,
+  location: string,
   navigate: (next: string, replace?: boolean) => void,
   reloadImpl: (mode?: "loading" | "revalidating") => Promise<void>,
   setPageState: React.Dispatch<React.SetStateAction<PageState>>,
@@ -952,6 +968,15 @@ function createMatchRuntime(
     id: match.id,
     params: match.params,
     search: match.search,
+    setSearch(updates, options) {
+      const result = applySearchParams(new URL(location), updates);
+
+      if (!result.changed) {
+        return;
+      }
+
+      navigate(result.href, options?.replace);
+    },
     status: pageState.status,
     pending: pageState.pending,
     loaderResult,

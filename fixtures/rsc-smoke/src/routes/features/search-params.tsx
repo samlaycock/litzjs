@@ -14,7 +14,7 @@ export const route = defineRoute("/features/search-params", {
 
 function SearchPage() {
   const loader = route.useLoaderResult();
-  const search = route.useSearch();
+  const [search, setSearch] = route.useSearch();
 
   return (
     <main>
@@ -23,6 +23,16 @@ function SearchPage() {
       <p>Loader tab: {loader.data.tab}</p>
       <p>Hook term: {search.get("term") ?? "(empty)"}</p>
       <p>Hook tab: {search.get("tab") ?? "all"}</p>
+      <p>
+        <button type="button" onClick={() => setSearch({ term: "bun", tab: "recent" })}>
+          Update search in-place
+        </button>
+      </p>
+      <p>
+        <button type="button" onClick={() => setSearch({ tab: null }, { replace: true })}>
+          Clear tab with replace
+        </button>
+      </p>
       <p>
         Try: <Link href="/features/search-params?term=volt&tab=active">Active search</Link>
       </p>

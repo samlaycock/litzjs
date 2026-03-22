@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { shouldInterceptLinkNavigation, shouldPrefetchLink } from "../src/client/navigation";
+import {
+  applySearchParams,
+  shouldInterceptLinkNavigation,
+  shouldPrefetchLink,
+} from "../src/client/navigation";
 
 describe("client navigation interception", () => {
   test("keeps native hash-only navigation", () => {
@@ -55,5 +59,51 @@ describe("client navigation interception", () => {
         nextUrl: new URL("https://other.example.com/docs"),
       }),
     ).toBe(false);
+  });
+});
+
+describe("search param navigation", () => {
+  test("merges updates into the current query string", () => {
+    expect(
+      applySearchParams(new URL("https://example.com/docs?term=volt"), {
+        tab: "active",
+      }),
+    ).toEqual({
+      changed: true,
+      href: "/docs?term=volt&tab=active",
+    });
+  });
+
+  test("supports repeated keys for array values", () => {
+    expect(
+      applySearchParams(new URL("https://example.com/docs?term=volt"), {
+        tag: ["framework", "bun"],
+      }),
+    ).toEqual({
+      changed: true,
+      href: "/docs?term=volt&tag=framework&tag=bun",
+    });
+  });
+
+  test("deletes keys when passed nullish values", () => {
+    expect(
+      applySearchParams(new URL("https://example.com/docs?term=volt&tab=active#intro"), {
+        tab: null,
+      }),
+    ).toEqual({
+      changed: true,
+      href: "/docs?term=volt#intro",
+    });
+  });
+
+  test("returns unchanged when the resulting query string matches", () => {
+    expect(
+      applySearchParams(new URL("https://example.com/docs?term=volt"), {
+        term: "volt",
+      }),
+    ).toEqual({
+      changed: false,
+      href: "/docs?term=volt",
+    });
   });
 });

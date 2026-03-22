@@ -8,6 +8,12 @@ export type VoltClientBindings = {
     pending: boolean;
     params: Record<string, string>;
     search: URLSearchParams;
+    setSearch(
+      params: Record<string, string | string[] | null | undefined>,
+      options?: {
+        replace?: boolean;
+      },
+    ): void;
     retry(): void;
     reload(): void;
     submit(payload: FormData | Record<string, unknown>, options?: unknown): Promise<void>;
