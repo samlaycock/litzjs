@@ -276,15 +276,28 @@ function RouteHost(props: {
   const url = React.useMemo(() => new URL(props.location), [props.location]);
   const search = React.useMemo(() => new URLSearchParams(url.search), [url.search]);
   const matched = React.useMemo(() => findMatch(url.pathname), [url.pathname]);
-  const [loadedRoute, setLoadedRoute] = React.useState<LoadedRoute | null>(null);
+  const [displayLocation, setDisplayLocation] = React.useState(() => props.location);
+  const [renderedRoute, setRenderedRoute] = React.useState<LoadedRoute | null>(null);
   const [pageState, setPageState] = React.useState<PageState>(() => createEmptyPageState());
+  const renderedRouteRef = React.useRef<LoadedRoute | null>(null);
+
+  React.useEffect(() => {
+    renderedRouteRef.current = renderedRoute;
+  }, [renderedRoute]);
+
+  const displayedUrl = React.useMemo(() => new URL(displayLocation), [displayLocation]);
+  const displayedSearch = React.useMemo(
+    () => new URLSearchParams(displayedUrl.search),
+    [displayedUrl.search],
+  );
 
   React.useLayoutEffect(() => {
     let cancelled = false;
 
     async function loadRouteModule(): Promise<void> {
       if (!matched) {
-        setLoadedRoute(null);
+        setRenderedRoute(null);
+        setDisplayLocation(props.location);
         setPageState(createEmptyPageState());
         return;
       }
@@ -293,12 +306,16 @@ function RouteHost(props: {
 
       if (cachedRoute) {
         setPageState(createBootstrapPageState(cachedRoute, url.pathname, search));
-        setLoadedRoute(cachedRoute);
+        setRenderedRoute(cachedRoute);
+        setDisplayLocation(props.location);
         return;
       }
 
-      setLoadedRoute(null);
-      setPageState(createEmptyPageState());
+      if (!renderedRouteRef.current) {
+        setRenderedRoute(null);
+        setDisplayLocation(props.location);
+        setPageState(createEmptyPageState());
+      }
 
       const matchedEntry = matched.entry;
 
@@ -314,7 +331,8 @@ function RouteHost(props: {
 
       setCachedRouteModule(matchedEntry.id, loaded.route);
       setPageState(createBootstrapPageState(loaded.route, url.pathname, search));
-      setLoadedRoute(loaded.route);
+      setRenderedRoute(loaded.route);
+      setDisplayLocation(props.location);
     }
 
     void loadRouteModule();
@@ -325,16 +343,16 @@ function RouteHost(props: {
   }, [matched, props.location, search, url.pathname]);
 
   React.useEffect(() => {
-    if (!matched || !loadedRoute || loadedRoute.id !== matched.entry.id) {
+    if (!renderedRoute) {
       return;
     }
 
     let cancelled = false;
-    const activeMatches = buildActiveMatches(loadedRoute, url.pathname, search);
+    const activeMatches = buildActiveMatches(renderedRoute, displayedUrl.pathname, displayedSearch);
 
     const baseRequest = {
-      params: matched.params,
-      search,
+      params: extractRouteParams(renderedRoute.path, displayedUrl.pathname) ?? {},
+      search: displayedSearch,
     };
 
     const reload = async (mode: "loading" | "revalidating" = "loading") => {
@@ -354,19 +372,19 @@ function RouteHost(props: {
       }
 
       setPageState((current) =>
-        applyCachedLoaderStateToPageState(current, loaderMatches, search, mode),
+        applyCachedLoaderStateToPageState(current, loaderMatches, displayedSearch, mode),
       );
 
       for (const entry of loaderMatches) {
         try {
-          const loaderResult = await fetchRouteLoader(loadedRoute.path, baseRequest, entry.id);
+          const loaderResult = await fetchRouteLoader(renderedRoute.path, baseRequest, entry.id);
 
           if (cancelled) {
             return;
           }
 
           setCachedLoaderResult(
-            createRouteCacheKey(entry.path, entry.params, search),
+            createRouteCacheKey(entry.path, entry.params, displayedSearch),
             withLoaderStaleState(loaderResult, false),
           );
 
@@ -410,10 +428,13 @@ function RouteHost(props: {
     return () => {
       cancelled = true;
     };
-  }, [loadedRoute, matched, navigate, search, url.pathname]);
+  }, [displayedSearch, displayedUrl.pathname, navigate, renderedRoute]);
   const activeMatches = React.useMemo(
-    () => (loadedRoute ? buildActiveMatches(loadedRoute, url.pathname, search) : []),
-    [loadedRoute, search, url.pathname],
+    () =>
+      renderedRoute
+        ? buildActiveMatches(renderedRoute, displayedUrl.pathname, displayedSearch)
+        : [],
+    [displayedSearch, displayedUrl.pathname, renderedRoute],
   );
   const matchesValue = React.useMemo(
     () =>
@@ -421,29 +442,29 @@ function RouteHost(props: {
         id: entry.id,
         path: entry.path,
         params: entry.params,
-        search,
+        search: displayedSearch,
       })),
-    [activeMatches, search],
+    [activeMatches, displayedSearch],
   );
 
   if (!matched) {
     return React.createElement(NotFoundPage);
   }
 
-  if (!loadedRoute) {
+  if (!renderedRoute) {
     return React.createElement(React.Fragment);
   }
 
   const content = renderMatchChain(
-    loadedRoute,
+    renderedRoute,
     activeMatches,
     pageState,
     navigate,
     (mode?: "loading" | "revalidating") =>
       reloadCurrentRoute({
-        route: loadedRoute,
-        pathname: url.pathname,
-        search,
+        route: renderedRoute,
+        pathname: displayedUrl.pathname,
+        search: displayedSearch,
         navigate,
         setPageState,
         mode,
