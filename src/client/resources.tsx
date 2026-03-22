@@ -75,13 +75,18 @@ export function useResourceLoader(
     throw snapshot.error;
   }
 
-  return {
-    kind: snapshot.result?.kind,
-    data: snapshot.result?.kind === "data" ? snapshot.result.data : undefined,
-    node: snapshot.result?.kind === "view" ? snapshot.result.node : undefined,
-    render: () => snapshot.result?.render() ?? null,
-    load,
-  };
+  const render = React.useCallback(() => snapshot.result?.render() ?? null, [snapshot.result]);
+
+  return React.useMemo(
+    () => ({
+      kind: snapshot.result?.kind,
+      data: snapshot.result?.kind === "data" ? snapshot.result.data : undefined,
+      node: snapshot.result?.kind === "view" ? snapshot.result.node : undefined,
+      render,
+      load,
+    }),
+    [load, render, snapshot.result],
+  );
 }
 
 export function useResourceAction(
@@ -197,7 +202,7 @@ async function performPreparedResourceRequest(
               headers: actionResult.headers,
               stale: false,
               node: actionResult.node,
-              render: () => actionResult.render(),
+              render: actionResult.render,
             },
             loading: false,
           };

@@ -65,6 +65,7 @@ type ManifestEntry = {
 
 const manifest = sortByPathSpecificity(routeManifest as ManifestEntry[]);
 const exactManifestEntries = new Map<string, ManifestEntry>();
+const dynamicManifestEntries: ManifestEntry[] = [];
 const ROUTE_CACHE_LIMIT = 200;
 const ROUTE_MODULE_CACHE_LIMIT = Math.max(manifest.length, 1);
 let navigationContext: React.Context<{
@@ -83,7 +84,9 @@ const routeModuleCache = new Map<string, LoadedRoute>();
 const routeModulePrefetchCache = new Map<string, Promise<void>>();
 
 for (const entry of manifest) {
-  if (!entry.path.includes(":")) {
+  if (entry.path.includes(":")) {
+    dynamicManifestEntries.push(entry);
+  } else {
     exactManifestEntries.set(entry.path, entry);
   }
 }
@@ -540,7 +543,7 @@ function findMatch(pathname: string): {
     };
   }
 
-  for (const entry of manifest) {
+  for (const entry of dynamicManifestEntries) {
     const params = matchPathname(entry.path, pathname);
 
     if (params) {
@@ -973,7 +976,7 @@ function createMatchRuntime(
           headers: result.headers,
           stale: false,
           node: result.node,
-          render: () => result.render(),
+          render: result.render,
         });
 
         setPageState((current) => ({
@@ -987,7 +990,7 @@ function createMatchRuntime(
                 headers: result.headers,
                 stale: false,
                 node: result.node,
-                render: () => result.render(),
+                render: result.render,
               },
             },
           },
@@ -1262,8 +1265,6 @@ function withLoaderStaleState(result: LoaderHookResult, stale: boolean): LoaderH
   return {
     ...result,
     stale,
-    render() {
-      return result.node;
-    },
+    render: result.render,
   };
 }

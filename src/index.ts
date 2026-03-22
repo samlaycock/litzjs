@@ -257,7 +257,7 @@ type LoaderDataHookBranch<TData> = {
   headers: Headers;
   stale: boolean;
   data: TData;
-  render(): React.ReactNode;
+  render(this: void): React.ReactNode;
 };
 
 type LoaderViewHookBranch<TNode extends React.ReactNode> = {
@@ -266,7 +266,7 @@ type LoaderViewHookBranch<TNode extends React.ReactNode> = {
   headers: Headers;
   stale: boolean;
   node: TNode;
-  render(): React.ReactNode;
+  render(this: void): React.ReactNode;
 };
 
 type ActionInvalidHookBranch<TData> = {
@@ -290,7 +290,7 @@ type ActionViewHookBranch<TNode extends React.ReactNode> = {
   status: number;
   headers: Headers;
   node: TNode;
-  render(): React.ReactNode;
+  render(this: void): React.ReactNode;
 };
 
 type ActionRedirectHookBranch = {
@@ -617,21 +617,21 @@ export type ResourceLoaderState<
       kind: undefined;
       data?: undefined;
       node?: undefined;
-      render(): React.ReactNode | null;
+      render(this: void): React.ReactNode | null;
       load(request?: ResourceRequest<TPath>): Promise<void>;
     }
   | {
       kind: "data";
       data: LoaderDataFor<TLoaderResult>;
       node?: undefined;
-      render(): React.ReactNode | null;
+      render(this: void): React.ReactNode | null;
       load(request?: ResourceRequest<TPath>): Promise<void>;
     }
   | {
       kind: "view";
       data?: undefined;
       node: LoaderNodeFor<TLoaderResult> & React.ReactNode;
-      render(): React.ReactNode | null;
+      render(this: void): React.ReactNode | null;
       load(request?: ResourceRequest<TPath>): Promise<void>;
     };
 
