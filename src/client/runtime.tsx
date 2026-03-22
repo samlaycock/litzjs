@@ -156,24 +156,33 @@ export function createRouteFormComponent(routeId: string): React.ComponentType<R
   return function VoltRouteForm(props: RouteFormProps): React.ReactElement {
     const runtime = useRequiredRouteRuntime(routeId);
     const { children, onSubmit, replace, revalidate, ...rest } = props;
+    const submitRef = React.useRef(
+      (payload: FormData | Record<string, unknown>, options?: SubmitOptions) =>
+        runtime.submit(payload, options),
+    );
+
+    React.useEffect(() => {
+      submitRef.current = (payload: FormData | Record<string, unknown>, options?: SubmitOptions) =>
+        runtime.submit(payload, options);
+    }, [runtime]);
+
+    const action = React.useCallback(
+      async (formData: FormData) => {
+        await submitRef.current(formData, {
+          replace,
+          revalidate,
+        });
+      },
+      [replace, revalidate],
+    );
 
     return React.createElement(
       "form",
       {
         ...rest,
-        onSubmit(event: React.FormEvent<HTMLFormElement>) {
-          (onSubmit as React.FormEventHandler<HTMLFormElement> | undefined)?.(event);
-
-          if (event.defaultPrevented) {
-            return;
-          }
-
-          event.preventDefault();
-          void runtime.submit(new FormData(event.currentTarget), {
-            replace,
-            revalidate,
-          });
-        },
+        method: "post",
+        action,
+        onSubmit,
       },
       children,
     );

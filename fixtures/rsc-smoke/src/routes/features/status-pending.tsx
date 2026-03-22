@@ -1,3 +1,4 @@
+import { useFormStatus } from "react-dom";
 import { data, defineRoute, server } from "volt";
 
 import { delay } from "../../data/state";
@@ -12,11 +13,15 @@ export const route = defineRoute("/features/status-pending", {
       loadedAt: new Date().toISOString(),
     });
   }),
-  action: server(async () => {
+  action: server(async ({ request }) => {
     await delay(500);
+    const formData = await request.formData();
+    const noteValue = formData.get("note");
+    const note = typeof noteValue === "string" ? noteValue.trim() : "";
     saveCount += 1;
     return data({
       saves: saveCount,
+      note: note || "(empty)",
     });
   }),
   pendingComponent: StatusPending,
@@ -42,6 +47,7 @@ function StatusPage() {
       <p>Pending: {pending ? "yes" : "no"}</p>
       <p>Loaded at: {loader.data.loadedAt}</p>
       <p>Saves: {action?.kind === "data" ? String(action.data.saves) : "0"}</p>
+      <p>Last note: {action?.kind === "data" ? action.data.note : "(none)"}</p>
 
       <div>
         <button type="button" onClick={() => retry()}>
@@ -53,11 +59,28 @@ function StatusPage() {
       </div>
 
       <route.Form>
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Submitting..." : "Submit slow action"}
-        </button>
+        <StatusFormFields submitting={submitting} />
       </route.Form>
     </main>
+  );
+}
+
+function StatusFormFields(props: { submitting: boolean }) {
+  const { pending, data } = useFormStatus();
+  const pendingNote = data?.get("note");
+
+  return (
+    <>
+      <input name="note" placeholder="Describe this save" disabled={pending} />
+      <button type="submit" disabled={props.submitting || pending}>
+        {pending ? "Submitting..." : "Submit slow action"}
+      </button>
+      <p>useFormStatus pending: {pending ? "yes" : "no"}</p>
+      <p>
+        useFormStatus data:{" "}
+        {typeof pendingNote === "string" && pendingNote ? pendingNote : "(idle)"}
+      </p>
+    </>
   );
 }
 
