@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { resolveRouteModuleLoadState } from "../src/client/route-transition";
+import {
+  resolveLoadedRouteState,
+  resolveRouteModuleLoadState,
+} from "../src/client/route-transition";
 
 describe("route module transitions", () => {
   test("preserves the current route shell while an uncached next route module loads", () => {
@@ -63,6 +66,22 @@ describe("route module transitions", () => {
       loadedRoute: null,
       displayLocation: "https://example.com/next",
       pageState: { status: "loading" },
+    });
+  });
+
+  test("switches to the newly loaded route once the module is ready", () => {
+    expect(
+      resolveLoadedRouteState<{ id: string }, { status: string; routeId?: string }>({
+        loadedRoute: { id: "next-route" },
+        nextLocation: "https://example.com/next",
+        createBootstrapPageState(route) {
+          return { status: "idle", routeId: route.id };
+        },
+      }),
+    ).toEqual({
+      loadedRoute: { id: "next-route" },
+      displayLocation: "https://example.com/next",
+      pageState: { status: "idle", routeId: "next-route" },
     });
   });
 });

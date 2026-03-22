@@ -9,6 +9,7 @@ import { extractRouteLikeParams, matchPathname, sortByPathSpecificity } from "..
 import { installClientBindings } from "./bindings";
 import { shouldInterceptLinkNavigation, shouldPrefetchLink, toNavigationHref } from "./navigation";
 import { useResourceAction, useResourceLoader } from "./resources";
+import { resolveLoadedRouteState, resolveRouteModuleLoadState } from "./route-transition";
 import {
   RouteRuntimeProvider,
   createRouteFormComponent,
@@ -344,29 +345,42 @@ function RouteHost(props: {
     let cancelled = false;
 
     async function loadRouteModule(): Promise<void> {
-      if (!matched) {
-        setRenderedRoute(null);
-        setDisplayLocation(props.location);
-        setPageState(createEmptyPageState());
+      const routeState = resolveRouteModuleLoadState({
+        matched: Boolean(matched),
+        cachedRoute: matched ? getCachedRouteModule(matched.entry.id) : null,
+        previousRoute: renderedRouteRef.current,
+        nextLocation: props.location,
+        createEmptyPageState,
+        createBootstrapPageState(route) {
+          return createBootstrapPageState(route, url.pathname, search);
+        },
+      });
+
+      if (routeState.kind === "not-found") {
+        setRenderedRoute(routeState.loadedRoute);
+        setDisplayLocation(routeState.displayLocation);
+        setPageState(routeState.pageState);
         return;
       }
 
-      const cachedRoute = getCachedRouteModule(matched.entry.id);
-
-      if (cachedRoute) {
-        setPageState(createBootstrapPageState(cachedRoute, url.pathname, search));
-        setRenderedRoute(cachedRoute);
-        setDisplayLocation(props.location);
+      if (routeState.kind === "cached") {
+        setPageState(routeState.pageState);
+        setRenderedRoute(routeState.loadedRoute);
+        setDisplayLocation(routeState.displayLocation);
         return;
       }
 
-      if (!renderedRouteRef.current) {
-        setRenderedRoute(null);
-        setDisplayLocation(props.location);
-        setPageState(createEmptyPageState());
+      if (routeState.kind === "reset-before-load") {
+        setRenderedRoute(routeState.loadedRoute);
+        setDisplayLocation(routeState.displayLocation);
+        setPageState(routeState.pageState);
       }
 
-      const matchedEntry = matched.entry;
+      const matchedEntry = matched?.entry;
+
+      if (!matchedEntry) {
+        return;
+      }
 
       const loaded = await matchedEntry.load();
 
@@ -379,9 +393,16 @@ function RouteHost(props: {
       }
 
       setCachedRouteModule(matchedEntry.id, loaded.route);
-      setPageState(createBootstrapPageState(loaded.route, url.pathname, search));
-      setRenderedRoute(loaded.route);
-      setDisplayLocation(props.location);
+      const loadedRouteState = resolveLoadedRouteState({
+        loadedRoute: loaded.route,
+        nextLocation: props.location,
+        createBootstrapPageState(route) {
+          return createBootstrapPageState(route, url.pathname, search);
+        },
+      });
+      setPageState(loadedRouteState.pageState);
+      setRenderedRoute(loadedRouteState.loadedRoute);
+      setDisplayLocation(loadedRouteState.displayLocation);
     }
 
     void loadRouteModule();

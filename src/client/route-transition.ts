@@ -58,3 +58,19 @@ export function resolveRouteModuleLoadState<TLoadedRoute, TPageState>(options: {
     pageState: options.createEmptyPageState(),
   };
 }
+
+export function resolveLoadedRouteState<TLoadedRoute, TPageState>(options: {
+  loadedRoute: TLoadedRoute;
+  nextLocation: string;
+  createBootstrapPageState(route: TLoadedRoute): TPageState;
+}): {
+  loadedRoute: TLoadedRoute;
+  displayLocation: string;
+  pageState: TPageState;
+} {
+  return {
+    loadedRoute: options.loadedRoute,
+    displayLocation: options.nextLocation,
+    pageState: options.createBootstrapPageState(options.loadedRoute),
+  };
+}
