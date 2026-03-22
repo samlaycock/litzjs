@@ -864,10 +864,10 @@ export function defineRoute(path: string, options: DefineRouteOptions<any, any, 
     useParams: () => getRequiredRouteRuntime(path).params as PathParams<string>,
     useSearch: () => {
       const runtime = getRequiredRouteRuntime(path);
-      return [
-        runtime.search,
-        (params, options) => runtime.setSearch(params, options),
-      ] as [URLSearchParams, SetSearchParams];
+      return [runtime.search, (params, options) => runtime.setSearch(params, options)] as [
+        URLSearchParams,
+        SetSearchParams,
+      ];
     },
     useRetry: () => {
       const runtime = getRequiredRouteRuntime(path);
@@ -936,10 +936,10 @@ export function defineLayout(path: string, options: DefineLayoutOptions<any, any
     useParams: () => getRequiredRouteRuntime(path).params as PathParams<string>,
     useSearch: () => {
       const runtime = getRequiredRouteRuntime(path);
-      return [
-        runtime.search,
-        (params, options) => runtime.setSearch(params, options),
-      ] as [URLSearchParams, SetSearchParams];
+      return [runtime.search, (params, options) => runtime.setSearch(params, options)] as [
+        URLSearchParams,
+        SetSearchParams,
+      ];
     },
     useRetry: () => {
       const runtime = getRequiredRouteRuntime(path);
