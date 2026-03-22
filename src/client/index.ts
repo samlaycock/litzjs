@@ -432,10 +432,7 @@ function RouteHost(props: {
             return;
           }
 
-          setCachedLoaderResult(
-            createRouteCacheKey(entry.path, entry.params, displayedSearch),
-            withLoaderStaleState(loaderResult, false),
-          );
+          setCachedLoaderResult(entry.cacheKey, withLoaderStaleState(loaderResult, false));
 
           setPageState((current) =>
             withMatchLoaderResult(
@@ -571,6 +568,7 @@ type MatchErrorInfo = {
 type ActiveMatch = {
   id: string;
   path: string;
+  cacheKey: string;
   kind: "layout" | "route";
   component: React.ComponentType<any>;
   options?: {
@@ -625,7 +623,7 @@ function createBootstrapPageState(
     }
 
     hasAnyLoader = true;
-    const cached = getCachedLoaderResult(createRouteCacheKey(match.path, match.params, search));
+    const cached = getCachedLoaderResult(match.cacheKey);
 
     if (cached) {
       hasCachedLoader = true;
@@ -667,7 +665,7 @@ function applyCachedLoaderStateToPageState(
   let hasResolvedLoader = false;
 
   for (const match of matches) {
-    const cached = getCachedLoaderResult(createRouteCacheKey(match.path, match.params, search));
+    const cached = getCachedLoaderResult(match.cacheKey);
 
     if (cached) {
       matchStates[match.id] = {
@@ -754,10 +752,7 @@ async function reloadCurrentRoute(options: {
   for (const entry of loaderMatches) {
     try {
       const loaderResult = await fetchRouteLoader(options.route.path, baseRequest, entry.id);
-      setCachedLoaderResult(
-        createRouteCacheKey(entry.path, entry.params, options.search),
-        withLoaderStaleState(loaderResult, false),
-      );
+      setCachedLoaderResult(entry.cacheKey, withLoaderStaleState(loaderResult, false));
       options.setPageState((current) =>
         withMatchLoaderResult(
           current,
@@ -970,7 +965,7 @@ function createMatchRuntime(
       }
 
       if (result?.kind === "view") {
-        setCachedLoaderResult(createRouteCacheKey(route.path, match.params, match.search), {
+        setCachedLoaderResult(match.cacheKey, {
           kind: "view",
           status: result.status,
           headers: result.headers,
@@ -1050,22 +1045,28 @@ function buildActiveMatches(
 ): ActiveMatch[] {
   const routeParams = extractRouteParams(route.path, pathname) ?? {};
   const layouts = getLayoutChain(route.options?.layout);
-  const layoutMatches = layouts.map((layout) => ({
-    id: layout.id,
-    path: layout.path,
-    kind: "layout" as const,
-    component: layout.component,
-    options: layout.options,
-    params:
-      extractRouteParams(layout.path, pathname) ?? filterParamsForPath(routeParams, layout.path),
-    search,
-  }));
+  const layoutMatches = layouts.map((layout) => {
+    const params =
+      extractRouteParams(layout.path, pathname) ?? filterParamsForPath(routeParams, layout.path);
+
+    return {
+      id: layout.id,
+      path: layout.path,
+      cacheKey: createRouteCacheKey(layout.path, params, search),
+      kind: "layout" as const,
+      component: layout.component,
+      options: layout.options,
+      params,
+      search,
+    };
+  });
 
   return [
     ...layoutMatches,
     {
       id: route.id,
       path: route.path,
+      cacheKey: createRouteCacheKey(route.path, routeParams, search),
       kind: "route",
       component: route.component,
       options: route.options,
@@ -1250,6 +1251,10 @@ function prefetchRouteModuleForHref(
 }
 
 function withLoaderStaleState(result: LoaderHookResult, stale: boolean): LoaderHookResult {
+  if (result.stale === stale) {
+    return result;
+  }
+
   if (result.kind === "data") {
     return {
       ...result,
