@@ -8,32 +8,34 @@ export const resource = defineResource("/resource/feed/:id", {
     const loader = resource.useLoader(props);
     const action = resource.useAction(props);
     const [message, setMessage] = React.useState("");
+    const submitMessage = React.useCallback(async () => {
+      const value = message.trim();
+
+      if (!value) {
+        return;
+      }
+
+      await action.submit({ message: value }, props);
+      setMessage("");
+    }, [action, message, props]);
 
     return (
       <section>
         <h2>Resource Action Example</h2>
-        <div>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submitMessage();
+          }}
+        >
           <input
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             placeholder="New feed item"
+            name="message"
           />
-          <button
-            type="button"
-            onClick={async () => {
-              const value = message.trim();
-
-              if (!value) {
-                return;
-              }
-
-              await action.submit({ message: value }, props);
-              setMessage("");
-            }}
-          >
-            Add feed item
-          </button>
-        </div>
+          <button type="submit">Add feed item</button>
+        </form>
 
         <React.Suspense fallback={<p>Loading feed...</p>}>{loader.render()}</React.Suspense>
       </section>
