@@ -63,16 +63,8 @@ export function EnergyVisualization() {
       const path = new THREE.CatmullRomCurve3(points);
       wires.push(path);
 
-      const tubeGeometry = new THREE.TubeGeometry(
-        path,
-        200,
-        3 + i * 0.5,
-        8,
-        false
-      );
-      const originalPos = new Float32Array(
-        tubeGeometry.attributes.position.array
-      );
+      const tubeGeometry = new THREE.TubeGeometry(path, 200, 3 + i * 0.5, 8, false);
+      const originalPos = new Float32Array(tubeGeometry.attributes.position.array);
       originalPositions.push(originalPos);
 
       const wireMaterial = new THREE.MeshBasicMaterial({
@@ -100,18 +92,9 @@ export function EnergyVisualization() {
       wireIndices[i] = wireIdx;
     }
 
-    particleGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(positions, 3)
-    );
-    particleGeometry.setAttribute(
-      "aRandom",
-      new THREE.BufferAttribute(randoms, 1)
-    );
-    particleGeometry.setAttribute(
-      "aWireIdx",
-      new THREE.BufferAttribute(wireIndices, 1)
-    );
+    particleGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    particleGeometry.setAttribute("aRandom", new THREE.BufferAttribute(randoms, 1));
+    particleGeometry.setAttribute("aWireIdx", new THREE.BufferAttribute(wireIndices, 1));
 
     const particleMaterial = new THREE.ShaderMaterial({
       uniforms: {
@@ -191,12 +174,9 @@ export function EnergyVisualization() {
           const baseY = original[j + 1];
           const baseZ = original[j + 2];
 
-          const wave =
-            Math.sin(x * 0.02 + t * (2 + intensity * 8)) * intensity * 20;
+          const wave = Math.sin(x * 0.02 + t * (2 + intensity * 8)) * intensity * 20;
           array[j + 1] = baseY + wave;
-          array[j + 2] =
-            baseZ +
-            Math.cos(x * 0.015 + t * (1 + intensity * 6)) * intensity * 10;
+          array[j + 2] = baseZ + Math.cos(x * 0.015 + t * (1 + intensity * 6)) * intensity * 10;
         }
         positions.needsUpdate = true;
       });

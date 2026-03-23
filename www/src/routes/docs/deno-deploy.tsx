@@ -37,7 +37,9 @@ export default createServer({
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Deno entry point</h2>
-        <p className="text-neutral-400 mb-4">Create a Deno Deploy entry that uses the Litz handler:</p>
+        <p className="text-neutral-400 mb-4">
+          Create a Deno Deploy entry that uses the Litz handler:
+        </p>
         <CodeBlock
           language="ts"
           code={`import app from "./server.ts";
@@ -73,18 +75,15 @@ Deno.serve(async (request) => {
           <code className="text-sky-400">dist/client</code> folder as static files.
         </p>
         <p className="text-neutral-400 mb-4">
-          The Litz server handles <code className="text-sky-400">/_litz/*</code> routes and API routes,
-          while the platform serves the client bundle.
+          The Litz server handles <code className="text-sky-400">/_litz/*</code> routes and API
+          routes, while the platform serves the client bundle.
         </p>
       </section>
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Production build</h2>
         <p className="text-neutral-400 mb-4">Build the app:</p>
-        <CodeBlock
-          language="bash"
-          code={`vite build`}
-        />
+        <CodeBlock language="bash" code={`vite build`} />
         <p className="text-neutral-400 mt-4 mb-4">This generates:</p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>
@@ -114,9 +113,13 @@ Deno.serve(async (request) => {
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Verification checklist</h2>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
-          <li>App typechecks with <code className="text-sky-400">deno check</code></li>
+          <li>
+            App typechecks with <code className="text-sky-400">deno check</code>
+          </li>
           <li>Vite build completes successfully</li>
-          <li>Server entry exports a handler with <code className="text-sky-400">fetch</code> method</li>
+          <li>
+            Server entry exports a handler with <code className="text-sky-400">fetch</code> method
+          </li>
         </ul>
       </section>
 
@@ -127,10 +130,7 @@ Deno.serve(async (request) => {
         >
           &larr; Cloudflare Workers
         </Link>
-        <Link
-          href="/docs/bun"
-          className="text-sky-500 hover:text-sky-400 transition-colors"
-        >
+        <Link href="/docs/bun" className="text-sky-500 hover:text-sky-400 transition-colors">
           Bun &rarr;
         </Link>
       </div>

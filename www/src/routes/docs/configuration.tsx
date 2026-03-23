@@ -65,7 +65,8 @@ export default defineConfig({
           <code className="text-sky-400">defineRoute()</code>.
         </p>
         <p className="text-neutral-400 mb-4">
-          <strong>Default:</strong> All .ts and .tsx files in src/routes, excluding api and resources subdirectories
+          <strong>Default:</strong> All .ts and .tsx files in src/routes, excluding api and
+          resources subdirectories
         </p>
         <CodeBlock
           language="ts"
@@ -103,8 +104,8 @@ litz({
           <strong>Type:</strong> <code className="text-sky-400">string[]</code>
         </p>
         <p className="text-neutral-400 mb-4">
-          Glob patterns to discover resource files. Resources define reusable server-backed UI
-          with <code className="text-sky-400">defineResource()</code>.
+          Glob patterns to discover resource files. Resources define reusable server-backed UI with{" "}
+          <code className="text-sky-400">defineResource()</code>.
         </p>
         <p className="text-neutral-400 mb-4">
           <strong>Default:</strong> All .ts and .tsx files in src/routes/resources
@@ -146,9 +147,7 @@ litz({
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Complete example</h2>
-        <p className="text-neutral-400 mb-4">
-          A full configuration with all options:
-        </p>
+        <p className="text-neutral-400 mb-4">A full configuration with all options:</p>
         <CodeBlock
           language="ts"
           code={`import { defineConfig } from "vite";
@@ -181,10 +180,12 @@ export default defineConfig({
         </p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>
-            <code className="text-sky-400">NODE_ENV</code> — Set to <code className="text-sky-400">"production"</code> in production builds
+            <code className="text-sky-400">NODE_ENV</code> — Set to{" "}
+            <code className="text-sky-400">"production"</code> in production builds
           </li>
           <li>
-            <code className="text-sky-400">VITE_*</code> — Available in both client and server code during dev
+            <code className="text-sky-400">VITE_*</code> — Available in both client and server code
+            during dev
           </li>
         </ul>
       </section>
@@ -196,10 +197,7 @@ export default defineConfig({
         >
           &larr; Quick Start
         </Link>
-        <Link
-          href="/docs/routing"
-          className="text-sky-500 hover:text-sky-400 transition-colors"
-        >
+        <Link href="/docs/routing" className="text-sky-500 hover:text-sky-400 transition-colors">
           Routing &rarr;
         </Link>
       </div>

@@ -134,10 +134,7 @@ server.listen({ port: 3000 });`}
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Production build</h2>
-        <CodeBlock
-          language="bash"
-          code={`vite build`}
-        />
+        <CodeBlock language="bash" code={`vite build`} />
         <p className="text-neutral-400 mt-4 mb-4">This generates:</p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>
@@ -148,7 +145,8 @@ server.listen({ port: 3000 });`}
           </li>
         </ul>
         <p className="text-neutral-400 mb-4">
-          With a custom server entry, Litz outputs a self-contained server that handles all requests.
+          With a custom server entry, Litz outputs a self-contained server that handles all
+          requests.
         </p>
       </section>
 
@@ -179,10 +177,7 @@ server.listen({ port: 3000 });`}
       </section>
 
       <div className="flex justify-between pt-8 border-t border-neutral-800">
-        <Link
-          href="/docs/bun"
-          className="text-neutral-400 hover:text-sky-400 transition-colors"
-        >
+        <Link href="/docs/bun" className="text-neutral-400 hover:text-sky-400 transition-colors">
           &larr; Bun
         </Link>
         <Link

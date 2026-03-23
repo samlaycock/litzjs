@@ -1,7 +1,7 @@
 import { defineRoute } from "litz";
-import { Link } from "litz/client";
-import { EnergyVisualization } from "../components/energy-visualization";
+
 import { Button } from "../components/button";
+import { EnergyVisualization } from "../components/energy-visualization";
 
 export const route = defineRoute("/", {
   component: HomePage,
@@ -15,13 +15,12 @@ function HomePage() {
         <div className="flex-1 flex flex-col justify-center p-8 border-r border-neutral-800 md:p-12 lg:p-16">
           <div className="max-w-xl">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-sky-50 mb-6">
-              Modern React that puts the{" "}
-              <span className="text-sky-500">client first</span>
+              Modern React that puts the <span className="text-sky-500">client first</span>
             </h1>
             <p className="text-lg text-neutral-400 mb-8">
-              A client-first React framework with explicit server boundaries,
-              route loaders, actions, and reusable resources. Build full-stack
-              apps with the ergonomics of a SPA but the power of RSC when you need it.
+              A client-first React framework with explicit server boundaries, route loaders,
+              actions, and reusable resources. Build full-stack apps with the ergonomics of a SPA
+              but the power of RSC when you need it.
             </p>
             <div className="flex flex-wrap gap-4">
               <Button as="link" href="/docs">

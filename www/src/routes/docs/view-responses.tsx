@@ -79,31 +79,48 @@ function Dashboard() {
             <code className="text-sky-400">data()</code> &mdash; client renders the data, best for
             simple JSON payloads, smaller wire size, easier to cache
           </li>
-            <li>
-              <code className="text-sky-400">view()</code> — server renders a JSX fragment, best
-              for complex or sensitive UI assembly, can stream heavy content via Suspense
-            </li>
-          </ul>
-        </section>
+          <li>
+            <code className="text-sky-400">view()</code> — server renders a JSX fragment, best for
+            complex or sensitive UI assembly, can stream heavy content via Suspense
+          </li>
+        </ul>
+      </section>
 
-        <section className="mb-12">
-          <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Performance considerations</h2>
-          <p className="text-neutral-400 mb-4">
-            <code className="text-sky-400">view()</code> and <code className="text-sky-400">data()</code> have different performance characteristics:
-          </p>
-          <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
-            <li><strong>Wire size</strong> — <code className="text-sky-400">data()</code> sends JSON (smaller), <code className="text-sky-400">view()</code> sends serialized React nodes (larger but pre-rendered)</li>
-            <li><strong>Client work</strong> — <code className="text-sky-400">data()</code> requires client-side rendering, <code className="text-sky-400">view()</code> is ready to render</li>
-            <li><strong>Caching</strong> — <code className="text-sky-400">data()</code> responses are easier to cache as JSON, <code className="text-sky-400">view()</code> can use HTTP caching via <code className="text-sky-400">withHeaders()</code></li>
-            <li><strong>Streaming</strong> — <code className="text-sky-400">view()</code> supports streaming with Suspense for large or slow content</li>
-          </ul>
-          <p className="text-neutral-400 mb-4">
-            In general: start with <code className="text-sky-400">data()</code> and use <code className="text-sky-400">view()</code> when you have a specific reason to shift rendering work to the server.
-          </p>
-        </section>
+      <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Performance considerations</h2>
+        <p className="text-neutral-400 mb-4">
+          <code className="text-sky-400">view()</code> and{" "}
+          <code className="text-sky-400">data()</code> have different performance characteristics:
+        </p>
+        <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
+          <li>
+            <strong>Wire size</strong> — <code className="text-sky-400">data()</code> sends JSON
+            (smaller), <code className="text-sky-400">view()</code> sends serialized React nodes
+            (larger but pre-rendered)
+          </li>
+          <li>
+            <strong>Client work</strong> — <code className="text-sky-400">data()</code> requires
+            client-side rendering, <code className="text-sky-400">view()</code> is ready to render
+          </li>
+          <li>
+            <strong>Caching</strong> — <code className="text-sky-400">data()</code> responses are
+            easier to cache as JSON, <code className="text-sky-400">view()</code> can use HTTP
+            caching via <code className="text-sky-400">withHeaders()</code>
+          </li>
+          <li>
+            <strong>Streaming</strong> — <code className="text-sky-400">view()</code> supports
+            streaming with Suspense for large or slow content
+          </li>
+        </ul>
+        <p className="text-neutral-400 mb-4">
+          In general: start with <code className="text-sky-400">data()</code> and use{" "}
+          <code className="text-sky-400">view()</code> when you have a specific reason to shift
+          rendering work to the server.
+        </p>
+      </section>
 
-        <section className="mb-12">
-          <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Consuming view results</h2>
+      <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Consuming view results</h2>
         <p className="text-neutral-400 mb-4">
           Litz provides three hooks for consuming view results:
         </p>

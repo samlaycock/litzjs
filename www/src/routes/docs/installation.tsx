@@ -52,7 +52,8 @@ pnpm add -D react react-dom typescript @vitejs/plugin-rsc`}
         />
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mt-4 mb-4">
           <li>
-            <code className="text-sky-400">react</code> and <code className="text-sky-400">react-dom</code> — React 19
+            <code className="text-sky-400">react</code> and{" "}
+            <code className="text-sky-400">react-dom</code> — React 19
           </li>
           <li>
             <code className="text-sky-400">typescript</code> — TypeScript 5+
@@ -82,7 +83,11 @@ export default defineConfig({
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Next steps</h2>
         <p className="text-neutral-400 mb-4">
-          Head to the <Link href="/docs/configuration" className="text-sky-400 hover:text-sky-300">Configuration</Link> page to customize route discovery patterns and server entry options.
+          Head to the{" "}
+          <Link href="/docs/configuration" className="text-sky-400 hover:text-sky-300">
+            Configuration
+          </Link>{" "}
+          page to customize route discovery patterns and server entry options.
         </p>
       </section>
 

@@ -83,10 +83,7 @@ Bun.serve({
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Production build</h2>
-        <CodeBlock
-          language="bash"
-          code={`vite build`}
-        />
+        <CodeBlock language="bash" code={`vite build`} />
         <p className="text-neutral-400 mt-4 mb-4">Output:</p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>
@@ -129,10 +126,7 @@ Bun.serve({
         >
           &larr; Deno Deploy
         </Link>
-        <Link
-          href="/docs/node"
-          className="text-sky-500 hover:text-sky-400 transition-colors"
-        >
+        <Link href="/docs/node" className="text-sky-500 hover:text-sky-400 transition-colors">
           Node.js &rarr;
         </Link>
       </div>

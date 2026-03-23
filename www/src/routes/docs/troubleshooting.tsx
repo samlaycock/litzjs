@@ -12,9 +12,7 @@ function DocsTroubleshootingPage() {
     <>
       <title>Troubleshooting | Litz</title>
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">Troubleshooting</h1>
-      <p className="text-xl text-neutral-300 mb-8">
-        Common issues and how to resolve them.
-      </p>
+      <p className="text-xl text-neutral-300 mb-8">Common issues and how to resolve them.</p>
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Loader not running</h2>
@@ -27,7 +25,8 @@ function DocsTroubleshootingPage() {
             <code className="text-sky-400">server()</code> to run on the server
           </li>
           <li>
-            <strong>Route not discovered</strong> — Ensure your route file matches the discovery pattern
+            <strong>Route not discovered</strong> — Ensure your route file matches the discovery
+            pattern
           </li>
           <li>
             <strong>defineRoute not exported</strong> — The route must export a{" "}
@@ -55,12 +54,11 @@ export const route = defineRoute("/users", {
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Action not firing</h2>
-        <p className="text-neutral-400 mb-4">
-          If your form action doesn't trigger:
-        </p>
+        <p className="text-neutral-400 mb-4">If your form action doesn't trigger:</p>
         <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
           <li>
-            <strong>Use route.Form or resource.Form</strong> — Regular HTML forms won't trigger actions
+            <strong>Use route.Form or resource.Form</strong> — Regular HTML forms won't trigger
+            actions
           </li>
           <li>
             <strong>Check method attribute</strong> — Actions respond to{" "}
@@ -92,18 +90,15 @@ function MyPage() {
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">404 on valid route</h2>
-        <p className="text-neutral-400 mb-4">
-          If you're getting 404s on routes that should exist:
-        </p>
+        <p className="text-neutral-400 mb-4">If you're getting 404s on routes that should exist:</p>
         <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
           <li>
             <strong>Check file location</strong> — Routes must be in{" "}
             <code className="text-sky-400">src/routes/</code> (or your configured routes directory)
           </li>
           <li>
-            <strong>File extension matters</strong> — Use{" "}
-            <code className="text-sky-400">.tsx</code> for components,{" "}
-            <code className="text-sky-400">.ts</code> for API routes
+            <strong>File extension matters</strong> — Use <code className="text-sky-400">.tsx</code>{" "}
+            for components, <code className="text-sky-400">.ts</code> for API routes
           </li>
           <li>
             <strong>Path must match defineRoute</strong> — The path in{" "}
@@ -116,35 +111,36 @@ function MyPage() {
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Type errors with route hooks</h2>
-        <p className="text-neutral-400 mb-4">
-          If TypeScript can't infer types:
-        </p>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">
+          Type errors with route hooks
+        </h2>
+        <p className="text-neutral-400 mb-4">If TypeScript can't infer types:</p>
         <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
           <li>
             <strong>Use server() wrapper</strong> — Type inference requires the{" "}
             <code className="text-sky-400">server()</code> wrapper on loaders/actions
           </li>
           <li>
-            <strong>Check your data() returns</strong> — Ensure you're returning proper shapes from loaders
+            <strong>Check your data() returns</strong> — Ensure you're returning proper shapes from
+            loaders
           </li>
           <li>
-            <strong>Route must be module-exported</strong> — The route needs to be exported as a constant
+            <strong>Route must be module-exported</strong> — The route needs to be exported as a
+            constant
           </li>
         </ul>
       </section>
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">HMR not working</h2>
-        <p className="text-neutral-400 mb-4">
-          If hot module replacement isn't working:
-        </p>
+        <p className="text-neutral-400 mb-4">If hot module replacement isn't working:</p>
         <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
           <li>
             <strong>Check console for errors</strong> — Vite errors can break HMR
           </li>
           <li>
-            <strong>File must be in routes/api/resources</strong> — Changes to other files may not trigger HMR
+            <strong>File must be in routes/api/resources</strong> — Changes to other files may not
+            trigger HMR
           </li>
           <li>
             <strong>Try restarting dev server</strong> — Sometimes gets into a broken state
@@ -154,15 +150,15 @@ function MyPage() {
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Context is undefined</h2>
-        <p className="text-neutral-400 mb-4">
-          If context is undefined in your handlers:
-        </p>
+        <p className="text-neutral-400 mb-4">If context is undefined in your handlers:</p>
         <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
           <li>
-            <strong>Check createServer has createContext</strong> — Context must be defined in your server entry
+            <strong>Check createServer has createContext</strong> — Context must be defined in your
+            server entry
           </li>
           <li>
-            <strong>Production build context</strong> — In production, ensure your server entry is being used
+            <strong>Production build context</strong> — In production, ensure your server entry is
+            being used
           </li>
         </ul>
         <CodeBlock
@@ -181,9 +177,7 @@ export default createServer({
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Getting help</h2>
-        <p className="text-neutral-400 mb-4">
-          If you're still stuck:
-        </p>
+        <p className="text-neutral-400 mb-4">If you're still stuck:</p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>Check the browser console for runtime errors</li>
           <li>Check the terminal for server-side errors</li>
