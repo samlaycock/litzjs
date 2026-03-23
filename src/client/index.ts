@@ -369,7 +369,7 @@ function RouteHost(props: {
       cancelled = true;
     };
   }, [activeRouteState, navigate, renderedRoute]);
-  const activeMatches = activeRouteState?.activeMatches ?? [];
+  const activeMatches: ActiveMatch[] = activeRouteState?.activeMatches ?? [];
   const matchesValue = activeMatches;
   const reloadImpl = React.useCallback(
     (mode?: "loading" | "revalidating") =>
