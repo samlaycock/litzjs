@@ -270,23 +270,33 @@ function RouteHost(props: {
     () => new URLSearchParams(displayedUrl.search),
     [displayedUrl.search],
   );
+  const activeRouteState = React.useMemo(() => {
+    if (!renderedRoute) {
+      return null;
+    }
+
+    const activeMatches = buildActiveMatches(renderedRoute, displayedUrl.pathname, displayedSearch);
+
+    return {
+      activeMatches,
+      loaderMatches: activeMatches.filter((entry) => Boolean(entry.options?.loader)),
+      baseRequest: {
+        params: extractRouteParams(renderedRoute.path, displayedUrl.pathname) ?? {},
+        search: displayedSearch,
+      },
+    };
+  }, [displayedSearch, displayedUrl.pathname, renderedRoute]);
 
   React.useEffect(() => {
-    if (!renderedRoute) {
+    if (!renderedRoute || !activeRouteState) {
       return;
     }
 
     let cancelled = false;
-    const activeMatches = buildActiveMatches(renderedRoute, displayedUrl.pathname, displayedSearch);
-
-    const baseRequest = {
-      params: extractRouteParams(renderedRoute.path, displayedUrl.pathname) ?? {},
-      search: displayedSearch,
-    };
+    const { loaderMatches, baseRequest } = activeRouteState;
+    const finalLoaderMatchId = loaderMatches[loaderMatches.length - 1]?.id;
 
     const reload = async (mode: "loading" | "revalidating" = "loading") => {
-      const loaderMatches = activeMatches.filter((entry) => Boolean(entry.options?.loader));
-
       if (loaderMatches.length === 0) {
         if (!cancelled) {
           setPageState((current) => ({
@@ -317,8 +327,8 @@ function RouteHost(props: {
               current,
               entry.id,
               loaderResult,
-              entry === loaderMatches[loaderMatches.length - 1] ? "idle" : current.status,
-              entry === loaderMatches[loaderMatches.length - 1] ? false : current.pending,
+              entry.id === finalLoaderMatchId ? "idle" : current.status,
+              entry.id === finalLoaderMatchId ? false : current.pending,
             ),
           );
         } catch (error) {
@@ -352,23 +362,22 @@ function RouteHost(props: {
     return () => {
       cancelled = true;
     };
-  }, [displayedSearch, displayedUrl.pathname, navigate, renderedRoute]);
-  const activeMatches = React.useMemo(
-    () =>
+  }, [activeRouteState, navigate, renderedRoute]);
+  const activeMatches = activeRouteState?.activeMatches ?? [];
+  const matchesValue = activeMatches;
+  const reloadImpl = React.useCallback(
+    (mode?: "loading" | "revalidating") =>
       renderedRoute
-        ? buildActiveMatches(renderedRoute, displayedUrl.pathname, displayedSearch)
-        : [],
-    [displayedSearch, displayedUrl.pathname, renderedRoute],
-  );
-  const matchesValue = React.useMemo(
-    () =>
-      activeMatches.map((entry) => ({
-        id: entry.id,
-        path: entry.path,
-        params: entry.params,
-        search: displayedSearch,
-      })),
-    [activeMatches, displayedSearch],
+        ? reloadCurrentRoute({
+            route: renderedRoute,
+            pathname: displayedUrl.pathname,
+            search: displayedSearch,
+            navigate,
+            setPageState,
+            mode,
+          })
+        : Promise.resolve(),
+    [displayedSearch, displayedUrl.pathname, navigate, renderedRoute, setPageState],
   );
 
   if (!matched) {
@@ -385,15 +394,7 @@ function RouteHost(props: {
     pageState,
     displayLocation,
     navigate,
-    (mode?: "loading" | "revalidating") =>
-      reloadCurrentRoute({
-        route: renderedRoute,
-        pathname: displayedUrl.pathname,
-        search: displayedSearch,
-        navigate,
-        setPageState,
-        mode,
-      }),
+    reloadImpl,
     setPageState,
   );
 
@@ -689,16 +690,6 @@ function renderMatchChain(
       continue;
     }
 
-    const runtime = createMatchRuntime(
-      match,
-      route,
-      pageState,
-      location,
-      navigate,
-      reloadImpl,
-      setPageState,
-    );
-
     let content: React.ReactElement;
 
     if (errorBoundaryIndex !== null && index === errorBoundaryIndex) {
@@ -723,9 +714,16 @@ function renderMatchChain(
     }
 
     node = React.createElement(
-      RouteRuntimeProvider,
+      MatchRuntimeBoundary,
       {
-        value: runtime,
+        key: match.id,
+        match,
+        route,
+        pageState,
+        location,
+        navigate,
+        reloadImpl,
+        setPageState,
       },
       content,
     );
@@ -799,42 +797,62 @@ function DefaultRouteErrorPage(props: {
   );
 }
 
-function createMatchRuntime(
-  match: ActiveMatch,
-  route: LoadedRoute,
-  pageState: PageState,
-  location: string,
-  navigate: (next: string, replace?: boolean) => void,
-  reloadImpl: (mode?: "loading" | "revalidating") => Promise<void>,
-  setPageState: React.Dispatch<React.SetStateAction<PageState>>,
-): RouteRuntimeState {
-  const loaderResult = pageState.matchStates[match.id]?.loaderResult ?? null;
+function MatchRuntimeBoundary(props: {
+  match: ActiveMatch;
+  route: LoadedRoute;
+  pageState: PageState;
+  location: string;
+  navigate: (next: string, replace?: boolean) => void;
+  reloadImpl: (mode?: "loading" | "revalidating") => Promise<void>;
+  setPageState: React.Dispatch<React.SetStateAction<PageState>>;
+  children?: React.ReactNode;
+}): React.ReactElement {
+  const runtime = useMatchRuntime(props);
 
-  return {
-    id: match.id,
-    params: match.params,
-    search: match.search,
-    setSearch(updates, options) {
+  return React.createElement(
+    RouteRuntimeProvider,
+    {
+      value: runtime,
+    },
+    props.children,
+  );
+}
+
+function useMatchRuntime(options: {
+  match: ActiveMatch;
+  route: LoadedRoute;
+  pageState: PageState;
+  location: string;
+  navigate: (next: string, replace?: boolean) => void;
+  reloadImpl: (mode?: "loading" | "revalidating") => Promise<void>;
+  setPageState: React.Dispatch<React.SetStateAction<PageState>>;
+}): RouteRuntimeState {
+  const { match, route, pageState, location, navigate, reloadImpl, setPageState } = options;
+  const loaderResult = pageState.matchStates[match.id]?.loaderResult ?? null;
+  const actionResult = match.kind === "route" ? pageState.actionResult : null;
+  const view = loaderResult?.kind === "view" ? loaderResult.node : null;
+
+  const setSearch = React.useCallback<RouteRuntimeState["setSearch"]>(
+    (updates, submitOptions) => {
       const result = applySearchParams(new URL(location), updates);
 
       if (!result.changed) {
         return;
       }
 
-      navigate(result.href, options?.replace);
+      navigate(result.href, submitOptions?.replace);
     },
-    status: pageState.status,
-    pending: pageState.pending,
-    loaderResult,
-    actionResult: match.kind === "route" ? pageState.actionResult : null,
-    view: loaderResult?.kind === "view" ? loaderResult.node : null,
-    async submit(payload: FormData | Record<string, unknown>, options?: SubmitOptions) {
+    [location, navigate],
+  );
+
+  const submit = React.useCallback<RouteRuntimeState["submit"]>(
+    async (payload, submitOptions) => {
       if (match.kind !== "route" || !route.options?.action) {
         throw new Error(`Route "${match.path}" does not define an action.`);
       }
 
       const formData = createFormDataPayload(payload);
-      options?.onBeforeSubmit?.(formData);
+      submitOptions?.onBeforeSubmit?.(formData);
 
       setPageState((current) => ({
         ...current,
@@ -852,7 +870,7 @@ function createMatchRuntime(
       );
 
       if (result?.kind === "redirect") {
-        navigate(result.location, options?.replace ?? result.replace);
+        navigate(result.location, submitOptions?.replace ?? result.replace);
         return;
       }
 
@@ -900,23 +918,57 @@ function createMatchRuntime(
         }));
       }
 
-      if (result && shouldRevalidateAfterSubmit(route, result.headers, options?.revalidate)) {
+      if (result && shouldRevalidateAfterSubmit(route, result.headers, submitOptions?.revalidate)) {
         await reloadImpl("revalidating");
       }
 
       if (result?.kind === "error" || result?.kind === "fault") {
-        options?.onError?.(result);
+        submitOptions?.onError?.(result);
       } else if (result) {
-        options?.onSuccess?.(result);
+        submitOptions?.onSuccess?.(result);
       }
     },
-    reload() {
-      void reloadImpl("revalidating");
-    },
-    retry() {
-      void reloadImpl("loading");
-    },
-  };
+    [match, navigate, reloadImpl, route, setPageState],
+  );
+
+  const reload = React.useCallback(() => {
+    void reloadImpl("revalidating");
+  }, [reloadImpl]);
+
+  const retry = React.useCallback(() => {
+    void reloadImpl("loading");
+  }, [reloadImpl]);
+
+  return React.useMemo(
+    () => ({
+      id: match.id,
+      params: match.params,
+      search: match.search,
+      setSearch,
+      status: pageState.status,
+      pending: pageState.pending,
+      loaderResult,
+      actionResult,
+      view,
+      submit,
+      reload,
+      retry,
+    }),
+    [
+      actionResult,
+      loaderResult,
+      match.id,
+      match.params,
+      match.search,
+      pageState.pending,
+      pageState.status,
+      reload,
+      retry,
+      setSearch,
+      submit,
+      view,
+    ],
+  );
 }
 
 function getLayoutChain(layout: LoadedLayout | undefined): LoadedLayout[] {
