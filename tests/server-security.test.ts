@@ -56,7 +56,7 @@ describe("server security", () => {
     headers.set("host", "app.example.com");
     headers.set("origin", "https://app.example.com");
 
-    const response = await server(
+    const response = await server.fetch(
       new Request("https://app.example.com/_litz/action", {
         method: "POST",
         headers,
@@ -132,7 +132,7 @@ describe("server security", () => {
       headers: actionRequest.headers,
       body: actionRequest.body,
     });
-    const response = await server(request);
+    const response = await server.fetch(request);
     const body = (await response.json()) as {
       kind: "data";
       data: {
@@ -162,7 +162,7 @@ describe("server security", () => {
       },
     });
 
-    const response = await server(new Request("https://app.example.com/api/private"));
+    const response = await server.fetch(new Request("https://app.example.com/api/private"));
     const body = await response.text();
 
     expect(response.status).toBe(500);

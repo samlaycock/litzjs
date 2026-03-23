@@ -587,7 +587,7 @@ export type LitzLayout<
   } & ([TLoaderResult] extends [never] ? {} : LayoutLoaderClientHooks<TLoaderResult>)
 >;
 
-type LayoutReference = {
+export type LayoutReference = {
   id: string;
   path: string;
   component: React.JSXElementConstructor<{ children: React.ReactNode }>;

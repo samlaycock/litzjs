@@ -93,10 +93,10 @@ export type CreateServerOptions<TContext = unknown> = {
 
 export function createServer<TContext = unknown>(
   options: CreateServerOptions<TContext> = {},
-): (request: Request) => Promise<Response> {
+): { fetch(request: Request): Promise<Response> } {
   const manifest = options.manifest ?? {};
 
-  return async function handle(request: Request): Promise<Response> {
+  async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
     let contextLoaded = false;
     let contextValue: TContext | undefined;
@@ -154,7 +154,9 @@ export function createServer<TContext = unknown>(
         },
       });
     }
-  };
+  }
+
+  return { fetch: handle };
 }
 
 async function createDocumentResponse(

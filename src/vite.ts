@@ -2099,7 +2099,7 @@ function createInlineAssetServerWrapper(
     "  return accept.includes('text/html') || accept.includes('*/*');",
     "}",
     "",
-    "export default async function handle(request) {",
+    "async function handle(request) {",
     "  const url = new URL(request.url);",
     "  const asset = LITZ_CLIENT_ASSETS.get(url.pathname);",
     "",
@@ -2116,8 +2116,10 @@ function createInlineAssetServerWrapper(
     "    });",
     "  }",
     "",
-    `  return ${handlerName}(request);`,
+    `  return ${handlerName}.fetch(request);`,
     "}",
+    "",
+    "export default { fetch: handle };",
     "",
   ].join("\n");
 }

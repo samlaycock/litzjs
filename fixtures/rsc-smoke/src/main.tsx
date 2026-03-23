@@ -8,4 +8,4 @@ if (!root) {
   throw new Error('Fixture root element "#app" was not found.');
 }
 
-mountApp(root, AppShell);
+mountApp(root, { component: AppShell });

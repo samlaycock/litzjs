@@ -1,7 +1,7 @@
 import * as React from "react";
 import { routeManifest } from "virtual:litz:route-manifest";
 
-import type { ActionHookResult, LoaderHookResult, SubmitOptions } from "../index";
+import type { ActionHookResult, LayoutReference, LoaderHookResult, SubmitOptions } from "../index";
 import type { RouteRuntimeState } from "./runtime";
 
 import { createFormDataPayload } from "../form-data";
@@ -204,11 +204,19 @@ function getLocationContext(): React.Context<{
 
 export function mountApp(
   element: Element,
-  wrapper?: React.JSXElementConstructor<{ children: React.ReactNode }>,
+  options?: {
+    component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
+    layout?: LayoutReference;
+  },
 ): void {
   void import("react-dom/client").then(({ createRoot }) => {
     const root = createRoot(element);
-    root.render(React.createElement(LitzApp, { wrapper }));
+    root.render(
+      React.createElement(LitzApp, {
+        component: options?.component,
+        layout: options?.layout,
+      }),
+    );
   });
 }
 
@@ -262,7 +270,8 @@ export const Link = createLinkComponent({
 });
 
 function LitzApp(props: {
-  wrapper?: React.JSXElementConstructor<{ children: React.ReactNode }>;
+  component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
+  layout?: LayoutReference;
 }): React.ReactElement {
   const [location, setLocation] = React.useState(() => window.location.href);
 
@@ -307,11 +316,15 @@ function LitzApp(props: {
     };
   }, [location]);
 
-  const content = React.createElement(RouteHost, {
+  const routeHost = React.createElement(RouteHost, {
     location,
     navigate,
-    wrapper: props.wrapper,
+    component: props.component,
   });
+
+  const content = props.layout
+    ? React.createElement(props.layout.component, null, routeHost)
+    : routeHost;
 
   return React.createElement(
     getNavigationContext().Provider,
@@ -331,7 +344,7 @@ function LitzApp(props: {
 function RouteHost(props: {
   location: string;
   navigate(this: void, next: string, replace?: boolean): void;
-  wrapper?: React.JSXElementConstructor<{ children: React.ReactNode }>;
+  component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
 }): React.ReactElement {
   const navigate = React.useCallback(
     (next: string, replace?: boolean) => {
@@ -497,7 +510,7 @@ function RouteHost(props: {
     {
       value: matchesValue,
     },
-    props.wrapper ? React.createElement(props.wrapper, null, content) : content,
+    props.component ? React.createElement(props.component, null, content) : content,
   );
 }
 
