@@ -613,6 +613,27 @@ export default createServer();
 
 The Vite plugin injects the discovered server manifest automatically into that entry.
 
+## Security Model
+
+Volt's server boundaries are explicit, but they are still normal server request surfaces.
+
+- Route loaders and actions are server handlers.
+- Resource loaders and actions are server handlers.
+- API routes are raw HTTP handlers.
+- The `/_volt/*` transport used by the client runtime is an implementation detail, not a private trust boundary.
+
+That means Volt apps should treat route loaders, actions, resources, and API routes like any other
+server endpoint:
+
+- authenticate and authorize inside middleware or handlers
+- validate params, search params, headers, and form/body input
+- apply CSRF protections when using cookie-backed auth for writes
+- do not assume a request came from Volt just because it arrived through `/_volt/*`
+
+Volt may serve `index.html` itself, but it also supports deployments where the document is served
+statically or by a custom server. Security decisions must not depend on the document coming from
+Volt.
+
 ## Result Helpers
 
 Server handlers can return these helpers:
