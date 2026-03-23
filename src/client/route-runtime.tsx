@@ -183,49 +183,6 @@ export function useRequiredRouteActions(routeId: string): RouteActionsState {
   return requireActiveRouteSlice(routeId, React.useContext(getRouteActionsContext()));
 }
 
-export function useRequiredRouteRuntime(routeId: string): RouteRuntimeState {
-  const location = useRequiredRouteLocation(routeId);
-  const status = useRequiredRouteStatus(routeId);
-  const data = useRequiredRouteData(routeId);
-  const actions = useRequiredRouteActions(routeId);
-
-  return React.useMemo(
-    () => ({
-      ...location,
-      ...status,
-      ...data,
-      ...actions,
-    }),
-    [actions, data, location, status],
-  );
-}
-
-export function createPendingRuntimeState(routeId: string): RouteRuntimeState {
-  return {
-    id: routeId,
-    params: {},
-    search: new URLSearchParams(),
-    setSearch() {
-      throw new Error(`Route "${routeId}" cannot update search params before it is mounted.`);
-    },
-    status: "loading",
-    pending: true,
-    loaderResult: null,
-    actionResult: null,
-    data: null,
-    view: null,
-    submit: async () => {
-      throw new Error(`Route "${routeId}" is not ready to submit.`);
-    },
-    reload() {
-      throw new Error(`Route "${routeId}" cannot reload before it is mounted.`);
-    },
-    retry() {
-      throw new Error(`Route "${routeId}" cannot retry before it is mounted.`);
-    },
-  };
-}
-
 export function createRouteFormComponent(routeId: string): React.ComponentType<RouteFormProps> {
   const cached = routeFormComponentCache.get(routeId);
 

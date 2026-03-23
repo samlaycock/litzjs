@@ -58,16 +58,4 @@ function appendFormDataValue(formData: FormData, key: string, value: unknown): v
     formData.append(key, String(value));
     return;
   }
-
-  if (typeof value === "symbol") {
-    formData.append(key, value.description ?? value.toString());
-    return;
-  }
-
-  if (typeof value === "function") {
-    formData.append(key, value.name || "[function]");
-    return;
-  }
-
-  formData.append(key, JSON.stringify(value) ?? "");
 }

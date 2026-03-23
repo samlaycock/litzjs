@@ -129,62 +129,6 @@ export async function parseActionResponse(response: Response): Promise<ActionHoo
   }
 }
 
-export function serializePayload(
-  payload?: FormData | Record<string, unknown>,
-): { type: "form-data" | "object"; entries: Array<[string, string]> } | null {
-  if (!payload) {
-    return null;
-  }
-
-  if (payload instanceof FormData) {
-    return {
-      type: "form-data",
-      entries: Array.from(payload.entries()).map(([key, value]) => [
-        key,
-        serializePayloadValue(value),
-      ]),
-    };
-  }
-
-  const entries: Array<[string, string]> = [];
-
-  for (const [key, value] of Object.entries(payload)) {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        entries.push([key, serializePayloadValue(item)]);
-      }
-      continue;
-    }
-
-    entries.push([key, serializePayloadValue(value)]);
-  }
-
-  return {
-    type: "object",
-    entries,
-  };
-}
-
-function serializePayloadValue(value: unknown): string {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
-    return String(value);
-  }
-
-  if (value == null) {
-    return "";
-  }
-
-  if (value instanceof File) {
-    return value.name;
-  }
-
-  return JSON.stringify(value);
-}
-
 export async function createViewResult(
   response: Response,
   publicHeaders = createPublicResultHeaders(response.headers),
