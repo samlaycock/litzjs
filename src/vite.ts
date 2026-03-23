@@ -3,6 +3,7 @@ import type { TLSSocket } from "node:tls";
 import type { Connect, Plugin, ViteDevServer } from "vite";
 
 import vitePluginRsc from "@vitejs/plugin-rsc";
+import { spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -60,7 +61,6 @@ const LITZ_BROWSER_ENTRY_ID = "virtual:litz:browser-entry";
 const RESOLVED_LITZ_BROWSER_ENTRY_ID = "\0virtual:litz:browser-entry";
 const LITZ_RSC_RENDERER_ID = "virtual:litz:rsc-renderer";
 const RESOLVED_LITZ_RSC_RENDERER_ID = "\0virtual:litz:rsc-renderer";
-let hasScheduledServerCleanup = false;
 
 export function litz(options: LitzPluginOptions = {}): Plugin[] {
   let root = process.cwd();
@@ -76,6 +76,8 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
   let resourceManifest: DiscoveredResource[] = [];
   let apiManifest: DiscoveredApiRoute[] = [];
   let clientProjectedFiles = new Set<string>();
+  let hasFinalizedServerArtifacts = false;
+  let hasRegisteredExitFinalizer = false;
   const routePatterns = options.routes ?? [
     "src/routes/**/*.{ts,tsx}",
     "!src/routes/api/**/*.{ts,tsx}",
@@ -341,7 +343,27 @@ export async function renderView(node, metadata = {}) {
         removeLegacyBuildArtifacts(outputRootDir),
       ]);
 
-      scheduleServerArtifactFinalization(
+      if (hasFinalizedServerArtifacts) {
+        return;
+      }
+
+      if (!hasRegisteredExitFinalizer) {
+        hasRegisteredExitFinalizer = true;
+        process.once("exit", () => {
+          if (hasFinalizedServerArtifacts) {
+            return;
+          }
+
+          hasFinalizedServerArtifacts = finalizeServerArtifacts(
+            serverOutDir,
+            serverRscOutDir,
+            clientOutDir,
+            !serverEntryPath,
+          );
+        });
+      }
+
+      hasFinalizedServerArtifacts = finalizeServerArtifacts(
         serverOutDir,
         serverRscOutDir,
         clientOutDir,
@@ -400,11 +422,21 @@ async function discoverBrowserEntry(root: string): Promise<string> {
   }
 }
 
-async function discoverServerEntry(root: string, configuredPath?: string): Promise<string | null> {
-  const candidate = configuredPath ?? "src/server/index.ts";
-  const absolutePath = path.resolve(root, candidate);
+export async function discoverServerEntry(
+  root: string,
+  configuredPath?: string,
+): Promise<string | null> {
+  const candidates = configuredPath ? [configuredPath] : ["src/server.ts", "src/server/index.ts"];
 
-  return ts.sys.fileExists(absolutePath) ? normalizeRelativePath(root, absolutePath) : null;
+  for (const candidate of candidates) {
+    const absolutePath = path.resolve(root, candidate);
+
+    if (ts.sys.fileExists(absolutePath)) {
+      return normalizeRelativePath(root, absolutePath);
+    }
+  }
+
+  return null;
 }
 
 async function discoverRoutes(root: string, patterns: string[]): Promise<DiscoveredRoute[]> {
@@ -1725,28 +1757,12 @@ async function removeLegacyBuildArtifacts(outputRootDir: string): Promise<void> 
   ]);
 }
 
-function scheduleServerArtifactFinalization(
-  serverOutDir: string,
-  serverRscOutDir: string,
-  clientOutDir: string,
-  inlineClientAssets = true,
-): void {
-  if (hasScheduledServerCleanup) {
-    return;
-  }
-
-  hasScheduledServerCleanup = true;
-  process.once("beforeExit", () => {
-    finalizeServerArtifacts(serverOutDir, serverRscOutDir, clientOutDir, inlineClientAssets);
-  });
-}
-
 function finalizeServerArtifacts(
   serverOutDir: string,
   serverRscOutDir: string,
   clientOutDir: string,
   inlineClientAssets: boolean,
-): void {
+): boolean {
   const rscIndexPath = path.join(serverRscOutDir, "index.mjs");
   const rscAssetsManifestPath = path.join(serverRscOutDir, "__vite_rsc_assets_manifest.js");
   let rscEntrySource: string;
@@ -1765,7 +1781,7 @@ function finalizeServerArtifacts(
       clientAssets = collectEmbeddedClientAssets(clientOutDir);
     }
   } catch {
-    return;
+    return false;
   }
 
   const manifestBindingSource = rscAssetsManifestSource.replace(
@@ -1806,12 +1822,18 @@ function finalizeServerArtifacts(
   const wrapperSource = inlineClientAssets
     ? createInlineAssetServerWrapper(inlinedServerSource, documentHtml, clientAssets)
     : createServerModuleWrapper(inlinedServerSource);
+  const bundledWrapperSource = bundleServerWrapper(serverRscOutDir, wrapperSource);
+
+  if (!bundledWrapperSource) {
+    return false;
+  }
 
   mkdirSync(serverOutDir, { recursive: true });
-  writeFileSync(path.join(serverOutDir, "index.js"), wrapperSource, "utf8");
+  writeFileSync(path.join(serverOutDir, "index.js"), bundledWrapperSource, "utf8");
 
   rmSync(serverRscOutDir, { force: true, recursive: true });
   rmSync(path.join(serverOutDir, "_ssr"), { force: true, recursive: true });
+  return true;
 }
 
 function createServerModuleWrapper(serverModuleSource: string): string {
@@ -1819,35 +1841,199 @@ function createServerModuleWrapper(serverModuleSource: string): string {
   return [source, "", `export default ${handlerName};`, ""].join("\n");
 }
 
-function transformServerModuleSource(serverModuleSource: string): {
+export function transformServerModuleSource(serverModuleSource: string): {
   source: string;
   handlerName: string;
 } {
   const handlerName = "__litzServerHandler";
-  let transformed = serverModuleSource;
-
-  transformed = transformed.replace(
-    /export\s*\{\s*([A-Za-z0-9_$]+)\s+as\s+default\s*\};?\s*$/m,
-    `const ${handlerName} = $1;`,
+  const sourceFile = ts.createSourceFile(
+    "server/index.js",
+    serverModuleSource,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS,
   );
+  const transformedStatements: ts.Statement[] = [];
+  let defaultBinding: ts.Expression | null = null;
+  let handlerDeclared = false;
 
-  if (transformed === serverModuleSource) {
-    transformed = transformed.replace(
-      /export default\s+async function\s+([A-Za-z0-9_$]+)\s*\(/,
-      `const ${handlerName} = async function $1(`,
+  const setDefaultBinding = (expression: ts.Expression): void => {
+    if (defaultBinding) {
+      throw new Error("Expected a single default export in the bundled Litz server module.");
+    }
+
+    defaultBinding = expression;
+  };
+
+  const createHandlerDeclaration = (expression: ts.Expression): ts.VariableStatement =>
+    ts.factory.createVariableStatement(
+      undefined,
+      ts.factory.createVariableDeclarationList(
+        [
+          ts.factory.createVariableDeclaration(
+            ts.factory.createIdentifier(handlerName),
+            undefined,
+            undefined,
+            expression,
+          ),
+        ],
+        ts.NodeFlags.Const,
+      ),
     );
+
+  const stripExportModifiers = (modifiers: readonly ts.ModifierLike[] | undefined): ts.Modifier[] =>
+    (modifiers?.filter(
+      (modifier) =>
+        modifier.kind !== ts.SyntaxKind.DefaultKeyword &&
+        modifier.kind !== ts.SyntaxKind.ExportKeyword,
+    ) as ts.Modifier[]) ?? [];
+
+  for (const statement of sourceFile.statements) {
+    if (
+      ts.isExportDeclaration(statement) &&
+      statement.exportClause &&
+      ts.isNamedExports(statement.exportClause)
+    ) {
+      const remainingElements: ts.ExportSpecifier[] = [];
+
+      for (const element of statement.exportClause.elements) {
+        if (element.name.text === "default" && !statement.moduleSpecifier) {
+          setDefaultBinding(
+            ts.factory.createIdentifier(element.propertyName?.text ?? element.name.text),
+          );
+          continue;
+        }
+
+        remainingElements.push(element);
+      }
+
+      if (remainingElements.length === statement.exportClause.elements.length) {
+        transformedStatements.push(statement);
+        continue;
+      }
+
+      if (remainingElements.length > 0) {
+        transformedStatements.push(
+          ts.factory.updateExportDeclaration(
+            statement,
+            statement.modifiers,
+            statement.isTypeOnly,
+            ts.factory.updateNamedExports(statement.exportClause, remainingElements),
+            statement.moduleSpecifier,
+            statement.attributes,
+          ),
+        );
+      }
+
+      continue;
+    }
+
+    if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
+      transformedStatements.push(createHandlerDeclaration(statement.expression));
+      handlerDeclared = true;
+      continue;
+    }
+
+    if (ts.isFunctionDeclaration(statement)) {
+      const modifiers = stripExportModifiers(statement.modifiers);
+      const isDefaultExport =
+        statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) &&
+        statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword);
+
+      if (!isDefaultExport) {
+        transformedStatements.push(statement);
+        continue;
+      }
+
+      if (statement.name) {
+        transformedStatements.push(
+          ts.factory.updateFunctionDeclaration(
+            statement,
+            modifiers,
+            statement.asteriskToken,
+            statement.name,
+            statement.typeParameters,
+            statement.parameters,
+            statement.type,
+            statement.body ?? ts.factory.createBlock([], false),
+          ),
+        );
+        setDefaultBinding(ts.factory.createIdentifier(statement.name.text));
+        continue;
+      }
+
+      transformedStatements.push(
+        createHandlerDeclaration(
+          ts.factory.createFunctionExpression(
+            modifiers,
+            statement.asteriskToken,
+            undefined,
+            statement.typeParameters,
+            statement.parameters,
+            statement.type,
+            statement.body ?? ts.factory.createBlock([], false),
+          ),
+        ),
+      );
+      handlerDeclared = true;
+      continue;
+    }
+
+    if (ts.isClassDeclaration(statement)) {
+      const modifiers = stripExportModifiers(statement.modifiers);
+      const isDefaultExport =
+        statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) &&
+        statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword);
+
+      if (!isDefaultExport) {
+        transformedStatements.push(statement);
+        continue;
+      }
+
+      if (statement.name) {
+        transformedStatements.push(
+          ts.factory.updateClassDeclaration(
+            statement,
+            modifiers,
+            statement.name,
+            statement.typeParameters,
+            statement.heritageClauses,
+            statement.members,
+          ),
+        );
+        setDefaultBinding(ts.factory.createIdentifier(statement.name.text));
+        continue;
+      }
+
+      transformedStatements.push(
+        createHandlerDeclaration(
+          ts.factory.createClassExpression(
+            modifiers,
+            undefined,
+            statement.typeParameters,
+            statement.heritageClauses,
+            statement.members,
+          ),
+        ),
+      );
+      handlerDeclared = true;
+      continue;
+    }
+
+    transformedStatements.push(statement);
   }
 
-  if (transformed === serverModuleSource) {
-    transformed = transformed.replace(
-      /export default\s+function\s+([A-Za-z0-9_$]+)\s*\(/,
-      `const ${handlerName} = function $1(`,
-    );
+  if (!handlerDeclared) {
+    if (!defaultBinding) {
+      throw new Error("Unable to locate the default export in the bundled Litz server module.");
+    }
+
+    transformedStatements.push(createHandlerDeclaration(defaultBinding));
   }
 
-  if (transformed === serverModuleSource) {
-    transformed = transformed.replace(/export default\s+/, `const ${handlerName} = `);
-  }
+  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
+  const transformedSourceFile = ts.factory.updateSourceFile(sourceFile, transformedStatements);
+  const transformed = printer.printFile(transformedSourceFile);
 
   return {
     source: transformed,
@@ -1870,7 +2056,7 @@ function createInlineAssetServerWrapper(
     "",
     source,
     "",
-    "function decodeBase64(value) {",
+    "function __litzDecodeBase64(value) {",
     "  if (typeof atob !== 'function') {",
     "    throw new Error('Base64 asset decoding requires global atob.');",
     "  }",
@@ -1885,11 +2071,11 @@ function createInlineAssetServerWrapper(
     "  return bytes;",
     "}",
     "",
-    "function createStaticAssetResponse(asset, request) {",
+    "function __litzCreateStaticAssetResponse(asset, request) {",
     "  const body = request.method === 'HEAD'",
     "    ? null",
     "    : asset.encoding === 'base64'",
-    "      ? decodeBase64(asset.body)",
+    "      ? __litzDecodeBase64(asset.body)",
     "      : asset.body;",
     "",
     "  return new Response(body, {",
@@ -1898,7 +2084,7 @@ function createInlineAssetServerWrapper(
     "  });",
     "}",
     "",
-    "function shouldServeDocument(request, pathname) {",
+    "function __litzShouldServeDocument(request, pathname) {",
     "  if (pathname.startsWith('/_litz/') || pathname.startsWith('/api/')) {",
     "    return false;",
     "  }",
@@ -1918,10 +2104,10 @@ function createInlineAssetServerWrapper(
     "  const asset = LITZ_CLIENT_ASSETS.get(url.pathname);",
     "",
     "  if ((request.method === 'GET' || request.method === 'HEAD') && asset) {",
-    "    return createStaticAssetResponse(asset, request);",
+    "    return __litzCreateStaticAssetResponse(asset, request);",
     "  }",
     "",
-    "  if ((request.method === 'GET' || request.method === 'HEAD') && shouldServeDocument(request, url.pathname)) {",
+    "  if ((request.method === 'GET' || request.method === 'HEAD') && __litzShouldServeDocument(request, url.pathname)) {",
     "    return new Response(request.method === 'HEAD' ? null : LITZ_DOCUMENT_HTML, {",
     "      status: 200,",
     "      headers: {",
@@ -1934,6 +2120,78 @@ function createInlineAssetServerWrapper(
     "}",
     "",
   ].join("\n");
+}
+
+function bundleServerWrapper(serverRscOutDir: string, wrapperSource: string): string | null {
+  const wrapperEntryPath = path.join(serverRscOutDir, "__litz_wrapped_server_entry.mjs");
+  const bundleOutDir = path.join(serverRscOutDir, "__litz_bundle_out");
+  const bundleScript = `
+const entryPath = process.env.LITZ_SERVER_ENTRY_PATH;
+const outDir = process.env.LITZ_SERVER_OUT_DIR;
+
+if (!entryPath || !outDir) {
+  throw new Error("Missing Litz server bundle paths.");
+}
+
+(async () => {
+  const { build } = await import("vite");
+
+  await build({
+    appType: "custom",
+    configFile: false,
+    publicDir: false,
+    logLevel: "silent",
+    build: {
+      ssr: entryPath,
+      copyPublicDir: false,
+      emptyOutDir: false,
+      minify: false,
+      outDir,
+      target: "esnext",
+      write: true,
+      rollupOptions: {
+        output: {
+          entryFileNames: "index.js",
+          format: "es",
+          inlineDynamicImports: true,
+        },
+      },
+    },
+  });
+})().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+`;
+
+  writeFileSync(wrapperEntryPath, wrapperSource, "utf8");
+  rmSync(bundleOutDir, { force: true, recursive: true });
+  mkdirSync(bundleOutDir, { recursive: true });
+
+  const result = spawnSync(process.execPath, ["-e", bundleScript], {
+    cwd: serverRscOutDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      LITZ_SERVER_ENTRY_PATH: wrapperEntryPath,
+      LITZ_SERVER_OUT_DIR: bundleOutDir,
+    },
+  });
+
+  try {
+    if (result.status !== 0) {
+      const stderr = result.stderr.trim();
+      const stdout = result.stdout.trim();
+      const failureMessage = stderr || stdout || "Failed to bundle the production Litz server.";
+
+      throw new Error(failureMessage);
+    }
+
+    return readFileSync(path.join(bundleOutDir, "index.js"), "utf8");
+  } finally {
+    rmSync(wrapperEntryPath, { force: true });
+    rmSync(bundleOutDir, { force: true, recursive: true });
+  }
 }
 
 type EmbeddedClientAsset = {
