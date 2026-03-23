@@ -29,7 +29,7 @@ function HomePage() {
               <Button
                 variant="secondary"
                 as="anchor"
-                href="https://github.com/samlaycock/litz"
+                href="https://github.com/samlaycock/litzjs"
                 target="_blank"
                 rel="noreferrer"
               >

@@ -114,7 +114,7 @@ function RootLayout({ children }: React.PropsWithChildren<{}>) {
           </nav>
         </div>
         <div className="flex flex-row items-center gap-2">
-          <a href="https://www.npmjs.com/package/litz" target="_blank" rel="noreferrer">
+          <a href="https://www.npmjs.com/package/litzjs" target="_blank" rel="noreferrer">
             <DiNpm size={32} className="fill-sky-500 hover:fill-sky-400" />
           </a>
           <a href="https://github.com/samlaycock/litz" target="_blank" rel="noreferrer">
