@@ -676,39 +676,6 @@ export type VoltMatch<TPath extends string = string> = {
   search: URLSearchParams;
 };
 
-export type ResourceLoaderState<
-  TLoaderResult extends ServerResult = ServerResult,
-  TPath extends string = string,
-> =
-  | {
-      kind: undefined;
-      data?: undefined;
-      node?: undefined;
-      render(this: void): React.ReactNode | null;
-      load(request?: ResourceRequest<TPath>): Promise<void>;
-    }
-  | {
-      kind: "data";
-      data: LoaderDataFor<TLoaderResult>;
-      node?: undefined;
-      render(this: void): React.ReactNode | null;
-      load(request?: ResourceRequest<TPath>): Promise<void>;
-    }
-  | {
-      kind: "view";
-      data?: undefined;
-      node: LoaderNodeFor<TLoaderResult> & React.ReactNode;
-      render(this: void): React.ReactNode | null;
-      load(request?: ResourceRequest<TPath>): Promise<void>;
-    };
-
-export type ResourceActionState<TPath extends string = string> = {
-  submit(
-    payload: FormData | Record<string, unknown>,
-    request?: ResourceRequest<TPath>,
-  ): Promise<void>;
-};
-
 export type ResourceRequest<TPath extends string = string> = Simplify<
   PathRequestParams<TPath> & SearchRequest
 >;
@@ -731,45 +698,71 @@ export type VoltResource<
   TContext = unknown,
   TLoaderResult extends ServerResult = never,
   TActionResult extends ServerResult = never,
-  TComponent extends React.ComponentType<ResourceComponentProps<TPath>> = never,
+  TComponent extends React.ComponentType<ResourceComponentProps<TPath>> = React.ComponentType<
+    ResourceComponentProps<TPath>
+  >,
 > = Simplify<
   {
     path: TPath;
     middleware?: MiddlewareRef<TContext, ServerResult>[];
-  } & ([TComponent] extends [never]
+    component: TComponent;
+    Component: React.ComponentType<ResourceComponentProps<TPath>>;
+    useParams(): PathParams<TPath>;
+    useSearch(): [URLSearchParams, SetSearchParams];
+    useStatus(): RouteStatus;
+    usePending(): boolean;
+  } & ([TLoaderResult] extends [never]
     ? {}
     : {
-        component: TComponent;
-        Component: TComponent;
+        loader: ResourceServerHandler<TContext, TLoaderResult, TPath>;
+        useLoaderResult(): LoaderHookResultFor<TLoaderResult> | null;
+        useLoaderData(): LoaderDataValueFor<TLoaderResult>;
+        useLoaderView(): LoaderViewValueFor<TLoaderResult>;
+        useRetry(): () => void;
+        useReload(): () => void;
       }) &
-    ([TLoaderResult] extends [never]
-      ? {}
-      : {
-          loader: ResourceServerHandler<TContext, TLoaderResult, TPath>;
-          useLoader(
-            ...args: MaybeRequiredArg<TPath, ResourceRequest<TPath>>
-          ): ResourceLoaderState<TLoaderResult, TPath>;
-        }) &
     ([TActionResult] extends [never]
       ? {}
       : {
           action: ResourceServerHandler<TContext, TActionResult, TPath>;
-          useAction(
-            ...args: MaybeRequiredArg<TPath, ResourceRequest<TPath>>
-          ): ResourceActionState<TPath>;
-        })
+          useActionResult(): ActionHookResultFor<TActionResult>;
+          useActionData(): ActionDataValueFor<TActionResult>;
+          useActionView(): ActionViewValueFor<TActionResult>;
+          useActionError(): ActionExplicitErrorValueFor<TActionResult>;
+          useInvalid(): ActionInvalidValueFor<TActionResult>;
+          useSubmit(
+            opts?: SubmitOptions<TActionResult>,
+          ): (payload: FormData | Record<string, unknown>) => Promise<void>;
+          Form: React.ComponentType<RouteFormProps>;
+        }) &
+    ([TLoaderResult] extends [never]
+      ? [TActionResult] extends [never]
+        ? {}
+        : {
+            useData(): ActionDataValueFor<TActionResult>;
+            useView(): ActionViewValueFor<TActionResult>;
+            useError(): ActionExplicitErrorValueFor<TActionResult>;
+          }
+      : [TActionResult] extends [never]
+        ? {
+            useData(): LoaderDataValueFor<TLoaderResult>;
+            useView(): LoaderViewValueFor<TLoaderResult>;
+          }
+        : {
+            useData(): MergedDataValueFor<TLoaderResult, TActionResult>;
+            useView(): MergedViewValueFor<TLoaderResult, TActionResult>;
+            useError(): ActionExplicitErrorValueFor<TActionResult>;
+          })
 >;
 
 type ResourceComponentOption<
   TPath extends string = string,
-  TComponent extends React.ComponentType<ResourceComponentProps<TPath>> = never,
-> = [TComponent] extends [never]
-  ? {
-      component?: never;
-    }
-  : {
-      component: TComponent;
-    };
+  TComponent extends React.ComponentType<ResourceComponentProps<TPath>> = React.ComponentType<
+    ResourceComponentProps<TPath>
+  >,
+> = {
+  component: TComponent;
+};
 
 type ResourceLoaderOption<
   TPath extends string = string,
@@ -809,22 +802,6 @@ type ResourceOptions<
 
 function unimplementedHook(name: string): never {
   throw new Error(`${name} is not available until the Volt runtime is implemented.`);
-}
-
-function unimplementedResourceLoad(): Promise<void> {
-  return Promise.reject(
-    new Error(
-      "resource.useLoader().load() is not available until the Volt runtime is implemented.",
-    ),
-  );
-}
-
-function unimplementedResourceSubmit(): Promise<void> {
-  return Promise.reject(
-    new Error(
-      "resource.useAction().submit() is not available until the Volt runtime is implemented.",
-    ),
-  );
 }
 
 function UnimplementedForm(): never {
@@ -885,6 +862,46 @@ function getRequiredRouteActions(path: string) {
   }
 
   return bindings.useRequiredRouteActions(path);
+}
+
+function getRequiredResourceLocation(path: string) {
+  const bindings = getClientBindings();
+
+  if (!bindings) {
+    return unimplementedHook(`Resource "${path}" location runtime`);
+  }
+
+  return bindings.useRequiredResourceLocation(path);
+}
+
+function getRequiredResourceStatus(path: string) {
+  const bindings = getClientBindings();
+
+  if (!bindings) {
+    return unimplementedHook(`Resource "${path}" status runtime`);
+  }
+
+  return bindings.useRequiredResourceStatus(path);
+}
+
+function getRequiredResourceData(path: string) {
+  const bindings = getClientBindings();
+
+  if (!bindings) {
+    return unimplementedHook(`Resource "${path}" data runtime`);
+  }
+
+  return bindings.useRequiredResourceData(path);
+}
+
+function getRequiredResourceActions(path: string) {
+  const bindings = getClientBindings();
+
+  if (!bindings) {
+    return unimplementedHook(`Resource "${path}" action runtime`);
+  }
+
+  return bindings.useRequiredResourceActions(path);
 }
 
 export function defineRoute<TContext = unknown, const TPath extends string = string>(
@@ -1134,34 +1151,14 @@ export function defineApiRoute<
 
 export function defineResource<TContext = unknown, const TPath extends string = string>(
   path: TPath,
-  options: ResourceOptions<NoInferType<TPath>, NoInferType<TContext>, never, never, never>,
-): VoltResource<TPath, TContext, never, never, never>;
-export function defineResource<
-  TContext = unknown,
-  const TPath extends string = string,
-  TComponent extends React.ComponentType<ResourceComponentProps<TPath>> = React.ComponentType<
-    ResourceComponentProps<TPath>
+  options: ResourceOptions<
+    NoInferType<TPath>,
+    NoInferType<TContext>,
+    never,
+    never,
+    React.ComponentType<ResourceComponentProps<TPath>>
   >,
->(
-  path: TPath,
-  options: ResourceOptions<NoInferType<TPath>, NoInferType<TContext>, never, never, TComponent>,
-): VoltResource<TPath, TContext, never, never, TComponent>;
-export function defineResource<
-  TContext = unknown,
-  const TPath extends string = string,
-  TLoaderResult extends ServerResult = ServerResult,
->(
-  path: TPath,
-  options: ResourceOptions<NoInferType<TPath>, NoInferType<TContext>, TLoaderResult, never, never>,
-): VoltResource<TPath, TContext, TLoaderResult, never, never>;
-export function defineResource<
-  TContext = unknown,
-  const TPath extends string = string,
-  TActionResult extends ServerResult = ServerResult,
->(
-  path: TPath,
-  options: ResourceOptions<NoInferType<TPath>, NoInferType<TContext>, never, TActionResult, never>,
-): VoltResource<TPath, TContext, never, TActionResult, never>;
+): VoltResource<TPath, TContext, never, never, React.ComponentType<ResourceComponentProps<TPath>>>;
 export function defineResource<
   TContext = unknown,
   const TPath extends string = string,
@@ -1201,21 +1198,6 @@ export function defineResource<
   const TPath extends string = string,
   TLoaderResult extends ServerResult = ServerResult,
   TActionResult extends ServerResult = ServerResult,
->(
-  path: TPath,
-  options: ResourceOptions<
-    NoInferType<TPath>,
-    NoInferType<TContext>,
-    TLoaderResult,
-    TActionResult,
-    never
-  >,
-): VoltResource<TPath, TContext, TLoaderResult, TActionResult, never>;
-export function defineResource<
-  TContext = unknown,
-  const TPath extends string = string,
-  TLoaderResult extends ServerResult = ServerResult,
-  TActionResult extends ServerResult = ServerResult,
   TComponent extends React.ComponentType<ResourceComponentProps<TPath>> = React.ComponentType<
     ResourceComponentProps<TPath>
   >,
@@ -1230,38 +1212,100 @@ export function defineResource<
   >,
 ): VoltResource<TPath, TContext, TLoaderResult, TActionResult, TComponent>;
 export function defineResource(path: any, options: any): any {
+  const ResourceComponent = function VoltDefinedResourceComponent(props: ResourceComponentProps) {
+    const bindings = getClientBindings();
+
+    if (!bindings) {
+      return React.createElement(options.component, props);
+    }
+
+    const ScopedResourceComponent = bindings.createResourceComponent(
+      path,
+      options.component,
+    ) as React.ComponentType<ResourceComponentProps>;
+    return React.createElement(ScopedResourceComponent, props);
+  };
+
   return {
     path,
     ...options,
-    useLoader: (...args: MaybeRequiredArg<string, ResourceRequest<string>>) => {
-      const request = args[0];
+    useLoaderResult: () => {
+      return getRequiredResourceData(path).loaderResult as LoaderHookResultFor<ServerResult> | null;
+    },
+    useLoaderData: () => {
+      const loaderResult = getRequiredResourceData(path)
+        .loaderResult as LoaderHookResultFor<ServerResult> | null;
+      return loaderResult?.kind === "data" ? loaderResult.data : null;
+    },
+    useLoaderView: () => {
+      const loaderResult = getRequiredResourceData(path)
+        .loaderResult as LoaderHookResultFor<ServerResult> | null;
+      return loaderResult?.kind === "view" ? loaderResult.node : null;
+    },
+    useActionResult: () =>
+      getRequiredResourceData(path).actionResult as ActionHookResultFor<ServerResult>,
+    useActionData: () => {
+      const actionResult = getRequiredResourceData(path)
+        .actionResult as ActionHookResultFor<ServerResult>;
+      return actionResult?.kind === "data" ? actionResult.data : null;
+    },
+    useActionView: () => {
+      const actionResult = getRequiredResourceData(path)
+        .actionResult as ActionHookResultFor<ServerResult>;
+      return actionResult?.kind === "view" ? actionResult.node : null;
+    },
+    useActionError: () => {
+      const actionResult = getRequiredResourceData(path)
+        .actionResult as ActionHookResultFor<ServerResult>;
+      return actionResult?.kind === "error" ? actionResult : null;
+    },
+    useInvalid: () => {
+      const actionResult = getRequiredResourceData(path)
+        .actionResult as ActionHookResultFor<ServerResult>;
+      return actionResult?.kind === "invalid" ? actionResult : null;
+    },
+    useData: () => getRequiredResourceData(path).data as unknown,
+    useView: () => getRequiredResourceData(path).view as React.ReactNode | null,
+    useError: () => {
+      const actionResult = getRequiredResourceData(path)
+        .actionResult as ActionHookResultFor<ServerResult>;
+      return actionResult?.kind === "error" ? actionResult : null;
+    },
+    useStatus: () => getRequiredResourceStatus(path).status as RouteStatus,
+    usePending: () => getRequiredResourceStatus(path).pending,
+    useParams: () => getRequiredResourceLocation(path).params as PathParams<string>,
+    useSearch: () => {
+      const location = getRequiredResourceLocation(path);
+      return [location.search, (params, options) => location.setSearch(params, options)] as [
+        URLSearchParams,
+        SetSearchParams,
+      ];
+    },
+    useRetry: () => {
+      const actions = getRequiredResourceActions(path);
+      return () => actions.retry();
+    },
+    useReload: () => {
+      const actions = getRequiredResourceActions(path);
+      return () => actions.reload();
+    },
+    useSubmit: (opts?: SubmitOptions<ServerResult>) => {
+      const actions = getRequiredResourceActions(path);
+      return (payload: FormData | Record<string, unknown>) => actions.submit(payload, opts);
+    },
+    Form(props: RouteFormProps) {
       const bindings = getClientBindings();
 
       if (!bindings) {
-        return {
-          kind: undefined,
-          data: undefined,
-          node: undefined,
-          render: () => null,
-          load: unimplementedResourceLoad,
-        } as ResourceLoaderState<ServerResult, string>;
+        return React.createElement(UnimplementedForm, props);
       }
 
-      return bindings.useResourceLoader(path, request) as ResourceLoaderState<ServerResult, string>;
+      const FormComponent = bindings.createResourceFormComponent(
+        path,
+      ) as React.ComponentType<RouteFormProps>;
+      return React.createElement(FormComponent, props);
     },
-    useAction: (...args: MaybeRequiredArg<string, ResourceRequest<string>>) => {
-      const request = args[0];
-      const bindings = getClientBindings();
-
-      if (!bindings) {
-        return {
-          submit: unimplementedResourceSubmit,
-        };
-      }
-
-      return bindings.useResourceAction(path, request) as ResourceActionState<string>;
-    },
-    Component: options.component,
+    Component: ResourceComponent,
   } as any;
 }
 

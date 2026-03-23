@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import type { RouteRuntimeState } from "../src/client/route-runtime";
 
 import { installClientBindings, resetClientBindings } from "../src/client/bindings";
+import { createResourceComponent, createResourceFormComponent } from "../src/client/resources";
 import {
   RouteRuntimeProvider,
   createRouteFormComponent,
@@ -52,14 +53,22 @@ function installRuntimeBindings(): void {
     useRequiredRouteStatus,
     useRequiredRouteData,
     useRequiredRouteActions,
+    useRequiredResourceLocation() {
+      throw new Error("Resource location runtime is not used in route runtime rerender tests.");
+    },
+    useRequiredResourceStatus() {
+      throw new Error("Resource status runtime is not used in route runtime rerender tests.");
+    },
+    useRequiredResourceData() {
+      throw new Error("Resource data runtime is not used in route runtime rerender tests.");
+    },
+    useRequiredResourceActions() {
+      throw new Error("Resource actions runtime is not used in route runtime rerender tests.");
+    },
     useMatches: () => [],
     createRouteFormComponent,
-    useResourceLoader() {
-      throw new Error("useResourceLoader() is not used in route runtime rerender tests.");
-    },
-    useResourceAction() {
-      throw new Error("useResourceAction() is not used in route runtime rerender tests.");
-    },
+    createResourceFormComponent,
+    createResourceComponent,
   });
 }
 

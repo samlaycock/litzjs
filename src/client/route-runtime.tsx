@@ -55,6 +55,7 @@ let routeLocationContext: React.Context<RouteLocationState | null> | null = null
 let routeStatusContext: React.Context<RouteStatusState | null> | null = null;
 let routeDataContext: React.Context<RouteDataState | null> | null = null;
 let routeActionsContext: React.Context<RouteActionsState | null> | null = null;
+const routeFormComponentCache = new Map<string, React.ComponentType<RouteFormProps>>();
 
 function createRuntimeContext<T>(name: string): React.Context<T | null> {
   const createContext = (
@@ -226,6 +227,12 @@ export function createPendingRuntimeState(routeId: string): RouteRuntimeState {
 }
 
 export function createRouteFormComponent(routeId: string): React.ComponentType<RouteFormProps> {
+  const cached = routeFormComponentCache.get(routeId);
+
+  if (cached) {
+    return cached;
+  }
+
   const VoltRouteForm = function VoltRouteForm(props: RouteFormProps): React.ReactElement {
     const actions = useRequiredRouteActions(routeId);
     const { children, onSubmit, replace, revalidate, ...rest } = props;
@@ -262,6 +269,7 @@ export function createRouteFormComponent(routeId: string): React.ComponentType<R
 
   const MemoizedVoltRouteForm = React.memo(VoltRouteForm);
   MemoizedVoltRouteForm.displayName = `VoltRouteForm(${routeId})`;
+  routeFormComponentCache.set(routeId, MemoizedVoltRouteForm);
   return MemoizedVoltRouteForm;
 }
 

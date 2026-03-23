@@ -80,4 +80,14 @@ export {
   useRequiredRouteStatus,
 } from "./route-runtime";
 export type { RouteRuntimeState } from "./route-runtime";
+export {
+  ResourceRuntimeProvider,
+  createResourceComponent,
+  createResourceFormComponent,
+  useRequiredResourceActions,
+  useRequiredResourceData,
+  useRequiredResourceLocation,
+  useRequiredResourceStatus,
+} from "./resources";
+export type { ResourceRuntimeState } from "./resources";
 export { isRedirectSignal, isRouteLikeError, matchPathname };

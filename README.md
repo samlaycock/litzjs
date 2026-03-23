@@ -455,12 +455,35 @@ Layouts expose the same `[searchParams, setSearch]` tuple.
 
 ## Resources
 
-Resources are reusable server-backed capabilities that are not navigable routes.
+Resources are route-agnostic ways to package client-side and server-side functionality into a
+self-contained component or unit of code.
+
+They are for cases where something should be reusable across routes, layouts, and app shells
+without becoming a page of its own. A resource can own:
+
+- its own server loader
+- its own server action
+- its own pending and error state
+- its own params and search input
+- its own client UI
+
+The mental model is:
+
+- routes own navigation
+- resources own reusable server-backed UI behavior
+
+Each rendered `<resource.Component ... />` creates a scoped resource instance. Inside that subtree,
+resource hooks work like route hooks, but against that resource instance.
+
+### Loader-Only Resource
+
+A resource always declares a `component`. That component reads resource state through hooks.
 
 ```tsx
 import { data, defineResource, server } from "volt";
 
 export const resource = defineResource("/resource/user/:id", {
+  component: UserCard,
   loader: server(async ({ params }) => {
     return data({
       user: {
@@ -472,29 +495,86 @@ export const resource = defineResource("/resource/user/:id", {
 });
 
 function UserCard() {
-  const result = resource.useLoader({
-    params: { id: "u_123" },
-  });
+  const user = resource.useLoaderData();
+  const pending = resource.usePending();
 
-  if (result.kind !== "data") {
-    return <p>Loading...</p>;
+  if (!user) {
+    return <p>{pending ? "Loading..." : "No user"}</p>;
   }
 
-  return <p>{result.data.user.name}</p>;
+  return <p>{user.user.name}</p>;
 }
 ```
 
-Resources can also expose an optional packaged component:
+Render it anywhere:
 
 ```tsx
 <resource.Component params={{ id: "u_123" }} />
 ```
 
-Resources can also define actions for imperative writes:
+### Search Params And Params
+
+Resources receive `params` and optional `search` at the component boundary:
+
+```tsx
+<resource.Component
+  params={{ id: "u_123" }}
+  search={{ tab: "profile" }}
+/>
+```
+
+Inside the resource, use the scoped hooks:
+
+```tsx
+function UserCard() {
+  const params = resource.useParams();
+  const [searchParams, setSearch] = resource.useSearch();
+  const tab = searchParams.get("tab") ?? "profile";
+
+  return (
+    <>
+      <p>User id: {params.id}</p>
+      <p>Tab: {tab}</p>
+      <button onClick={() => setSearch({ tab: "security" })}>Security</button>
+    </>
+  );
+}
+```
+
+### View-Based Resource
+
+Resources can also return `view(...)` from the server and consume it with `resource.useView()`:
 
 ```tsx
 import * as React from "react";
 import { defineResource, server, view } from "volt";
+
+export const resource = defineResource("/resource/account/:id", {
+  component: AccountMenu,
+  loader: server(async ({ params }) => {
+    return view(<section>Account {params.id}</section>);
+  }),
+});
+
+function AccountMenu() {
+  const view = resource.useView();
+
+  if (!view) {
+    return <p>Loading account menu...</p>;
+  }
+
+  return <React.Suspense fallback={<p>Loading account menu...</p>}>{view}</React.Suspense>;
+}
+```
+
+### Action-Enabled Resource
+
+Resources can define actions with the same self-contained form story as routes:
+
+```tsx
+import * as React from "react";
+import { defineResource, server, view } from "volt";
+import { useFormStatus } from "react-dom";
 
 export const resource = defineResource("/resource/feed/:id", {
   component: FeedPanel,
@@ -518,33 +598,108 @@ export const resource = defineResource("/resource/feed/:id", {
   }),
 });
 
-function FeedPanel(props: React.ComponentProps<typeof resource.Component>) {
-  const loader = resource.useLoader(props);
-  const action = resource.useAction(props);
+function FeedPanel() {
+  const view = resource.useView();
+  const pending = resource.usePending();
   const [message, setMessage] = React.useState("");
 
   return (
-    <form
+    <resource.Form
       onSubmit={(event) => {
-        event.preventDefault();
-        void action.submit({ message }, props);
+        if (!message.trim()) {
+          event.preventDefault();
+          return;
+        }
+
+        setMessage("");
       }}
     >
-      <input value={message} onChange={(event) => setMessage(event.target.value)} />
-      <button type="submit">Send</button>
-      <React.Suspense fallback={<p>Loading...</p>}>{loader.render()}</React.Suspense>
-    </form>
+      <input
+        name="message"
+        value={message}
+        onChange={(event) => setMessage(event.target.value)}
+        disabled={pending}
+      />
+      <SubmitButton />
+      {view ? <React.Suspense fallback={<p>Loading...</p>}>{view}</React.Suspense> : null}
+    </resource.Form>
+  );
+}
+
+function SubmitButton() {
+  const status = useFormStatus();
+
+  return (
+    <button type="submit" disabled={status.pending}>
+      {status.pending ? "Sending..." : "Send"}
+    </button>
   );
 }
 ```
 
-Resource loaders expose:
+You can also submit imperatively:
 
-- `kind` as `undefined`, `data`, or `view`
-- `load(...)` to refetch imperatively
-- `render()` to render the current `view(...)` branch when present
+```tsx
+function QuickActions() {
+  const submit = resource.useSubmit();
+  const pending = resource.usePending();
 
-Resource actions are imperative. They expose `submit(...)`, not action-result hooks.
+  return (
+    <button
+      disabled={pending}
+      onClick={() => void submit({ message: "Pinned update" })}
+    >
+      Post preset message
+    </button>
+  );
+}
+```
+
+### Available Resource Hooks
+
+Inside a resource component subtree, resources expose the same style of hooks as routes:
+
+- `resource.useLoaderResult()`
+- `resource.useLoaderData()`
+- `resource.useLoaderView()`
+- `resource.useActionResult()`
+- `resource.useActionData()`
+- `resource.useActionView()`
+- `resource.useActionError()`
+- `resource.useInvalid()`
+- `resource.useData()`
+- `resource.useView()`
+- `resource.useError()`
+- `resource.useStatus()`
+- `resource.usePending()`
+- `resource.useParams()`
+- `resource.useSearch()`
+- `resource.useReload()`
+- `resource.useRetry()`
+- `resource.useSubmit()`
+- `resource.Form`
+
+The main split to keep in mind:
+
+- `useLoaderData()` / `useLoaderView()` read loader-only state
+- `useActionData()` / `useActionView()` / `useActionError()` / `useInvalid()` read action-only state
+- `useData()` / `useView()` / `useError()` read the latest settled merged value for the resource
+
+### Multiple Resource Instances
+
+Resources are instance-scoped, not global. You can render the same resource multiple times on the
+same page with different inputs:
+
+```tsx
+<>
+  <userCard.Component params={{ id: "u_123" }} />
+  <userCard.Component params={{ id: "u_456" }} />
+</>
+```
+
+Each instance resolves against its own `params` and `search`. If two instances render with the
+same resource path and the same request identity, they share the keyed runtime state under the hood,
+so they stay in sync instead of duplicating work.
 
 ## API Routes
 

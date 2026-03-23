@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 import { installClientBindings, resetClientBindings } from "../src/client/bindings";
+import { createResourceComponent, createResourceFormComponent } from "../src/client/resources";
 import { createRouteFormComponent } from "../src/client/route-runtime";
 import { useMatches, type VoltMatch } from "../src/index";
 import { flushDom, installTestDom } from "./test-dom";
@@ -40,16 +41,24 @@ function installMatchesBindings(): void {
     useRequiredRouteActions() {
       throw new Error("Route actions runtime is not used in useMatches runtime tests.");
     },
+    useRequiredResourceLocation() {
+      throw new Error("Resource location runtime is not used in useMatches runtime tests.");
+    },
+    useRequiredResourceStatus() {
+      throw new Error("Resource status runtime is not used in useMatches runtime tests.");
+    },
+    useRequiredResourceData() {
+      throw new Error("Resource data runtime is not used in useMatches runtime tests.");
+    },
+    useRequiredResourceActions() {
+      throw new Error("Resource actions runtime is not used in useMatches runtime tests.");
+    },
     useMatches() {
       return React.useContext(MatchesContext);
     },
     createRouteFormComponent,
-    useResourceLoader() {
-      throw new Error("useResourceLoader() is not used in useMatches runtime tests.");
-    },
-    useResourceAction() {
-      throw new Error("useResourceAction() is not used in useMatches runtime tests.");
-    },
+    createResourceFormComponent,
+    createResourceComponent,
   });
 }
 

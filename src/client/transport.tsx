@@ -1,5 +1,3 @@
-import { createFromReadableStream } from "@vitejs/plugin-rsc/browser";
-
 import type { ActionHookResult, LoaderHookResult } from "../index";
 
 import { createPublicResultHeaders } from "./result-headers";
@@ -197,6 +195,7 @@ export async function createViewResult(
     throw new Error("Flight response body is missing.");
   }
 
+  const { createFromReadableStream } = await import("@vitejs/plugin-rsc/browser");
   const node = await createFromReadableStream(response.body);
 
   return {

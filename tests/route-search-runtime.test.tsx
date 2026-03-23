@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 import { installClientBindings, resetClientBindings } from "../src/client/bindings";
 import { applySearchParams } from "../src/client/navigation";
+import { createResourceComponent, createResourceFormComponent } from "../src/client/resources";
 import {
   RouteRuntimeProvider,
   type RouteRuntimeState,
@@ -91,16 +92,24 @@ describe("route search runtime", () => {
       useRequiredRouteStatus,
       useRequiredRouteData,
       useRequiredRouteActions,
+      useRequiredResourceLocation() {
+        throw new Error("Resource location runtime is not used in this test.");
+      },
+      useRequiredResourceStatus() {
+        throw new Error("Resource status runtime is not used in this test.");
+      },
+      useRequiredResourceData() {
+        throw new Error("Resource data runtime is not used in this test.");
+      },
+      useRequiredResourceActions() {
+        throw new Error("Resource actions runtime is not used in this test.");
+      },
       useMatches() {
         return [];
       },
       createRouteFormComponent,
-      useResourceLoader() {
-        throw new Error("useResourceLoader() is not used in this test.");
-      },
-      useResourceAction() {
-        throw new Error("useResourceAction() is not used in this test.");
-      },
+      createResourceFormComponent,
+      createResourceComponent,
     });
   });
 

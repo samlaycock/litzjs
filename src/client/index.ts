@@ -9,7 +9,14 @@ import { extractRouteLikeParams, matchPathname, sortByPathSpecificity } from "..
 import { installClientBindings } from "./bindings";
 import { createLinkComponent } from "./link";
 import { applySearchParams, shouldPrefetchLink } from "./navigation";
-import { useResourceAction, useResourceLoader } from "./resources";
+import {
+  createResourceComponent,
+  createResourceFormComponent,
+  useRequiredResourceActions,
+  useRequiredResourceData,
+  useRequiredResourceLocation,
+  useRequiredResourceStatus,
+} from "./resources";
 import { useResolvedRouteState } from "./route-host-state";
 import {
   RouteRuntimeProvider,
@@ -32,10 +39,14 @@ installClientBindings({
   useRequiredRouteStatus,
   useRequiredRouteData,
   useRequiredRouteActions,
+  useRequiredResourceLocation,
+  useRequiredResourceStatus,
+  useRequiredResourceData,
+  useRequiredResourceActions,
   useMatches,
   createRouteFormComponent,
-  useResourceLoader,
-  useResourceAction,
+  createResourceFormComponent,
+  createResourceComponent,
 });
 
 type LoadedRoute = {

@@ -45,25 +45,31 @@ void submit;
 void actionRoute.useLoaderResult;
 
 const loaderResource = defineResource("/typechecks/resource/:id", {
+  component() {
+    return null;
+  },
   loader: server<unknown, any, "/typechecks/resource/:id">(async ({ params }) =>
     data({ id: params.id }),
   ),
 });
 
-loaderResource.useLoader({ params: { id: "alpha" } });
-// @ts-expect-error param-based resources should require params
-loaderResource.useLoader();
-// @ts-expect-error resources without a component should not expose Component
-void loaderResource.Component;
+const loaderResourceParams = loaderResource.Component;
+void loaderResourceParams;
+const resourceParams = loaderResource.useParams();
+const resourceParamId: string = resourceParams.id;
+void resourceParamId;
 
 const actionResource = defineResource("/typechecks/action-resource", {
+  component() {
+    return null;
+  },
   action: server(async () => data({ ok: true })),
 });
 
-const actionResourceState = actionResource.useAction();
-void actionResourceState;
-// @ts-expect-error action-only resources should not expose loader hooks
-void actionResource.useLoader;
+const actionSubmit = actionResource.useSubmit();
+void actionSubmit;
+// @ts-expect-error action-only resources should not expose loader result hooks
+void actionResource.useLoaderResult;
 
 const componentResource = defineResource("/typechecks/component/:id", {
   component(props) {

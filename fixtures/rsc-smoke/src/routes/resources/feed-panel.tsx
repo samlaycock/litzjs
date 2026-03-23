@@ -4,28 +4,24 @@ import { defineResource, server, view } from "volt";
 import { appendFeedItem, getFeedItems } from "../../data/state";
 
 export const resource = defineResource("/resource/feed/:id", {
-  component: function FeedPanelResource(props) {
-    const loader = resource.useLoader(props);
-    const action = resource.useAction(props);
+  component: function FeedPanelResource() {
+    const view = resource.useView();
+    const pending = resource.usePending();
     const [message, setMessage] = React.useState("");
-    const submitMessage = React.useCallback(async () => {
-      const value = message.trim();
-
-      if (!value) {
-        return;
-      }
-
-      await action.submit({ message: value }, props);
-      setMessage("");
-    }, [action, message, props]);
 
     return (
       <section>
         <h2>Resource Action Example</h2>
-        <form
+        <resource.Form
           onSubmit={(event) => {
-            event.preventDefault();
-            void submitMessage();
+            const value = message.trim();
+
+            if (!value) {
+              event.preventDefault();
+              return;
+            }
+
+            setMessage("");
           }}
         >
           <input
@@ -33,11 +29,14 @@ export const resource = defineResource("/resource/feed/:id", {
             onChange={(event) => setMessage(event.target.value)}
             placeholder="New feed item"
             name="message"
+            disabled={pending}
           />
-          <button type="submit">Add feed item</button>
-        </form>
+          <button type="submit" disabled={pending || message.trim().length === 0}>
+            {pending ? "Adding..." : "Add feed item"}
+          </button>
+        </resource.Form>
 
-        <React.Suspense fallback={<p>Loading feed...</p>}>{loader.render()}</React.Suspense>
+        {view ? <React.Suspense fallback={<p>Loading feed...</p>}>{view}</React.Suspense> : null}
       </section>
     );
   },

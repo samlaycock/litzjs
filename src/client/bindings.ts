@@ -33,6 +33,31 @@ export type VoltClientBindings = {
     reload(): void;
     submit(payload: FormData | Record<string, unknown>, options?: unknown): Promise<void>;
   };
+  useRequiredResourceLocation(resourcePath: string): {
+    params: Record<string, string>;
+    search: URLSearchParams;
+    setSearch(
+      params: Record<string, string | string[] | null | undefined>,
+      options?: {
+        replace?: boolean;
+      },
+    ): void;
+  };
+  useRequiredResourceStatus(resourcePath: string): {
+    status: unknown;
+    pending: boolean;
+  };
+  useRequiredResourceData(resourcePath: string): {
+    loaderResult: unknown;
+    actionResult: unknown;
+    data: unknown;
+    view: React.ReactNode | null;
+  };
+  useRequiredResourceActions(resourcePath: string): {
+    retry(): void;
+    reload(): void;
+    submit(payload: FormData | Record<string, unknown>, options?: unknown): Promise<void>;
+  };
   useMatches(): Array<{
     id: string;
     path: string;
@@ -40,8 +65,11 @@ export type VoltClientBindings = {
     search: URLSearchParams;
   }>;
   createRouteFormComponent(routeId: string): React.ComponentType<any>;
-  useResourceLoader(resourcePath: string, request?: unknown): unknown;
-  useResourceAction(resourcePath: string, request?: unknown): unknown;
+  createResourceFormComponent(resourcePath: string): React.ComponentType<any>;
+  createResourceComponent(
+    resourcePath: string,
+    component: React.ComponentType<any>,
+  ): React.ComponentType<any>;
 };
 
 let clientBindings: VoltClientBindings | null = null;

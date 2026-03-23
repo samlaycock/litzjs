@@ -4,12 +4,14 @@ import { defineResource, server, view } from "volt";
 import { ClientCounter } from "../../components/client-counter";
 
 export const resource = defineResource("/resource/account/:id", {
-  component: function AccountMenuResource(props) {
-    const result = resource.useLoader(props);
+  component: function AccountMenuResource() {
+    const view = resource.useView();
 
-    return (
-      <React.Suspense fallback={<p>Loading account menu...</p>}>{result.render()}</React.Suspense>
-    );
+    if (!view) {
+      return <p>Loading account menu...</p>;
+    }
+
+    return <React.Suspense fallback={<p>Loading account menu...</p>}>{view}</React.Suspense>;
   },
 
   loader: server<unknown, any, "/resource/account/:id">(async ({ params }) => {
