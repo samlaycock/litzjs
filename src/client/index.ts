@@ -14,7 +14,7 @@ import {
   toNavigationHref,
 } from "./navigation";
 import { useResourceAction, useResourceLoader } from "./resources";
-import { resolveLoadedRouteState, resolveRouteModuleLoadState } from "./route-transition";
+import { useResolvedRouteState } from "./route-host-state";
 import {
   RouteRuntimeProvider,
   createRouteFormComponent,
@@ -331,91 +331,27 @@ function RouteHost(props: {
   const url = React.useMemo(() => new URL(props.location), [props.location]);
   const search = React.useMemo(() => new URLSearchParams(url.search), [url.search]);
   const matched = React.useMemo(() => findMatch(url.pathname), [url.pathname]);
-  const [displayLocation, setDisplayLocation] = React.useState(() => props.location);
-  const [renderedRoute, setRenderedRoute] = React.useState<LoadedRoute | null>(null);
-  const [pageState, setPageState] = React.useState<PageState>(() => createEmptyPageState());
-  const renderedRouteRef = React.useRef<LoadedRoute | null>(null);
-
-  React.useEffect(() => {
-    renderedRouteRef.current = renderedRoute;
-  }, [renderedRoute]);
+  const createBootstrapPageStateForLocation = React.useCallback(
+    (route: LoadedRoute) => createBootstrapPageState(route, url.pathname, search),
+    [search, url.pathname],
+  );
+  const { displayLocation, renderedRoute, pageState, setPageState } = useResolvedRouteState<
+    LoadedRoute,
+    PageState
+  >({
+    matched,
+    location: props.location,
+    createEmptyPageState,
+    createBootstrapPageState: createBootstrapPageStateForLocation,
+    getCachedRoute: getCachedRouteModule,
+    setCachedRoute: setCachedRouteModule,
+  });
 
   const displayedUrl = React.useMemo(() => new URL(displayLocation), [displayLocation]);
   const displayedSearch = React.useMemo(
     () => new URLSearchParams(displayedUrl.search),
     [displayedUrl.search],
   );
-
-  React.useLayoutEffect(() => {
-    let cancelled = false;
-
-    async function loadRouteModule(): Promise<void> {
-      const routeState = resolveRouteModuleLoadState({
-        matched: Boolean(matched),
-        cachedRoute: matched ? getCachedRouteModule(matched.entry.id) : null,
-        previousRoute: renderedRouteRef.current,
-        nextLocation: props.location,
-        createEmptyPageState,
-        createBootstrapPageState(route) {
-          return createBootstrapPageState(route, url.pathname, search);
-        },
-      });
-
-      if (routeState.kind === "not-found") {
-        setRenderedRoute(routeState.loadedRoute);
-        setDisplayLocation(routeState.displayLocation);
-        setPageState(routeState.pageState);
-        return;
-      }
-
-      if (routeState.kind === "cached") {
-        setPageState(routeState.pageState);
-        setRenderedRoute(routeState.loadedRoute);
-        setDisplayLocation(routeState.displayLocation);
-        return;
-      }
-
-      if (routeState.kind === "reset-before-load") {
-        setRenderedRoute(routeState.loadedRoute);
-        setDisplayLocation(routeState.displayLocation);
-        setPageState(routeState.pageState);
-      }
-
-      const matchedEntry = matched?.entry;
-
-      if (!matchedEntry) {
-        return;
-      }
-
-      const loaded = await matchedEntry.load();
-
-      if (cancelled) {
-        return;
-      }
-
-      if (!loaded.route) {
-        throw new Error(`Route module "${matchedEntry.id}" does not export "route".`);
-      }
-
-      setCachedRouteModule(matchedEntry.id, loaded.route);
-      const loadedRouteState = resolveLoadedRouteState({
-        loadedRoute: loaded.route,
-        nextLocation: props.location,
-        createBootstrapPageState(route) {
-          return createBootstrapPageState(route, url.pathname, search);
-        },
-      });
-      setPageState(loadedRouteState.pageState);
-      setRenderedRoute(loadedRouteState.loadedRoute);
-      setDisplayLocation(loadedRouteState.displayLocation);
-    }
-
-    void loadRouteModule();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [matched, props.location, search, url.pathname]);
 
   React.useEffect(() => {
     if (!renderedRoute) {
