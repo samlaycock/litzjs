@@ -30,5 +30,5 @@
     /* If your code doesn't run in the DOM: */
     "lib": ["es2022", "dom", "dom.iterable"]
   },
-  "exclude": ["dist", "fixtures/**/dist", "node_modules"]
+  "exclude": ["dist", "fixtures/**/dist", "node_modules", "www", "fixtures"]
 }
