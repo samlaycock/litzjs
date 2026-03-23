@@ -39,3 +39,7 @@ export function installClientBindings(bindings: VoltClientBindings): void {
 export function getClientBindings(): VoltClientBindings | null {
   return clientBindings;
 }
+
+export function resetClientBindings(): void {
+  clientBindings = null;
+}
