@@ -83,24 +83,17 @@ export default createServer();`}
           When you run <code className="text-sky-400">vite build</code>, Litz writes browser assets
           to <code className="text-sky-400">dist/client</code> and produces a server bundle.
         </p>
-        <h3 className="text-xl font-medium text-neutral-100 mb-3">No custom server entry</h3>
         <p className="text-neutral-400 mb-4">
-          Litz emits <code className="text-sky-400">dist/server/index.js</code> that inlines built
-          HTML and client assets. It is entirely self-contained — the handler serves{" "}
-          <code className="text-sky-400">/</code> and{" "}
-          <code className="text-sky-400">/assets/*</code> by itself. This is the default one-file
-          deployment mode.
-        </p>
-        <h3 className="text-xl font-medium text-neutral-100 mb-3">Custom server entry present</h3>
-        <p className="text-neutral-400 mb-4">
-          Litz emits <code className="text-sky-400">dist/server/index.js</code> from your entry. It
-          does <strong>not</strong> inject static asset or document serving. Your platform serves{" "}
-          <code className="text-sky-400">dist/client</code> (via CDN,{" "}
+          Litz emits <code className="text-sky-400">dist/server/index.js</code> with the discovered
+          server manifest injected into <code className="text-sky-400">createServer()</code>. Your
+          platform is responsible for serving{" "}
+          <code className="text-sky-400">dist/client</code> as static files (via CDN,{" "}
           <code className="text-sky-400">express.static</code>, platform asset binding, etc.).
         </p>
+        <h3 className="text-xl font-medium text-neutral-100 mb-3">Embedded assets</h3>
         <p className="text-neutral-400 mb-4">
-          Point the Vite plugin to your custom server entry with the{" "}
-          <code className="text-sky-400">server</code> option:
+          For single-file deployments where a separate static file server is not available, enable{" "}
+          <code className="text-sky-400">embedAssets</code>:
         </p>
         <CodeBlock
           language="tsx"
@@ -110,11 +103,17 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
-      server: "./src/server.ts",
+      embedAssets: true,
     }),
   ],
 });`}
         />
+        <p className="text-neutral-400 mt-4 mb-4">
+          This inlines the built document HTML and all client assets into the server bundle. The
+          handler serves <code className="text-sky-400">/</code> and{" "}
+          <code className="text-sky-400">/assets/*</code> by itself. This works with or without a
+          custom server entry.
+        </p>
       </section>
 
       <section className="mb-12">

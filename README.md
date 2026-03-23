@@ -23,7 +23,7 @@ multipart-safe internal actions, and a release gate via `bun run check`.
 Inside a React + Vite app:
 
 ```bash
-bun add litz react react-dom
+bun add litzjs react react-dom
 ```
 
 ## Quick Start
@@ -39,7 +39,7 @@ Add the Litz Vite plugin. By default, Litz discovers:
 
 ```ts
 import { defineConfig } from "vite";
-import { litz } from "litz/vite";
+import { litz } from "litzjs/vite";
 
 export default defineConfig({
   plugins: [litz()],
@@ -66,7 +66,7 @@ Mount the Litz app from your browser entry.
 `src/main.tsx`
 
 ```tsx
-import { mountApp } from "litz/client";
+import { mountApp } from "litzjs/client";
 
 const root = document.getElementById("app");
 
@@ -81,7 +81,7 @@ You can optionally provide a wrapper component around the app root:
 
 ```tsx
 import { StrictMode } from "react";
-import { mountApp } from "litz/client";
+import { mountApp } from "litzjs/client";
 
 mountApp(root, StrictMode);
 ```
@@ -89,7 +89,7 @@ mountApp(root, StrictMode);
 For providers or wrappers with props, pass a component:
 
 ```tsx
-import { mountApp } from "litz/client";
+import { mountApp } from "litzjs/client";
 
 function AppProviders({ children }: React.PropsWithChildren) {
   return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
@@ -115,7 +115,7 @@ Create your first route.
 `src/routes/index.tsx`
 
 ```tsx
-import { defineRoute } from "litz";
+import { defineRoute } from "litzjs";
 
 export const route = defineRoute("/", {
   component: HomePage,
@@ -138,7 +138,7 @@ Routes are explicit. The path you pass to `defineRoute(...)` is the source of tr
 Add a loader when you need server data:
 
 ```tsx
-import { data, defineRoute, server } from "litz";
+import { data, defineRoute, server } from "litzjs";
 
 export const route = defineRoute("/me", {
   component: ProfilePage,
@@ -175,7 +175,7 @@ Layouts are explicit too. A route opts into a layout by importing it and passing
 
 ```tsx
 import type { ReactNode } from "react";
-import { defineLayout, defineRoute } from "litz";
+import { defineLayout, defineRoute } from "litzjs";
 
 export const dashboardLayout = defineLayout("/dashboard", {
   component: DashboardShell,
@@ -220,7 +220,7 @@ When you want the server to return UI instead of JSON, return `view(...)`.
 
 ```tsx
 import * as React from "react";
-import { defineRoute, server, view } from "litz";
+import { defineRoute, server, view } from "litzjs";
 
 export const route = defineRoute("/reports", {
   component: ReportsPage,
@@ -306,7 +306,7 @@ Actions handle writes. They can return `data(...)`, `invalid(...)`, `redirect(..
 
 ```tsx
 import { useFormStatus } from "react-dom";
-import { data, defineRoute, invalid, server } from "litz";
+import { data, defineRoute, invalid, server } from "litzjs";
 
 export const route = defineRoute("/projects/new", {
   component: NewProjectPage,
@@ -359,7 +359,7 @@ If you need imperative writes instead of a form, use `route.useSubmit()`.
 Litz ships a small client navigation layer.
 
 ```tsx
-import { Link, useNavigate } from "litz/client";
+import { Link, useNavigate } from "litzjs/client";
 
 function Nav() {
   const navigate = useNavigate();
@@ -384,7 +384,7 @@ Plain `<a href>` elements stay native and perform normal browser navigations.
 You can also inspect the active route chain:
 
 ```tsx
-import { useMatches } from "litz";
+import { useMatches } from "litzjs";
 
 function Breadcrumbs() {
   const matches = useMatches();
@@ -402,7 +402,7 @@ function Breadcrumbs() {
 If you want the current concrete browser location instead of the route pattern chain:
 
 ```tsx
-import { useLocation, usePathname } from "litz";
+import { useLocation, usePathname } from "litzjs";
 
 function RouteMeta() {
   const pathname = usePathname();
@@ -482,7 +482,7 @@ resource hooks work like route hooks, but against that resource instance.
 A resource always declares a `component`. That component reads resource state through hooks.
 
 ```tsx
-import { data, defineResource, server } from "litz";
+import { data, defineResource, server } from "litzjs";
 
 export const resource = defineResource("/resource/user/:id", {
   component: UserCard,
@@ -546,7 +546,7 @@ Resources can also return `view(...)` from the server and consume it with `resou
 
 ```tsx
 import * as React from "react";
-import { defineResource, server, view } from "litz";
+import { defineResource, server, view } from "litzjs";
 
 export const resource = defineResource("/resource/account/:id", {
   component: AccountMenu,
@@ -572,7 +572,7 @@ Resources can define actions with the same self-contained form story as routes:
 
 ```tsx
 import * as React from "react";
-import { defineResource, server, view } from "litz";
+import { defineResource, server, view } from "litzjs";
 import { useFormStatus } from "react-dom";
 
 export const resource = defineResource("/resource/feed/:id", {
@@ -702,7 +702,7 @@ so they stay in sync instead of duplicating work.
 API routes expose raw HTTP handlers and come with a thin client helper.
 
 ```ts
-import { defineApiRoute } from "litz";
+import { defineApiRoute } from "litzjs";
 
 export const api = defineApiRoute("/api/health", {
   middleware: [],
@@ -740,7 +740,7 @@ Supported method keys:
 Litz ships a default WinterCG-style server runtime:
 
 ```ts
-import { createServer } from "litz/server";
+import { createServer } from "litzjs/server";
 
 export default createServer({
   createContext(request) {
@@ -757,7 +757,7 @@ export default createServer({
 In simple apps, `createServer()` with no arguments is enough:
 
 ```ts
-import { createServer } from "litz/server";
+import { createServer } from "litzjs/server";
 
 export default createServer();
 ```
@@ -768,25 +768,27 @@ The Vite plugin injects the discovered server manifest automatically into that e
 
 When you run `vite build`, Litz always writes the browser assets to `dist/client`.
 
-Server output depends on whether you provide a custom server entry:
+Server output is always `dist/server/index.js`. The Vite plugin injects the discovered server
+manifest into `createServer(...)` automatically.
 
-- No custom server entry:
-  Litz emits a self-contained `dist/server/index.js`.
-  That file inlines the built document HTML and all client asset contents, so the server handler can
-  serve `/` and `/assets/*` by itself. This is the default one-file server deployment mode.
-- Custom server entry present:
-  Litz emits `dist/server/index.js` from your server entry and injects the discovered server
-  manifest into `createServer(...)`.
-  Litz does not inject static asset or document serving in this mode. Your host server or platform
-  is responsible for serving `dist/client` however you want, for example through `express.static`,
-  a CDN, or a platform asset binding.
+By default, your host server or platform is responsible for serving `dist/client` (for example
+through `express.static`, a CDN, or a platform asset binding).
+
+If you want a self-contained single-file deployment, enable `embedAssets`:
+
+```ts
+litz({ embedAssets: true })
+```
+
+This inlines the built document HTML and all client asset contents into the server bundle, so the
+server handler can serve `/` and `/assets/*` by itself without a separate static file server.
 
 You can let Litz discover `src/server.ts` or `src/server/index.ts`, or configure a different path
 explicitly in `vite.config.ts`:
 
 ```ts
 import { defineConfig } from "vite";
-import { litz } from "litz/vite";
+import { litz } from "litzjs/vite";
 
 export default defineConfig({
   plugins: [
@@ -807,7 +809,7 @@ Litz's server boundaries are explicit, but they are still normal server request 
 - Route loaders and actions are server handlers.
 - Resource loaders and actions are server handlers.
 - API routes are raw HTTP handlers.
-- The `/_litz/*` transport used by the client runtime is an implementation detail, not a private trust boundary.
+- The `/_litzjs/*` transport used by the client runtime is an implementation detail, not a private trust boundary.
 
 That means Litz apps should treat route loaders, actions, resources, and API routes like any other
 server endpoint:
@@ -815,7 +817,7 @@ server endpoint:
 - authenticate and authorize inside middleware or handlers
 - validate params, search params, headers, and form/body input
 - apply CSRF protections when using cookie-backed auth for writes
-- do not assume a request came from Litz just because it arrived through `/_litz/*`
+- do not assume a request came from Litz just because it arrived through `/_litzjs/*`
 
 Litz may serve `index.html` itself, but it also supports deployments where the document is served
 statically or by a custom server. Security decisions must not depend on the document coming from
@@ -833,7 +835,7 @@ Server handlers can return these helpers:
 - `withHeaders(result, headers)`
 
 ```tsx
-import { data, defineRoute, error, redirect, server, withHeaders } from "litz";
+import { data, defineRoute, error, redirect, server, withHeaders } from "litzjs";
 
 export const route = defineRoute("/projects/:id", {
   component: ProjectPage,
@@ -875,7 +877,7 @@ Behavior summary:
 Routes, resources, and API routes can declare a `middleware` array. Middleware runs in order and can continue with `next()`, short-circuit with a result, or explicitly replace `context` with `next({ context })`.
 
 ```tsx
-import { data, defineApiRoute, defineRoute, error, server } from "litz";
+import { data, defineApiRoute, defineRoute, error, server } from "litzjs";
 
 export const route = defineRoute("/dashboard", {
   component: DashboardPage,
