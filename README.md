@@ -33,6 +33,7 @@ Add the Litz Vite plugin. By default, Litz discovers:
 - routes from `src/routes/**/*.{ts,tsx}`
 - API routes from `src/routes/api/**/*.{ts,tsx}`
 - resources from `src/routes/resources/**/*.{ts,tsx}`
+- a custom server entry from `src/server.ts`, falling back to `src/server/index.ts`
 
 `vite.config.ts`
 
@@ -54,6 +55,7 @@ export default defineConfig({
       routes: ["app/pages/**/*.{ts,tsx}"],
       resources: ["app/resources/**/*.{ts,tsx}"],
       api: ["app/api/**/*.{ts,tsx}"],
+      server: "app/server/entry.ts",
     }),
   ],
 });
@@ -761,6 +763,42 @@ export default createServer();
 ```
 
 The Vite plugin injects the discovered server manifest automatically into that entry.
+
+### Production Output
+
+When you run `vite build`, Litz always writes the browser assets to `dist/client`.
+
+Server output depends on whether you provide a custom server entry:
+
+- No custom server entry:
+  Litz emits a self-contained `dist/server/index.js`.
+  That file inlines the built document HTML and all client asset contents, so the server handler can
+  serve `/` and `/assets/*` by itself. This is the default one-file server deployment mode.
+- Custom server entry present:
+  Litz emits `dist/server/index.js` from your server entry and injects the discovered server
+  manifest into `createServer(...)`.
+  Litz does not inject static asset or document serving in this mode. Your host server or platform
+  is responsible for serving `dist/client` however you want, for example through `express.static`,
+  a CDN, or a platform asset binding.
+
+You can let Litz discover `src/server.ts` or `src/server/index.ts`, or configure a different path
+explicitly in `vite.config.ts`:
+
+```ts
+import { defineConfig } from "vite";
+import { litz } from "litz/vite";
+
+export default defineConfig({
+  plugins: [
+    litz({
+      server: "app/server/entry.ts",
+    }),
+  ],
+});
+```
+
+In the custom-server case, unmatched document and static asset requests fall through to the normal
+`createServer(...)` 404 behavior unless your host server handles them first.
 
 ## Security Model
 
