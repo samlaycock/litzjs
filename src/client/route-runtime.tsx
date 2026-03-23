@@ -217,7 +217,7 @@ export function createPendingRuntimeState(routeId: string): RouteRuntimeState {
 }
 
 export function createRouteFormComponent(routeId: string): React.ComponentType<RouteFormProps> {
-  return function VoltRouteForm(props: RouteFormProps): React.ReactElement {
+  const VoltRouteForm = function VoltRouteForm(props: RouteFormProps): React.ReactElement {
     const actions = useRequiredRouteActions(routeId);
     const { children, onSubmit, replace, revalidate, ...rest } = props;
     const submitRef = React.useRef(
@@ -250,6 +250,10 @@ export function createRouteFormComponent(routeId: string): React.ComponentType<R
       children,
     );
   };
+
+  const MemoizedVoltRouteForm = React.memo(VoltRouteForm);
+  MemoizedVoltRouteForm.displayName = `VoltRouteForm(${routeId})`;
+  return MemoizedVoltRouteForm;
 }
 
 export type { SearchParamsUpdate };

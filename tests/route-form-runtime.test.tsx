@@ -6,7 +6,11 @@ import { createRoot, type Root } from "react-dom/client";
 
 import type { RouteRuntimeState } from "../src/client/route-runtime";
 
-import { RouteRuntimeProvider, createRouteFormComponent } from "../src/client/route-runtime";
+import {
+  RouteRuntimeProvider,
+  createRouteFormComponent,
+  useRequiredRouteData,
+} from "../src/client/route-runtime";
 import { flushDom, installTestDom } from "./test-dom";
 
 type Deferred = {
@@ -22,6 +26,23 @@ function createDeferred(): Deferred {
       resolve = nextResolve;
     }),
     resolve,
+  };
+}
+
+function createRuntimeState(): RouteRuntimeState {
+  return {
+    id: "/projects",
+    params: {},
+    search: new URLSearchParams(),
+    setSearch() {},
+    status: "idle",
+    pending: false,
+    loaderResult: null,
+    actionResult: null,
+    view: null,
+    async submit() {},
+    reload() {},
+    retry() {},
   };
 }
 
@@ -58,21 +79,11 @@ describe("route form runtime", () => {
     const Form = createRouteFormComponent("/projects");
 
     const runtime: RouteRuntimeState = {
-      id: "/projects",
-      params: {},
-      search: new URLSearchParams(),
-      setSearch() {},
-      status: "idle",
-      pending: false,
-      loaderResult: null,
-      actionResult: null,
-      view: null,
+      ...createRuntimeState(),
       async submit(payload) {
         submittedPayload = payload as FormData;
         await submitDeferred.promise;
       },
-      reload() {},
-      retry() {},
     };
 
     function StatusFields() {
@@ -134,5 +145,134 @@ describe("route form runtime", () => {
 
     expect(settledPendingOutput?.getAttribute("data-value")).toBe("idle");
     expect(settledDataOutput?.getAttribute("data-value")).toBe("(idle)");
+  });
+
+  test("route.Form subtree does not rerender on loader/view-only changes when children do not subscribe", async () => {
+    const Form = createRouteFormComponent("/projects");
+    const MemoForm = React.memo(Form);
+    let setRuntimeState!: React.Dispatch<React.SetStateAction<RouteRuntimeState>>;
+    const staticChildren = <button type="submit">Save</button>;
+
+    function Harness(): React.ReactElement {
+      const [runtimeState, setRuntime] = React.useState(() => createRuntimeState());
+      setRuntimeState = setRuntime;
+
+      return (
+        <RouteRuntimeProvider value={runtimeState}>
+          <MemoForm>{staticChildren}</MemoForm>
+        </RouteRuntimeProvider>
+      );
+    }
+
+    await act(async () => {
+      root?.render(<Harness />);
+      await flushDom();
+    });
+
+    const initialForm = container?.getElementsByTagName("form")[0] ?? null;
+    const initialButton = container?.getElementsByTagName("button")[0] ?? null;
+    expect(initialForm).not.toBeNull();
+    expect(initialButton).not.toBeNull();
+
+    await act(async () => {
+      setRuntimeState((current) => {
+        const view = <span id="loaded-view">Loaded view</span>;
+
+        return {
+          ...current,
+          loaderResult: {
+            kind: "view",
+            status: 200,
+            headers: new Headers(),
+            stale: false,
+            node: view,
+            render() {
+              return view;
+            },
+          },
+          view,
+        };
+      });
+      await flushDom();
+    });
+
+    const settledForm = container?.getElementsByTagName("form")[0] ?? null;
+    const settledButton = container?.getElementsByTagName("button")[0] ?? null;
+    expect(settledForm).toBe(initialForm);
+    expect(settledButton).toBe(initialButton);
+    expect(document.getElementById("loaded-view")).toBeNull();
+  });
+
+  test("route.Form subtree rerenders when a child subscribes to route data", async () => {
+    const Form = createRouteFormComponent("/projects");
+    const MemoForm = React.memo(Form);
+    let setRuntimeState!: React.Dispatch<React.SetStateAction<RouteRuntimeState>>;
+    let formCommitCount = 0;
+
+    function SubscribedFields(): React.ReactElement {
+      const data = useRequiredRouteData("/projects");
+
+      return (
+        <>
+          <button type="submit">Save</button>
+          <div id="view-state" data-value={data.view ? "present" : "empty"}>
+            {data.view}
+          </div>
+        </>
+      );
+    }
+    const staticChildren = <SubscribedFields />;
+
+    function Harness(): React.ReactElement {
+      const [runtimeState, setRuntime] = React.useState(() => createRuntimeState());
+      setRuntimeState = setRuntime;
+
+      return (
+        <RouteRuntimeProvider value={runtimeState}>
+          <React.Profiler
+            id="form-subtree"
+            onRender={() => {
+              formCommitCount += 1;
+            }}
+          >
+            <MemoForm>{staticChildren}</MemoForm>
+          </React.Profiler>
+        </RouteRuntimeProvider>
+      );
+    }
+
+    await act(async () => {
+      root?.render(<Harness />);
+      await flushDom();
+    });
+
+    expect(formCommitCount).toBe(1);
+    expect(document.getElementById("view-state")?.getAttribute("data-value")).toBe("empty");
+
+    await act(async () => {
+      setRuntimeState((current) => {
+        const view = <span id="subscribed-view">Loaded view</span>;
+
+        return {
+          ...current,
+          loaderResult: {
+            kind: "view",
+            status: 200,
+            headers: new Headers(),
+            stale: false,
+            node: view,
+            render() {
+              return view;
+            },
+          },
+          view,
+        };
+      });
+      await flushDom();
+    });
+
+    expect(formCommitCount).toBe(2);
+    expect(document.getElementById("view-state")?.getAttribute("data-value")).toBe("present");
+    expect(document.getElementById("subscribed-view")?.textContent).toBe("Loaded view");
   });
 });
