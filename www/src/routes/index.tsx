@@ -1,0 +1,48 @@
+import { defineRoute } from "litz";
+import { Link } from "litz/client";
+import { EnergyVisualization } from "../components/energy-visualization";
+import { Button } from "../components/button";
+
+export const route = defineRoute("/", {
+  component: HomePage,
+});
+
+function HomePage() {
+  return (
+    <>
+      <title>Litz</title>
+      <div className="flex min-h-[calc(100vh-var(--site-header-height)-48px)]">
+        <div className="flex-1 flex flex-col justify-center p-8 border-r border-neutral-800 md:p-12 lg:p-16">
+          <div className="max-w-xl">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-sky-50 mb-6">
+              The web framework for{" "}
+              <span className="text-sky-500">modern developers</span>
+            </h1>
+            <p className="text-lg text-neutral-400 mb-8">
+              Build fast, type-safe web applications with seamless SSR,
+              file-based routing, and first-class TypeScript support. Deploy
+              anywhere.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <Button as="link" href="/docs">
+                Get Started
+              </Button>
+              <Button
+                variant="secondary"
+                as="anchor"
+                href="https://github.com/samlaycock/litz"
+                target="_blank"
+                rel="noreferrer"
+              >
+                View on GitHub
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div className="hidden lg:block lg:w-1/2 min-h-125">
+          <EnergyVisualization />
+        </div>
+      </div>
+    </>
+  );
+}
