@@ -65,7 +65,7 @@ export type SubmitOptions<TResult extends ServerResult = ServerResult> = {
 
 export type SearchParamsUpdate = Record<string, string | string[] | null | undefined>;
 
-export type VoltLocation = {
+export type LitzLocation = {
   href: string;
   pathname: string;
   search: URLSearchParams;
@@ -569,7 +569,7 @@ type LayoutLoaderOption<
       loader: RouteServerHandler<TContext, TLoaderResult, TPath>;
     };
 
-export type VoltLayout<
+export type LitzLayout<
   TPath extends string = string,
   TContext = unknown,
   TLoaderResult extends ServerResult = never,
@@ -630,7 +630,7 @@ type RouteActionClientHooks<TActionResult extends ServerResult> = {
   Form: React.ComponentType<RouteFormProps>;
 };
 
-export type VoltRoute<
+export type LitzRoute<
   TPath extends string = string,
   TContext = unknown,
   TLoaderResult extends ServerResult = never,
@@ -669,7 +669,7 @@ export type VoltRoute<
           })
 >;
 
-export type VoltMatch<TPath extends string = string> = {
+export type LitzMatch<TPath extends string = string> = {
   id: TPath;
   path: TPath;
   params: PathParams<TPath>;
@@ -682,7 +682,7 @@ export type ResourceRequest<TPath extends string = string> = Simplify<
 
 export type ResourceComponentProps<TPath extends string = string> = ResourceRequest<TPath>;
 
-export type VoltApiRoute<
+export type LitzApiRoute<
   TPath extends string = string,
   TContext = unknown,
   TMethods extends ApiRouteHandlers<TContext, TPath> = ApiRouteHandlers<TContext, TPath>,
@@ -693,7 +693,7 @@ export type VoltApiRoute<
   fetch(...args: MaybeRequiredArg<TPath, ApiFetchOptions<TPath, TMethods>>): Promise<Response>;
 };
 
-export type VoltResource<
+export type LitzResource<
   TPath extends string = string,
   TContext = unknown,
   TLoaderResult extends ServerResult = never,
@@ -801,11 +801,11 @@ type ResourceOptions<
   };
 
 function unimplementedHook(name: string): never {
-  throw new Error(`${name} is not available until the Volt runtime is implemented.`);
+  throw new Error(`${name} is not available until the Litz runtime is implemented.`);
 }
 
 function UnimplementedForm(): never {
-  throw new Error("route.Form is not available until the Volt runtime is implemented.");
+  throw new Error("route.Form is not available until the Litz runtime is implemented.");
 }
 
 function mergeHeaders(current: HeadersInit | undefined, next: HeadersInit): Headers {
@@ -910,7 +910,7 @@ export function defineRoute<TContext = unknown, const TPath extends string = str
     loader?: never;
     action?: never;
   },
-): VoltRoute<TPath, TContext, never, never>;
+): LitzRoute<TPath, TContext, never, never>;
 export function defineRoute<
   TContext = unknown,
   const TPath extends string = string,
@@ -921,7 +921,7 @@ export function defineRoute<
     loader: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>>;
     action?: never;
   },
-): VoltRoute<TPath, TContext, TLoaderResult, never>;
+): LitzRoute<TPath, TContext, TLoaderResult, never>;
 export function defineRoute<
   TContext = unknown,
   const TPath extends string = string,
@@ -932,7 +932,7 @@ export function defineRoute<
     loader?: never;
     action: RouteServerHandler<TContext, TActionResult, NoInferType<TPath>>;
   },
-): VoltRoute<TPath, TContext, never, TActionResult>;
+): LitzRoute<TPath, TContext, never, TActionResult>;
 export function defineRoute<
   TContext = unknown,
   const TPath extends string = string,
@@ -944,7 +944,7 @@ export function defineRoute<
     loader: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>>;
     action: RouteServerHandler<TContext, TActionResult, NoInferType<TPath>>;
   },
-): VoltRoute<TPath, TContext, TLoaderResult, TActionResult>;
+): LitzRoute<TPath, TContext, TLoaderResult, TActionResult>;
 export function defineRoute(path: string, options: DefineRouteOptions<any, any, any>): any {
   return {
     id: path,
@@ -1035,7 +1035,7 @@ export function defineLayout<TContext = unknown, const TPath extends string = st
   options: LayoutBaseOptions<NoInferType<TPath>, TContext> & {
     loader?: never;
   },
-): VoltLayout<TPath, TContext, never>;
+): LitzLayout<TPath, TContext, never>;
 export function defineLayout<
   TContext = unknown,
   const TPath extends string = string,
@@ -1045,7 +1045,7 @@ export function defineLayout<
   options: LayoutBaseOptions<NoInferType<TPath>, TContext> & {
     loader: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>>;
   },
-): VoltLayout<TPath, TContext, TLoaderResult>;
+): LitzLayout<TPath, TContext, TLoaderResult>;
 export function defineLayout(path: string, options: DefineLayoutOptions<any, any, any>): any {
   return {
     id: path,
@@ -1092,14 +1092,14 @@ export function defineLayout(path: string, options: DefineLayoutOptions<any, any
   } as any;
 }
 
-export function useMatches(): VoltMatch[] {
+export function useMatches(): LitzMatch[] {
   const bindings = getClientBindings();
 
   if (!bindings) {
     return unimplementedHook("useMatches()");
   }
 
-  return bindings.useMatches() as VoltMatch[];
+  return bindings.useMatches() as LitzMatch[];
 }
 
 export function usePathname(): string {
@@ -1112,14 +1112,14 @@ export function usePathname(): string {
   return bindings.usePathname();
 }
 
-export function useLocation(): VoltLocation {
+export function useLocation(): LitzLocation {
   const bindings = getClientBindings();
 
   if (!bindings) {
     return unimplementedHook("useLocation()");
   }
 
-  return bindings.useLocation() as VoltLocation;
+  return bindings.useLocation() as LitzLocation;
 }
 
 export function defineApiRoute<
@@ -1129,7 +1129,7 @@ export function defineApiRoute<
 >(
   path: TPath,
   definition: DefineApiRouteOptions<NoInferType<TContext>, NoInferType<TPath>, TMethods>,
-): VoltApiRoute<TPath, TContext, TMethods> {
+): LitzApiRoute<TPath, TContext, TMethods> {
   const { middleware, ...methods } = definition as DefineApiRouteOptions<TContext, TPath, TMethods>;
 
   return {
@@ -1158,7 +1158,7 @@ export function defineResource<TContext = unknown, const TPath extends string = 
     never,
     React.ComponentType<ResourceComponentProps<TPath>>
   >,
-): VoltResource<TPath, TContext, never, never, React.ComponentType<ResourceComponentProps<TPath>>>;
+): LitzResource<TPath, TContext, never, never, React.ComponentType<ResourceComponentProps<TPath>>>;
 export function defineResource<
   TContext = unknown,
   const TPath extends string = string,
@@ -1175,7 +1175,7 @@ export function defineResource<
     never,
     TComponent
   >,
-): VoltResource<TPath, TContext, TLoaderResult, never, TComponent>;
+): LitzResource<TPath, TContext, TLoaderResult, never, TComponent>;
 export function defineResource<
   TContext = unknown,
   const TPath extends string = string,
@@ -1192,7 +1192,7 @@ export function defineResource<
     TActionResult,
     TComponent
   >,
-): VoltResource<TPath, TContext, never, TActionResult, TComponent>;
+): LitzResource<TPath, TContext, never, TActionResult, TComponent>;
 export function defineResource<
   TContext = unknown,
   const TPath extends string = string,
@@ -1210,9 +1210,9 @@ export function defineResource<
     TActionResult,
     TComponent
   >,
-): VoltResource<TPath, TContext, TLoaderResult, TActionResult, TComponent>;
+): LitzResource<TPath, TContext, TLoaderResult, TActionResult, TComponent>;
 export function defineResource(path: any, options: any): any {
-  const ResourceComponent = function VoltDefinedResourceComponent(props: ResourceComponentProps) {
+  const ResourceComponent = function LitzDefinedResourceComponent(props: ResourceComponentProps) {
     const bindings = getClientBindings();
 
     if (!bindings) {

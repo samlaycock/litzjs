@@ -1,4 +1,4 @@
-import { defineRoute } from "volt";
+import { defineRoute } from "litz";
 
 import { resource as summaryCard } from "../resources/summary-card";
 
@@ -9,7 +9,7 @@ export const route = defineRoute("/features/resource-data", {
 function ResourceDataPage() {
   return (
     <>
-      <title>Resource Data | Volt RSC Smoke</title>
+      <title>Resource Data | Litz RSC Smoke</title>
       <main>
         <h1>Resource Data</h1>
         <summaryCard.Component params={{ id: "alpha" }} search={{ mode: "compact" }} />

@@ -12,7 +12,7 @@ import type {
 } from "../index";
 
 import { createFormDataPayload } from "../form-data";
-import { createInternalActionRequestInit, VOLT_RESULT_ACCEPT } from "../server/internal-requests";
+import { createInternalActionRequestInit, LITZ_RESULT_ACCEPT } from "../server/internal-requests";
 import { applySearchParams } from "./navigation";
 import {
   isRedirectSignal,
@@ -113,22 +113,22 @@ function createRuntimeContext<T>(name: string): React.Context<T | null> {
 }
 
 function getResourceLocationContext(): React.Context<ResourceLocationState | null> {
-  resourceLocationContext ??= createRuntimeContext<ResourceLocationState>("Volt resource location");
+  resourceLocationContext ??= createRuntimeContext<ResourceLocationState>("Litz resource location");
   return resourceLocationContext;
 }
 
 function getResourceStatusContext(): React.Context<ResourceStatusState | null> {
-  resourceStatusContext ??= createRuntimeContext<ResourceStatusState>("Volt resource status");
+  resourceStatusContext ??= createRuntimeContext<ResourceStatusState>("Litz resource status");
   return resourceStatusContext;
 }
 
 function getResourceDataContext(): React.Context<ResourceDataState | null> {
-  resourceDataContext ??= createRuntimeContext<ResourceDataState>("Volt resource data");
+  resourceDataContext ??= createRuntimeContext<ResourceDataState>("Litz resource data");
   return resourceDataContext;
 }
 
 function getResourceActionsContext(): React.Context<ResourceActionsState | null> {
-  resourceActionsContext ??= createRuntimeContext<ResourceActionsState>("Volt resource actions");
+  resourceActionsContext ??= createRuntimeContext<ResourceActionsState>("Litz resource actions");
   return resourceActionsContext;
 }
 
@@ -238,7 +238,7 @@ export function createResourceFormComponent(
     return cached;
   }
 
-  const VoltResourceForm = function VoltResourceForm(props: RouteFormProps): React.ReactElement {
+  const LitzResourceForm = function LitzResourceForm(props: RouteFormProps): React.ReactElement {
     const actions = useRequiredResourceActions(resourcePath);
     const { children, onSubmit, replace, revalidate, ...rest } = props;
     const submitRef = React.useRef(
@@ -272,10 +272,10 @@ export function createResourceFormComponent(
     );
   };
 
-  const MemoizedVoltResourceForm = React.memo(VoltResourceForm);
-  MemoizedVoltResourceForm.displayName = `VoltResourceForm(${resourcePath})`;
-  resourceFormComponentCache.set(resourcePath, MemoizedVoltResourceForm);
-  return MemoizedVoltResourceForm;
+  const MemoizedLitzResourceForm = React.memo(LitzResourceForm);
+  MemoizedLitzResourceForm.displayName = `LitzResourceForm(${resourcePath})`;
+  resourceFormComponentCache.set(resourcePath, MemoizedLitzResourceForm);
+  return MemoizedLitzResourceForm;
 }
 
 export function createResourceComponent<
@@ -287,7 +287,7 @@ export function createResourceComponent<
     return cached as React.ComponentType<TProps>;
   }
 
-  const VoltResourceComponent = function VoltResourceComponent(props: TProps): React.ReactElement {
+  const LitzResourceComponent = function LitzResourceComponent(props: TProps): React.ReactElement {
     const runtime = useResourceRuntime(resourcePath, props);
 
     return (
@@ -297,10 +297,10 @@ export function createResourceComponent<
     );
   };
 
-  const MemoizedVoltResourceComponent = React.memo(VoltResourceComponent);
-  MemoizedVoltResourceComponent.displayName = `VoltResource(${resourcePath})`;
-  resourceComponentCache.set(resourcePath, MemoizedVoltResourceComponent);
-  return MemoizedVoltResourceComponent;
+  const MemoizedLitzResourceComponent = React.memo(LitzResourceComponent);
+  MemoizedLitzResourceComponent.displayName = `LitzResource(${resourcePath})`;
+  resourceComponentCache.set(resourcePath, MemoizedLitzResourceComponent);
+  return MemoizedLitzResourceComponent;
 }
 
 function useResourceRuntime(resourcePath: string, request?: ResourceRequest): ResourceRuntimeState {
@@ -353,7 +353,7 @@ function useResourceRuntime(resourcePath: string, request?: ResourceRequest): Re
 
   const setSearch = React.useCallback<ResourceLocationState["setSearch"]>(
     (updates) => {
-      const current = new URL(`https://volt.local/?${searchState.toString()}`);
+      const current = new URL(`https://litz.local/?${searchState.toString()}`);
       const result = applySearchParams(current, updates);
 
       if (!result.changed) {
@@ -466,7 +466,7 @@ async function performPreparedResourceRequest(
     try {
       const response =
         operation === "action"
-          ? await fetch("/_volt/resource", {
+          ? await fetch("/_litz/resource", {
               method: "POST",
               ...createInternalActionRequestInit(
                 {
@@ -480,11 +480,11 @@ async function performPreparedResourceRequest(
                 payload,
               ),
             })
-          : await fetch("/_volt/resource", {
+          : await fetch("/_litz/resource", {
               method: "POST",
               headers: {
                 "content-type": "application/json",
-                accept: VOLT_RESULT_ACCEPT,
+                accept: LITZ_RESULT_ACCEPT,
               },
               body: JSON.stringify({
                 path: resourcePath,

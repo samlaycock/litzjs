@@ -16,7 +16,7 @@ import { extractRouteLikeParams, matchPathname, sortByPathSpecificity } from "./
 import { parseInternalRequestBody, type InternalRequestBody } from "./server/internal-requests";
 import { createInternalHandlerHeaders } from "./server/request-headers";
 
-export type VoltPluginOptions = {
+export type LitzPluginOptions = {
   routes?: string[];
   api?: string[];
   resources?: string[];
@@ -48,21 +48,21 @@ type DiscoveredApiRoute = {
   modulePath: string;
 };
 
-const ROUTE_MANIFEST_ID = "virtual:volt:route-manifest";
-const RESOLVED_ROUTE_MANIFEST_ID = "\0virtual:volt:route-manifest";
-const RESOURCE_MANIFEST_ID = "virtual:volt:resource-manifest";
-const RESOLVED_RESOURCE_MANIFEST_ID = "\0virtual:volt:resource-manifest";
-const SERVER_MANIFEST_ID = "virtual:volt:server-manifest";
-const RESOLVED_SERVER_MANIFEST_ID = "\0virtual:volt:server-manifest";
-const VOLT_RSC_ENTRY_ID = "virtual:volt:rsc-entry";
-const RESOLVED_VOLT_RSC_ENTRY_ID = "\0virtual:volt:rsc-entry";
-const VOLT_BROWSER_ENTRY_ID = "virtual:volt:browser-entry";
-const RESOLVED_VOLT_BROWSER_ENTRY_ID = "\0virtual:volt:browser-entry";
-const VOLT_RSC_RENDERER_ID = "virtual:volt:rsc-renderer";
-const RESOLVED_VOLT_RSC_RENDERER_ID = "\0virtual:volt:rsc-renderer";
+const ROUTE_MANIFEST_ID = "virtual:litz:route-manifest";
+const RESOLVED_ROUTE_MANIFEST_ID = "\0virtual:litz:route-manifest";
+const RESOURCE_MANIFEST_ID = "virtual:litz:resource-manifest";
+const RESOLVED_RESOURCE_MANIFEST_ID = "\0virtual:litz:resource-manifest";
+const SERVER_MANIFEST_ID = "virtual:litz:server-manifest";
+const RESOLVED_SERVER_MANIFEST_ID = "\0virtual:litz:server-manifest";
+const LITZ_RSC_ENTRY_ID = "virtual:litz:rsc-entry";
+const RESOLVED_LITZ_RSC_ENTRY_ID = "\0virtual:litz:rsc-entry";
+const LITZ_BROWSER_ENTRY_ID = "virtual:litz:browser-entry";
+const RESOLVED_LITZ_BROWSER_ENTRY_ID = "\0virtual:litz:browser-entry";
+const LITZ_RSC_RENDERER_ID = "virtual:litz:rsc-renderer";
+const RESOLVED_LITZ_RSC_RENDERER_ID = "\0virtual:litz:rsc-renderer";
 let hasScheduledServerCleanup = false;
 
-export default function volt(options: VoltPluginOptions = {}): Plugin[] {
+export default function litz(options: LitzPluginOptions = {}): Plugin[] {
   let root = process.cwd();
   let browserEntryPath = "src/main.tsx";
   let serverEntryPath: string | null = null;
@@ -85,14 +85,14 @@ export default function volt(options: VoltPluginOptions = {}): Plugin[] {
   const apiPatterns = options.api ?? ["src/routes/api/**/*.{ts,tsx}"];
   const rscPlugins = vitePluginRsc({
     entries: {
-      client: VOLT_BROWSER_ENTRY_ID,
-      rsc: VOLT_RSC_ENTRY_ID,
+      client: LITZ_BROWSER_ENTRY_ID,
+      rsc: LITZ_RSC_ENTRY_ID,
     },
     serverHandler: false,
   });
 
-  const voltPlugin: Plugin = {
-    name: "volt/vite",
+  const litzPlugin: Plugin = {
+    name: "litz/vite",
 
     config(userConfig) {
       const baseOutDir = userConfig.build?.outDir ?? "dist";
@@ -158,16 +158,16 @@ export default function volt(options: VoltPluginOptions = {}): Plugin[] {
         return RESOLVED_SERVER_MANIFEST_ID;
       }
 
-      if (id === VOLT_RSC_ENTRY_ID) {
-        return RESOLVED_VOLT_RSC_ENTRY_ID;
+      if (id === LITZ_RSC_ENTRY_ID) {
+        return RESOLVED_LITZ_RSC_ENTRY_ID;
       }
 
-      if (id === VOLT_BROWSER_ENTRY_ID) {
-        return RESOLVED_VOLT_BROWSER_ENTRY_ID;
+      if (id === LITZ_BROWSER_ENTRY_ID) {
+        return RESOLVED_LITZ_BROWSER_ENTRY_ID;
       }
 
-      if (id === VOLT_RSC_RENDERER_ID) {
-        return RESOLVED_VOLT_RSC_RENDERER_ID;
+      if (id === LITZ_RSC_RENDERER_ID) {
+        return RESOLVED_LITZ_RSC_RENDERER_ID;
       }
 
       return null;
@@ -186,13 +186,13 @@ export default function volt(options: VoltPluginOptions = {}): Plugin[] {
         return createServerManifestModule(routeManifest, resourceManifest, apiManifest);
       }
 
-      if (id === RESOLVED_VOLT_RSC_ENTRY_ID) {
+      if (id === RESOLVED_LITZ_RSC_ENTRY_ID) {
         if (serverEntryPath) {
           return `export { default } from ${JSON.stringify(toProjectImportSpecifier(serverEntryPath))};`;
         }
 
         return `
-import { createServer } from "volt/server";
+import { createServer } from "litz/server";
 import { serverManifest } from ${JSON.stringify(SERVER_MANIFEST_ID)};
 
 export default createServer({
@@ -204,11 +204,11 @@ export default createServer({
 `;
       }
 
-      if (id === RESOLVED_VOLT_BROWSER_ENTRY_ID) {
+      if (id === RESOLVED_LITZ_BROWSER_ENTRY_ID) {
         return `import ${JSON.stringify(toImportSpecifier(root, browserEntryPath))};`;
       }
 
-      if (id === RESOLVED_VOLT_RSC_RENDERER_ID) {
+      if (id === RESOLVED_LITZ_RSC_RENDERER_ID) {
         return `
 import { renderToReadableStream } from "@vitejs/plugin-rsc/rsc";
 
@@ -218,10 +218,10 @@ export async function renderView(node, metadata = {}) {
     status: metadata.status ?? 200,
     headers: {
       "content-type": "text/x-component",
-      "x-volt-kind": "view",
-      "x-volt-status": String(metadata.status ?? 200),
-      "x-volt-view-id": metadata.viewId ?? "volt#view",
-      "x-volt-revalidate": Array.isArray(metadata.revalidate) ? metadata.revalidate.join(",") : ""
+      "x-litz-kind": "view",
+      "x-litz-status": String(metadata.status ?? 200),
+      "x-litz-view-id": metadata.viewId ?? "litz#view",
+      "x-litz-revalidate": Array.isArray(metadata.revalidate) ? metadata.revalidate.join(",") : ""
     }
   });
 }
@@ -274,16 +274,16 @@ export async function renderView(node, metadata = {}) {
       server.watcher.on("unlink", onFsChange);
 
       server.middlewares.use((request, response, next) => {
-        void handleVoltResourceRequest(server, resourceManifest, request, response, next);
+        void handleLitzResourceRequest(server, resourceManifest, request, response, next);
       });
       server.middlewares.use((request, response, next) => {
-        void handleVoltRouteRequest(server, routeManifest, request, response, next);
+        void handleLitzRouteRequest(server, routeManifest, request, response, next);
       });
       server.middlewares.use((request, response, next) => {
-        void handleVoltApiRequest(server, apiManifest, request, response, next);
+        void handleLitzApiRequest(server, apiManifest, request, response, next);
       });
       server.middlewares.use((request, response, next) => {
-        void handleVoltDocumentRequest(server, request, response, next);
+        void handleLitzDocumentRequest(server, request, response, next);
       });
     },
 
@@ -350,7 +350,7 @@ export async function renderView(node, metadata = {}) {
     },
   };
 
-  return [...rscPlugins, voltPlugin];
+  return [...rscPlugins, litzPlugin];
 }
 
 async function discoverAllManifests(
@@ -633,7 +633,7 @@ function injectServerManifestIntoServerEntry(filePath: string, source: string): 
       continue;
     }
 
-    if (statement.moduleSpecifier.text !== "volt/server") {
+    if (statement.moduleSpecifier.text !== "litz/server") {
       continue;
     }
 
@@ -664,7 +664,7 @@ function injectServerManifestIntoServerEntry(filePath: string, source: string): 
         ) {
           return ts.factory.updateCallExpression(node, node.expression, node.typeArguments, [
             ts.factory.createCallExpression(
-              ts.factory.createIdentifier("__voltMergeServerOptions"),
+              ts.factory.createIdentifier("__litzMergeServerOptions"),
               undefined,
               [node.arguments[0] ?? ts.factory.createIdentifier("undefined")],
             ),
@@ -689,7 +689,7 @@ function injectServerManifestIntoServerEntry(filePath: string, source: string): 
         ts.factory.createImportSpecifier(
           false,
           ts.factory.createIdentifier("serverManifest"),
-          ts.factory.createIdentifier("__voltServerManifest"),
+          ts.factory.createIdentifier("__litzServerManifest"),
         ),
       ]),
     ),
@@ -701,7 +701,7 @@ function injectServerManifestIntoServerEntry(filePath: string, source: string): 
     ts.factory.createVariableDeclarationList(
       [
         ts.factory.createVariableDeclaration(
-          ts.factory.createIdentifier("__voltMergeServerOptions"),
+          ts.factory.createIdentifier("__litzMergeServerOptions"),
           undefined,
           undefined,
           ts.factory.createArrowFunction(
@@ -721,7 +721,7 @@ function injectServerManifestIntoServerEntry(filePath: string, source: string): 
                 [
                   ts.factory.createPropertyAssignment(
                     ts.factory.createIdentifier("manifest"),
-                    ts.factory.createIdentifier("__voltServerManifest"),
+                    ts.factory.createIdentifier("__litzServerManifest"),
                   ),
                   ts.factory.createSpreadAssignment(
                     ts.factory.createBinaryExpression(
@@ -841,14 +841,14 @@ type DevMiddlewareHandler<TContext = unknown, TResult = unknown> = (
   next: DevMiddlewareNext<TContext, TResult>,
 ) => Promise<TResult> | TResult;
 
-async function handleVoltResourceRequest(
+async function handleLitzResourceRequest(
   server: ViteDevServer,
   manifest: DiscoveredResource[],
   request: IncomingMessage,
   response: ServerResponse,
   next: Connect.NextFunction,
 ): Promise<void> {
-  if (!request.url?.startsWith("/_volt/resource")) {
+  if (!request.url?.startsWith("/_litz/resource")) {
     next();
     return;
   }
@@ -868,11 +868,11 @@ async function handleVoltResourceRequest(
     const entry = manifest.find((resource) => resource.path === resourcePath);
 
     if (!resourcePath || !entry) {
-      sendVoltJson(response, 404, { kind: "error", message: "Resource not found." });
+      sendLitzJson(response, 404, { kind: "error", message: "Resource not found." });
       return;
     }
 
-    const module = await loadVoltServerModule<{
+    const module = await loadLitzServerModule<{
       resource?: {
         loader?: (context: unknown) => Promise<unknown>;
         action?: (context: unknown) => Promise<unknown>;
@@ -888,7 +888,7 @@ async function handleVoltResourceRequest(
       | undefined;
 
     if (!resource) {
-      sendVoltJson(response, 500, {
+      sendLitzJson(response, 500, {
         kind: "fault",
         message: "Resource module did not export resource.",
       });
@@ -898,7 +898,7 @@ async function handleVoltResourceRequest(
     const handler = operation === "action" ? resource.action : resource.loader;
 
     if (!handler) {
-      sendVoltJson(response, 405, {
+      sendLitzJson(response, 405, {
         kind: "error",
         message: `Resource does not define a ${operation}.`,
       });
@@ -931,21 +931,21 @@ async function handleVoltResourceRequest(
     await sendServerResult(server, response, result, `${entry.path}#${operation}`);
   } catch (error) {
     server.ssrFixStacktrace(error as Error);
-    sendVoltJson(response, 500, {
+    sendLitzJson(response, 500, {
       kind: "fault",
       message: error instanceof Error ? error.message : "Resource request failed.",
     });
   }
 }
 
-async function handleVoltRouteRequest(
+async function handleLitzRouteRequest(
   server: ViteDevServer,
   manifest: DiscoveredRoute[],
   request: IncomingMessage,
   response: ServerResponse,
   next: Connect.NextFunction,
 ): Promise<void> {
-  if (!request.url?.startsWith("/_volt/route") && !request.url?.startsWith("/_volt/action")) {
+  if (!request.url?.startsWith("/_litz/route") && !request.url?.startsWith("/_litz/action")) {
     next();
     return;
   }
@@ -963,15 +963,15 @@ async function handleVoltRouteRequest(
     const routePath = body.path;
     const targetId = body.target;
     const operation =
-      body.operation ?? (request.url.startsWith("/_volt/action") ? "action" : "loader");
+      body.operation ?? (request.url.startsWith("/_litz/action") ? "action" : "loader");
     const entry = manifest.find((route) => route.path === routePath);
 
     if (!routePath || !entry) {
-      sendVoltJson(response, 404, { kind: "error", message: "Route not found." });
+      sendLitzJson(response, 404, { kind: "error", message: "Route not found." });
       return;
     }
 
-    const module = await loadVoltServerModule<{
+    const module = await loadLitzServerModule<{
       layout?: {
         id: string;
         path: string;
@@ -1015,7 +1015,7 @@ async function handleVoltRouteRequest(
       | undefined;
 
     if (!route) {
-      sendVoltJson(response, 500, { kind: "fault", message: "Route module did not export route." });
+      sendLitzJson(response, 500, { kind: "fault", message: "Route module did not export route." });
       return;
     }
 
@@ -1030,7 +1030,7 @@ async function handleVoltRouteRequest(
         : findDevTargetRouteMatch(chain, targetId ?? routePath);
 
     if (!target) {
-      sendVoltJson(response, 404, { kind: "error", message: "Route target not found." });
+      sendLitzJson(response, 404, { kind: "error", message: "Route target not found." });
       return;
     }
 
@@ -1039,7 +1039,7 @@ async function handleVoltRouteRequest(
       operation === "action" ? (route.action ?? route.options?.action) : target.loader;
 
     if (!handler) {
-      sendVoltJson(response, 405, {
+      sendLitzJson(response, 405, {
         kind: "error",
         message: `Route does not define a ${operation}.`,
       });
@@ -1083,14 +1083,14 @@ async function handleVoltRouteRequest(
     await sendServerResult(server, response, result, `${target.id}#${operation}`);
   } catch (error) {
     server.ssrFixStacktrace(error as Error);
-    sendVoltJson(response, 500, {
+    sendLitzJson(response, 500, {
       kind: "fault",
       message: error instanceof Error ? error.message : "Route request failed.",
     });
   }
 }
 
-async function handleVoltDocumentRequest(
+async function handleLitzDocumentRequest(
   server: ViteDevServer,
   request: IncomingMessage,
   response: ServerResponse,
@@ -1103,7 +1103,7 @@ async function handleVoltDocumentRequest(
     return;
   }
 
-  if (url.startsWith("/_volt/") || url.startsWith("/@") || url.startsWith("/node_modules/")) {
+  if (url.startsWith("/_litz/") || url.startsWith("/@") || url.startsWith("/node_modules/")) {
     next();
     return;
   }
@@ -1133,14 +1133,14 @@ async function handleVoltDocumentRequest(
   }
 }
 
-async function handleVoltApiRequest(
+async function handleLitzApiRequest(
   server: ViteDevServer,
   manifest: DiscoveredApiRoute[],
   request: IncomingMessage,
   response: ServerResponse,
   next: Connect.NextFunction,
 ): Promise<void> {
-  const requestUrl = request.url ? new URL(request.url, "http://volt.local") : null;
+  const requestUrl = request.url ? new URL(request.url, "http://litz.local") : null;
 
   if (!requestUrl) {
     next();
@@ -1258,7 +1258,7 @@ function createIncomingRequestUrl(request: IncomingMessage): URL {
     getForwardedRequestValue(request.headers["x-forwarded-proto"]) ??
     (socket.encrypted ? "https" : "http");
 
-  return new URL(request.url ?? "/", `${protocol}://${host ?? "volt.local"}`);
+  return new URL(request.url ?? "/", `${protocol}://${host ?? "litz.local"}`);
 }
 
 function getForwardedRequestValue(value: string | string[] | undefined): string | undefined {
@@ -1319,10 +1319,10 @@ async function sendServerResult(
   server: ViteDevServer,
   response: ServerResponse,
   result: unknown,
-  viewId = "volt#view",
+  viewId = "litz#view",
 ): Promise<void> {
   if (!result || typeof result !== "object" || !("kind" in result)) {
-    sendVoltJson(response, 500, {
+    sendLitzJson(response, 500, {
       kind: "fault",
       message: "Handler returned an unknown result.",
     });
@@ -1350,14 +1350,14 @@ async function sendServerResult(
 
   switch (serverResult.kind) {
     case "data":
-      sendVoltJson(response, serverResult.status ?? 200, {
+      sendLitzJson(response, serverResult.status ?? 200, {
         kind: "data",
         data: serverResult.data,
         revalidate: serverResult.revalidate ?? [],
       });
       return;
     case "invalid":
-      sendVoltJson(response, serverResult.status ?? 422, {
+      sendLitzJson(response, serverResult.status ?? 422, {
         kind: "invalid",
         fields: serverResult.fields,
         formError: serverResult.formError,
@@ -1365,7 +1365,7 @@ async function sendServerResult(
       });
       return;
     case "redirect":
-      sendVoltJson(response, serverResult.status ?? 303, {
+      sendLitzJson(response, serverResult.status ?? 303, {
         kind: "redirect",
         location: serverResult.location,
         replace: serverResult.replace ?? false,
@@ -1373,7 +1373,7 @@ async function sendServerResult(
       });
       return;
     case "error":
-      sendVoltJson(response, serverResult.status ?? 500, {
+      sendLitzJson(response, serverResult.status ?? 500, {
         kind: "error",
         message: serverResult.message ?? "Error",
         code: serverResult.code,
@@ -1381,7 +1381,7 @@ async function sendServerResult(
       });
       return;
     case "fault":
-      sendVoltJson(response, serverResult.status ?? 500, {
+      sendLitzJson(response, serverResult.status ?? 500, {
         kind: "fault",
         message: serverResult.message ?? "Fault",
         digest: serverResult.digest,
@@ -1397,19 +1397,19 @@ async function sendServerResult(
       await writeFetchResponseToNode(response, rscResponse);
       return;
     default:
-      sendVoltJson(response, 500, {
+      sendLitzJson(response, 500, {
         kind: "fault",
         message: `Unsupported result kind "${serverResult.kind}".`,
       });
   }
 }
 
-async function loadVoltServerModule<T>(server: ViteDevServer, id: string): Promise<T> {
+async function loadLitzServerModule<T>(server: ViteDevServer, id: string): Promise<T> {
   const environment = getRscEnvironment(server);
   const resolved = await environment.pluginContainer.resolveId(id);
 
   if (!resolved) {
-    throw new Error(`Failed to resolve Volt server module "${id}".`);
+    throw new Error(`Failed to resolve Litz server module "${id}".`);
   }
 
   return environment.runner.import(resolved.id);
@@ -1421,7 +1421,7 @@ async function loadRscRenderer(server: ViteDevServer): Promise<{
     metadata?: { status?: number; viewId?: string; revalidate?: string[] },
   ): Promise<Response>;
 }> {
-  return loadVoltServerModule(server, VOLT_RSC_RENDERER_ID);
+  return loadLitzServerModule(server, LITZ_RSC_RENDERER_ID);
 }
 
 function getRscEnvironment(server: ViteDevServer): {
@@ -1442,13 +1442,13 @@ function getRscEnvironment(server: ViteDevServer): {
   };
 }
 
-function sendVoltJson(
+function sendLitzJson(
   response: ServerResponse,
   status: number,
   body: Record<string, unknown>,
 ): void {
   response.statusCode = status;
-  response.setHeader("content-type", "application/vnd.volt.result+json");
+  response.setHeader("content-type", "application/vnd.litz.result+json");
   response.end(JSON.stringify(body));
 }
 
@@ -1469,7 +1469,7 @@ function applyRevalidateHeader(response: ServerResponse, revalidate?: string[]):
     return;
   }
 
-  response.setHeader("x-volt-revalidate", revalidate.join(","));
+  response.setHeader("x-litz-revalidate", revalidate.join(","));
 }
 
 async function writeFetchResponseToNode(
@@ -1646,7 +1646,7 @@ async function runDevMiddlewareChain<TContext, TResult>(options: {
       },
       async (overrides) => {
         if (called) {
-          throw new Error("Volt middleware next() called multiple times.");
+          throw new Error("Litz middleware next() called multiple times.");
         }
 
         called = true;
@@ -1773,7 +1773,7 @@ function finalizeServerArtifacts(
     "const assetsManifest = ",
   );
   const asyncLocalStorageShimSource = [
-    "class __VoltAsyncLocalStorage {",
+    "class __LitzAsyncLocalStorage {",
     "  run(store, callback, ...args) {",
     "    const previousStore = this.store;",
     "    this.store = store;",
@@ -1793,7 +1793,7 @@ function finalizeServerArtifacts(
     "  }",
     "}",
     "",
-    "globalThis.AsyncLocalStorage ??= __VoltAsyncLocalStorage;",
+    "globalThis.AsyncLocalStorage ??= __LitzAsyncLocalStorage;",
   ].join("\n");
   const inlinedServerSource = rscEntrySource
     .replace('import assetsManifest from "./__vite_rsc_assets_manifest.js";', manifestBindingSource)
@@ -1823,7 +1823,7 @@ function transformServerModuleSource(serverModuleSource: string): {
   source: string;
   handlerName: string;
 } {
-  const handlerName = "__voltServerHandler";
+  const handlerName = "__litzServerHandler";
   let transformed = serverModuleSource;
 
   transformed = transformed.replace(
@@ -1865,8 +1865,8 @@ function createInlineAssetServerWrapper(
   const { source, handlerName } = transformServerModuleSource(serverModuleSource);
 
   return [
-    `const VOLT_DOCUMENT_HTML = ${serializedDocumentHtml};`,
-    `const VOLT_CLIENT_ASSETS = new Map(${serializedClientAssets}.map((asset) => [asset.path, asset]));`,
+    `const LITZ_DOCUMENT_HTML = ${serializedDocumentHtml};`,
+    `const LITZ_CLIENT_ASSETS = new Map(${serializedClientAssets}.map((asset) => [asset.path, asset]));`,
     "",
     source,
     "",
@@ -1899,7 +1899,7 @@ function createInlineAssetServerWrapper(
     "}",
     "",
     "function shouldServeDocument(request, pathname) {",
-    "  if (pathname.startsWith('/_volt/') || pathname.startsWith('/api/')) {",
+    "  if (pathname.startsWith('/_litz/') || pathname.startsWith('/api/')) {",
     "    return false;",
     "  }",
     "",
@@ -1915,14 +1915,14 @@ function createInlineAssetServerWrapper(
     "",
     "export default async function handle(request) {",
     "  const url = new URL(request.url);",
-    "  const asset = VOLT_CLIENT_ASSETS.get(url.pathname);",
+    "  const asset = LITZ_CLIENT_ASSETS.get(url.pathname);",
     "",
     "  if ((request.method === 'GET' || request.method === 'HEAD') && asset) {",
     "    return createStaticAssetResponse(asset, request);",
     "  }",
     "",
     "  if ((request.method === 'GET' || request.method === 'HEAD') && shouldServeDocument(request, url.pathname)) {",
-    "    return new Response(request.method === 'HEAD' ? null : VOLT_DOCUMENT_HTML, {",
+    "    return new Response(request.method === 'HEAD' ? null : LITZ_DOCUMENT_HTML, {",
     "      status: 200,",
     "      headers: {",
     "        'content-type': 'text/html; charset=utf-8',",

@@ -93,7 +93,7 @@ describe("route form runtime", () => {
 
       return (
         <>
-          <input name="message" defaultValue="Ship Volt" />
+          <input name="message" defaultValue="Ship Litz" />
           <button type="submit">Save</button>
           <div id="pending-status" data-value={status.pending ? "pending" : "idle"} />
           <div
@@ -130,11 +130,11 @@ describe("route form runtime", () => {
     await flushDom();
 
     expect(pendingOutput?.getAttribute("data-value")).toBe("pending");
-    expect(dataOutput?.getAttribute("data-value")).toBe("Ship Volt");
+    expect(dataOutput?.getAttribute("data-value")).toBe("Ship Litz");
     expect(submittedPayload).toBeInstanceOf(FormData);
     const submittedMessage =
       submittedPayload instanceof FormData ? submittedPayload.get("message") : null;
-    expect(submittedMessage).toBe("Ship Volt");
+    expect(submittedMessage).toBe("Ship Litz");
 
     submitDeferred.resolve();
     await act(async () => {

@@ -1,4 +1,4 @@
-import { data, defineResource, server, type DataResult } from "volt";
+import { data, defineResource, server, type DataResult } from "litz";
 
 type SummaryCardData = {
   id: string;

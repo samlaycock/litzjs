@@ -72,28 +72,28 @@ function createRuntimeContext<T>(name: string): React.Context<T | null> {
 }
 
 function getRouteLocationContext(): React.Context<RouteLocationState | null> {
-  routeLocationContext ??= createRuntimeContext<RouteLocationState>("Volt route location");
+  routeLocationContext ??= createRuntimeContext<RouteLocationState>("Litz route location");
   return routeLocationContext;
 }
 
 function getRouteStatusContext(): React.Context<RouteStatusState | null> {
-  routeStatusContext ??= createRuntimeContext<RouteStatusState>("Volt route status");
+  routeStatusContext ??= createRuntimeContext<RouteStatusState>("Litz route status");
   return routeStatusContext;
 }
 
 function getRouteDataContext(): React.Context<RouteDataState | null> {
-  routeDataContext ??= createRuntimeContext<RouteDataState>("Volt route data");
+  routeDataContext ??= createRuntimeContext<RouteDataState>("Litz route data");
   return routeDataContext;
 }
 
 function getRouteActionsContext(): React.Context<RouteActionsState | null> {
-  routeActionsContext ??= createRuntimeContext<RouteActionsState>("Volt route actions");
+  routeActionsContext ??= createRuntimeContext<RouteActionsState>("Litz route actions");
   return routeActionsContext;
 }
 
 function requireActiveRouteSlice<T extends { id: string }>(routeId: string, value: T | null): T {
   if (!value) {
-    throw new Error(`Route "${routeId}" is being used outside the Volt runtime.`);
+    throw new Error(`Route "${routeId}" is being used outside the Litz runtime.`);
   }
 
   if (value.id !== routeId) {
@@ -233,7 +233,7 @@ export function createRouteFormComponent(routeId: string): React.ComponentType<R
     return cached;
   }
 
-  const VoltRouteForm = function VoltRouteForm(props: RouteFormProps): React.ReactElement {
+  const LitzRouteForm = function LitzRouteForm(props: RouteFormProps): React.ReactElement {
     const actions = useRequiredRouteActions(routeId);
     const { children, onSubmit, replace, revalidate, ...rest } = props;
     const submitRef = React.useRef(
@@ -267,10 +267,10 @@ export function createRouteFormComponent(routeId: string): React.ComponentType<R
     );
   };
 
-  const MemoizedVoltRouteForm = React.memo(VoltRouteForm);
-  MemoizedVoltRouteForm.displayName = `VoltRouteForm(${routeId})`;
-  routeFormComponentCache.set(routeId, MemoizedVoltRouteForm);
-  return MemoizedVoltRouteForm;
+  const MemoizedLitzRouteForm = React.memo(LitzRouteForm);
+  MemoizedLitzRouteForm.displayName = `LitzRouteForm(${routeId})`;
+  routeFormComponentCache.set(routeId, MemoizedLitzRouteForm);
+  return MemoizedLitzRouteForm;
 }
 
 export type { SearchParamsUpdate };

@@ -1,4 +1,4 @@
-import { defineRoute, error, server } from "volt";
+import { defineRoute, error, server } from "litz";
 
 export const route = defineRoute("/features/error-default", {
   component: BrokenDefaultPage,
@@ -8,7 +8,7 @@ export const route = defineRoute("/features/error-default", {
 function BrokenDefaultPage() {
   return (
     <>
-      <title>Default Error | Volt RSC Smoke</title>
+      <title>Default Error | Litz RSC Smoke</title>
       <main>This should not render.</main>
     </>
   );

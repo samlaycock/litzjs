@@ -1,4 +1,4 @@
-import { data, defineRoute, server } from "volt";
+import { data, defineRoute, server } from "litz";
 
 export const route = defineRoute("/features/loader-data", {
   component: MePage,
@@ -6,7 +6,7 @@ export const route = defineRoute("/features/loader-data", {
     return data({
       user: {
         id: "user_123",
-        name: "Volt Tester",
+        name: "Litz Tester",
         email: "tester@example.com",
       },
     });
@@ -19,7 +19,7 @@ function MePage() {
 
   return (
     <>
-      <title>Loader Data | Volt RSC Smoke</title>
+      <title>Loader Data | Litz RSC Smoke</title>
       <main>
         <h1>Data Loader Route</h1>
         <p>Name: {user?.user.name ?? "(loading)"}</p>

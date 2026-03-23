@@ -26,8 +26,8 @@ export type InternalRequestBody = InternalRequestMetadata & {
   payload?: InternalPayload | SerializedInternalPayload | null;
 };
 
-export const INTERNAL_REQUEST_HEADER = "x-volt-request";
-export const VOLT_RESULT_ACCEPT = "application/vnd.volt.result+json, text/x-component";
+export const INTERNAL_REQUEST_HEADER = "x-litz-request";
+export const LITZ_RESULT_ACCEPT = "application/vnd.litz.result+json, text/x-component";
 
 export function createInternalActionRequestInit(
   metadata: InternalRequestMetadata,
@@ -35,7 +35,7 @@ export function createInternalActionRequestInit(
 ): { headers: Headers; body: FormData } {
   return {
     headers: new Headers({
-      accept: VOLT_RESULT_ACCEPT,
+      accept: LITZ_RESULT_ACCEPT,
       [INTERNAL_REQUEST_HEADER]: JSON.stringify(metadata),
     }),
     body: createFormDataPayload(payload),

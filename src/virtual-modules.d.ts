@@ -1,4 +1,4 @@
-declare module "virtual:volt:route-manifest" {
+declare module "virtual:litz:route-manifest" {
   export const routeManifest: Array<{
     id: string;
     path: string;
@@ -18,7 +18,7 @@ declare module "virtual:volt:route-manifest" {
   }>;
 }
 
-declare module "virtual:volt:resource-manifest" {
+declare module "virtual:litz:resource-manifest" {
   export const resourceManifest: Array<{
     path: string;
     modulePath: string;

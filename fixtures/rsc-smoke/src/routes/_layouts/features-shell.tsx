@@ -1,4 +1,4 @@
-import { data, defineLayout, server } from "volt";
+import { data, defineLayout, server } from "litz";
 
 export const layout = defineLayout("/layouts/features", {
   component: FeaturesShell,

@@ -1,5 +1,5 @@
+import { data, defineRoute, server } from "litz";
 import { useFormStatus } from "react-dom";
-import { data, defineRoute, server } from "volt";
 
 import { delay } from "../../data/state";
 
@@ -38,7 +38,7 @@ function StatusPage() {
 
   return (
     <>
-      <title>Status Pending | Volt RSC Smoke</title>
+      <title>Status Pending | Litz RSC Smoke</title>
       <main>
         <h1>Status Demo</h1>
         <p>Status: {status}</p>
@@ -86,7 +86,7 @@ function StatusFormFields(props: { submitting: boolean }) {
 function StatusPending() {
   return (
     <>
-      <title>Status Pending | Volt RSC Smoke</title>
+      <title>Status Pending | Litz RSC Smoke</title>
       <main>Loading status route...</main>
     </>
   );

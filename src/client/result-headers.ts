@@ -1,9 +1,9 @@
 const PUBLIC_RESULT_HEADER_NAMES = new Set([
   "content-type",
-  "x-volt-kind",
-  "x-volt-revalidate",
-  "x-volt-status",
-  "x-volt-view-id",
+  "x-litz-kind",
+  "x-litz-revalidate",
+  "x-litz-status",
+  "x-litz-view-id",
 ]);
 
 export function createPublicResultHeaders(headers: Headers): Headers {
@@ -14,7 +14,7 @@ export function createPublicResultHeaders(headers: Headers): Headers {
 
     if (
       PUBLIC_RESULT_HEADER_NAMES.has(normalizedKey) ||
-      normalizedKey.startsWith("x-volt-public-")
+      normalizedKey.startsWith("x-litz-public-")
     ) {
       publicHeaders.append(key, value);
     }

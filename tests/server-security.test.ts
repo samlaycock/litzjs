@@ -21,7 +21,7 @@ describe("server security", () => {
                     cookie: request.headers.get("cookie"),
                     host: request.headers.get("host"),
                     origin: request.headers.get("origin"),
-                    internalHeader: request.headers.get("x-volt-request"),
+                    internalHeader: request.headers.get("x-litz-request"),
                     href: request.url,
                     pathname: new URL(request.url).pathname,
                   },
@@ -47,7 +47,7 @@ describe("server security", () => {
         },
       },
       {
-        name: "Volt",
+        name: "Litz",
       },
     );
     const headers = new Headers(actionRequest.headers);
@@ -57,7 +57,7 @@ describe("server security", () => {
     headers.set("origin", "https://app.example.com");
 
     const response = await server(
-      new Request("https://app.example.com/_volt/action", {
+      new Request("https://app.example.com/_litz/action", {
         method: "POST",
         headers,
         body: actionRequest.body,
@@ -124,10 +124,10 @@ describe("server security", () => {
         },
       },
       {
-        name: "Volt",
+        name: "Litz",
       },
     );
-    const request = new Request("https://app.example.com/_volt/action", {
+    const request = new Request("https://app.example.com/_litz/action", {
       method: "POST",
       headers: actionRequest.headers,
       body: actionRequest.body,
@@ -166,7 +166,7 @@ describe("server security", () => {
     const body = await response.text();
 
     expect(response.status).toBe(500);
-    expect(body).toBe("Volt server error.");
+    expect(body).toBe("Litz server error.");
     expect(body).not.toContain("postgres://user:secret@example.com/db");
   });
 });

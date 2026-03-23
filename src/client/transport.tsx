@@ -2,7 +2,7 @@ import type { ActionHookResult, LoaderHookResult } from "../index";
 
 import { createPublicResultHeaders } from "./result-headers";
 
-export type VoltJsonBody =
+export type LitzJsonBody =
   | {
       kind: "data";
       data: unknown;
@@ -40,7 +40,7 @@ export async function parseLoaderResponse(response: Response): Promise<LoaderHoo
     return createViewResult(response, publicHeaders);
   }
 
-  const body = (await response.json()) as VoltJsonBody;
+  const body = (await response.json()) as LitzJsonBody;
 
   if (body.kind === "data") {
     return {
@@ -78,7 +78,7 @@ export async function parseActionResponse(response: Response): Promise<ActionHoo
     return createViewResult(response, publicHeaders);
   }
 
-  const body = (await response.json()) as VoltJsonBody;
+  const body = (await response.json()) as LitzJsonBody;
 
   switch (body.kind) {
     case "data":
@@ -200,7 +200,7 @@ export async function createViewResult(
 
   return {
     kind: "view",
-    status: Number(response.headers.get("x-volt-status") ?? response.status),
+    status: Number(response.headers.get("x-litz-status") ?? response.status),
     headers: publicHeaders,
     stale: false,
     node: node as import("react").ReactNode,
@@ -243,7 +243,7 @@ export function isRedirectSignal(value: unknown): value is {
 }
 
 export function getRevalidateTargets(headers: Headers): string[] {
-  const value = headers.get("x-volt-revalidate");
+  const value = headers.get("x-litz-revalidate");
 
   if (!value) {
     return [];
@@ -258,7 +258,7 @@ export function getRevalidateTargets(headers: Headers): string[] {
 function createRouteLikeError(
   status: number,
   headers: Headers,
-  body: Extract<VoltJsonBody, { kind: "error" | "fault" }>,
+  body: Extract<LitzJsonBody, { kind: "error" | "fault" }>,
 ) {
   return {
     kind: body.kind,
@@ -274,7 +274,7 @@ function createRouteLikeError(
 function createRedirectSignal(
   status: number,
   headers: Headers,
-  body: Extract<VoltJsonBody, { kind: "redirect" }>,
+  body: Extract<LitzJsonBody, { kind: "redirect" }>,
 ) {
   return {
     kind: "redirect" as const,

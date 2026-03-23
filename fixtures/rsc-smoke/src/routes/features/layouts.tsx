@@ -1,4 +1,4 @@
-import { data, defineRoute, server, useMatches } from "volt";
+import { data, defineRoute, server, useMatches } from "litz";
 
 import { layout as layoutDemoShell } from "../_layouts/layout-demo-shell";
 
@@ -18,7 +18,7 @@ function LayoutsFeaturePage() {
 
   return (
     <>
-      <title>Layouts | Volt RSC Smoke</title>
+      <title>Layouts | Litz RSC Smoke</title>
       <main>
         <h1>Feature: Layouts</h1>
         <p>{result?.message ?? "(loading)"}</p>

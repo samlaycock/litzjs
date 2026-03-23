@@ -7,10 +7,10 @@
     "allowJs": true,
     "resolveJsonModule": true,
     "paths": {
-      "volt": ["./src/index.ts"],
-      "volt/client": ["./src/client/index.ts"],
-      "volt/server": ["./src/server/index.ts"],
-      "volt/vite": ["./src/vite.ts"]
+      "litz": ["./src/index.ts"],
+      "litz/client": ["./src/client/index.ts"],
+      "litz/server": ["./src/server/index.ts"],
+      "litz/vite": ["./src/vite.ts"]
     },
     "moduleDetection": "force",
     "isolatedModules": true,

@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-export type VoltClientBindings = {
+export type LitzClientBindings = {
   usePathname(): string;
   useLocation(): {
     href: string;
@@ -72,13 +72,13 @@ export type VoltClientBindings = {
   ): React.ComponentType<any>;
 };
 
-let clientBindings: VoltClientBindings | null = null;
+let clientBindings: LitzClientBindings | null = null;
 
-export function installClientBindings(bindings: VoltClientBindings): void {
+export function installClientBindings(bindings: LitzClientBindings): void {
   clientBindings = bindings;
 }
 
-export function getClientBindings(): VoltClientBindings | null {
+export function getClientBindings(): LitzClientBindings | null {
   return clientBindings;
 }
 

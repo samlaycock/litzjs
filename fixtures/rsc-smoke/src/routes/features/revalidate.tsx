@@ -1,4 +1,4 @@
-import { data, defineRoute, server } from "volt";
+import { data, defineRoute, server } from "litz";
 
 import { incrementRevalidateCount, revalidateCount } from "../../data/state";
 
@@ -28,7 +28,7 @@ function RevalidatePage() {
 
   return (
     <>
-      <title>Revalidate | Volt RSC Smoke</title>
+      <title>Revalidate | Litz RSC Smoke</title>
       <main>
         <h1>Revalidation Demo</h1>
         <p>Status: {status}</p>

@@ -1,5 +1,5 @@
+import { useMatches } from "litz";
 import * as React from "react";
-import { useMatches } from "volt";
 
 import { resource as accountMenu } from "../routes/resources/account-menu";
 
@@ -8,7 +8,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div>
-      <h1>Volt RSC Smoke</h1>
+      <h1>Litz RSC Smoke</h1>
       <p>This is the shared app shell for all routes.</p>
       <nav aria-label="Breadcrumbs">
         <ol>

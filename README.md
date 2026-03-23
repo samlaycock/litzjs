@@ -1,6 +1,6 @@
-# Volt
+# Litz
 
-Volt is a client-first React framework for Vite.
+Litz is a client-first React framework for Vite.
 
 It gives you:
 
@@ -13,7 +13,7 @@ It gives you:
 
 ## Status
 
-Volt is currently a production candidate.
+Litz is currently a production candidate.
 
 The core route, resource, API route, and RSC runtime now has deterministic route matching,
 multipart-safe internal actions, and a release gate via `bun run check`.
@@ -23,12 +23,12 @@ multipart-safe internal actions, and a release gate via `bun run check`.
 Inside a React + Vite app:
 
 ```bash
-bun add volt react react-dom
+bun add litz react react-dom
 ```
 
 ## Quick Start
 
-Add the Volt Vite plugin. By default, Volt discovers:
+Add the Litz Vite plugin. By default, Litz discovers:
 
 - routes from `src/routes/**/*.{ts,tsx}`
 - API routes from `src/routes/api/**/*.{ts,tsx}`
@@ -38,10 +38,10 @@ Add the Volt Vite plugin. By default, Volt discovers:
 
 ```ts
 import { defineConfig } from "vite";
-import volt from "volt/vite";
+import litz from "litz/vite";
 
 export default defineConfig({
-  plugins: [volt()],
+  plugins: [litz()],
 });
 ```
 
@@ -50,7 +50,7 @@ You can still override discovery explicitly when you need a different project la
 ```ts
 export default defineConfig({
   plugins: [
-    volt({
+    litz({
       routes: ["app/pages/**/*.{ts,tsx}"],
       resources: ["app/resources/**/*.{ts,tsx}"],
       api: ["app/api/**/*.{ts,tsx}"],
@@ -59,12 +59,12 @@ export default defineConfig({
 });
 ```
 
-Mount the Volt app from your browser entry.
+Mount the Litz app from your browser entry.
 
 `src/main.tsx`
 
 ```tsx
-import { mountApp } from "volt/client";
+import { mountApp } from "litz/client";
 
 const root = document.getElementById("app");
 
@@ -79,7 +79,7 @@ You can optionally provide a wrapper component around the app root:
 
 ```tsx
 import { StrictMode } from "react";
-import { mountApp } from "volt/client";
+import { mountApp } from "litz/client";
 
 mountApp(root, StrictMode);
 ```
@@ -87,7 +87,7 @@ mountApp(root, StrictMode);
 For providers or wrappers with props, pass a component:
 
 ```tsx
-import { mountApp } from "volt/client";
+import { mountApp } from "litz/client";
 
 function AppProviders({ children }: React.PropsWithChildren) {
   return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
@@ -113,7 +113,7 @@ Create your first route.
 `src/routes/index.tsx`
 
 ```tsx
-import { defineRoute } from "volt";
+import { defineRoute } from "litz";
 
 export const route = defineRoute("/", {
   component: HomePage,
@@ -123,7 +123,7 @@ function HomePage() {
   return (
     <main>
       <h1>Welcome</h1>
-      <p>Your app is running on Volt.</p>
+      <p>Your app is running on Litz.</p>
     </main>
   );
 }
@@ -136,7 +136,7 @@ Routes are explicit. The path you pass to `defineRoute(...)` is the source of tr
 Add a loader when you need server data:
 
 ```tsx
-import { data, defineRoute, server } from "volt";
+import { data, defineRoute, server } from "litz";
 
 export const route = defineRoute("/me", {
   component: ProfilePage,
@@ -173,7 +173,7 @@ Layouts are explicit too. A route opts into a layout by importing it and passing
 
 ```tsx
 import type { ReactNode } from "react";
-import { defineLayout, defineRoute } from "volt";
+import { defineLayout, defineRoute } from "litz";
 
 export const dashboardLayout = defineLayout("/dashboard", {
   component: DashboardShell,
@@ -218,7 +218,7 @@ When you want the server to return UI instead of JSON, return `view(...)`.
 
 ```tsx
 import * as React from "react";
-import { defineRoute, server, view } from "volt";
+import { defineRoute, server, view } from "litz";
 
 export const route = defineRoute("/reports", {
   component: ReportsPage,
@@ -304,7 +304,7 @@ Actions handle writes. They can return `data(...)`, `invalid(...)`, `redirect(..
 
 ```tsx
 import { useFormStatus } from "react-dom";
-import { data, defineRoute, invalid, server } from "volt";
+import { data, defineRoute, invalid, server } from "litz";
 
 export const route = defineRoute("/projects/new", {
   component: NewProjectPage,
@@ -354,10 +354,10 @@ If you need imperative writes instead of a form, use `route.useSubmit()`.
 
 ## Navigation
 
-Volt ships a small client navigation layer.
+Litz ships a small client navigation layer.
 
 ```tsx
-import { Link, useNavigate } from "volt/client";
+import { Link, useNavigate } from "litz/client";
 
 function Nav() {
   const navigate = useNavigate();
@@ -382,7 +382,7 @@ Plain `<a href>` elements stay native and perform normal browser navigations.
 You can also inspect the active route chain:
 
 ```tsx
-import { useMatches } from "volt";
+import { useMatches } from "litz";
 
 function Breadcrumbs() {
   const matches = useMatches();
@@ -400,7 +400,7 @@ function Breadcrumbs() {
 If you want the current concrete browser location instead of the route pattern chain:
 
 ```tsx
-import { useLocation, usePathname } from "volt";
+import { useLocation, usePathname } from "litz";
 
 function RouteMeta() {
   const pathname = usePathname();
@@ -480,7 +480,7 @@ resource hooks work like route hooks, but against that resource instance.
 A resource always declares a `component`. That component reads resource state through hooks.
 
 ```tsx
-import { data, defineResource, server } from "volt";
+import { data, defineResource, server } from "litz";
 
 export const resource = defineResource("/resource/user/:id", {
   component: UserCard,
@@ -517,10 +517,7 @@ Render it anywhere:
 Resources receive `params` and optional `search` at the component boundary:
 
 ```tsx
-<resource.Component
-  params={{ id: "u_123" }}
-  search={{ tab: "profile" }}
-/>
+<resource.Component params={{ id: "u_123" }} search={{ tab: "profile" }} />
 ```
 
 Inside the resource, use the scoped hooks:
@@ -547,7 +544,7 @@ Resources can also return `view(...)` from the server and consume it with `resou
 
 ```tsx
 import * as React from "react";
-import { defineResource, server, view } from "volt";
+import { defineResource, server, view } from "litz";
 
 export const resource = defineResource("/resource/account/:id", {
   component: AccountMenu,
@@ -573,7 +570,7 @@ Resources can define actions with the same self-contained form story as routes:
 
 ```tsx
 import * as React from "react";
-import { defineResource, server, view } from "volt";
+import { defineResource, server, view } from "litz";
 import { useFormStatus } from "react-dom";
 
 export const resource = defineResource("/resource/feed/:id", {
@@ -645,10 +642,7 @@ function QuickActions() {
   const pending = resource.usePending();
 
   return (
-    <button
-      disabled={pending}
-      onClick={() => void submit({ message: "Pinned update" })}
-    >
+    <button disabled={pending} onClick={() => void submit({ message: "Pinned update" })}>
       Post preset message
     </button>
   );
@@ -706,7 +700,7 @@ so they stay in sync instead of duplicating work.
 API routes expose raw HTTP handlers and come with a thin client helper.
 
 ```ts
-import { defineApiRoute } from "volt";
+import { defineApiRoute } from "litz";
 
 export const api = defineApiRoute("/api/health", {
   middleware: [],
@@ -741,10 +735,10 @@ Supported method keys:
 
 ## Server Runtime
 
-Volt ships a default WinterCG-style server runtime:
+Litz ships a default WinterCG-style server runtime:
 
 ```ts
-import { createServer } from "volt/server";
+import { createServer } from "litz/server";
 
 export default createServer({
   createContext(request) {
@@ -753,7 +747,7 @@ export default createServer({
     };
   },
   onError(error, context) {
-    console.error("Volt server error", { error, context });
+    console.error("Litz server error", { error, context });
   },
 });
 ```
@@ -761,7 +755,7 @@ export default createServer({
 In simple apps, `createServer()` with no arguments is enough:
 
 ```ts
-import { createServer } from "volt/server";
+import { createServer } from "litz/server";
 
 export default createServer();
 ```
@@ -770,24 +764,24 @@ The Vite plugin injects the discovered server manifest automatically into that e
 
 ## Security Model
 
-Volt's server boundaries are explicit, but they are still normal server request surfaces.
+Litz's server boundaries are explicit, but they are still normal server request surfaces.
 
 - Route loaders and actions are server handlers.
 - Resource loaders and actions are server handlers.
 - API routes are raw HTTP handlers.
-- The `/_volt/*` transport used by the client runtime is an implementation detail, not a private trust boundary.
+- The `/_litz/*` transport used by the client runtime is an implementation detail, not a private trust boundary.
 
-That means Volt apps should treat route loaders, actions, resources, and API routes like any other
+That means Litz apps should treat route loaders, actions, resources, and API routes like any other
 server endpoint:
 
 - authenticate and authorize inside middleware or handlers
 - validate params, search params, headers, and form/body input
 - apply CSRF protections when using cookie-backed auth for writes
-- do not assume a request came from Volt just because it arrived through `/_volt/*`
+- do not assume a request came from Litz just because it arrived through `/_litz/*`
 
-Volt may serve `index.html` itself, but it also supports deployments where the document is served
+Litz may serve `index.html` itself, but it also supports deployments where the document is served
 statically or by a custom server. Security decisions must not depend on the document coming from
-Volt.
+Litz.
 
 ## Result Helpers
 
@@ -801,7 +795,7 @@ Server handlers can return these helpers:
 - `withHeaders(result, headers)`
 
 ```tsx
-import { data, defineRoute, error, redirect, server, withHeaders } from "volt";
+import { data, defineRoute, error, redirect, server, withHeaders } from "litz";
 
 export const route = defineRoute("/projects/:id", {
   component: ProjectPage,
@@ -843,7 +837,7 @@ Behavior summary:
 Routes, resources, and API routes can declare a `middleware` array. Middleware runs in order and can continue with `next()`, short-circuit with a result, or explicitly replace `context` with `next({ context })`.
 
 ```tsx
-import { data, defineApiRoute, defineRoute, error, server } from "volt";
+import { data, defineApiRoute, defineRoute, error, server } from "litz";
 
 export const route = defineRoute("/dashboard", {
   component: DashboardPage,
@@ -887,7 +881,7 @@ Middleware receives:
 
 ## Core Ideas
 
-- Volt is SPA-first. The browser owns the document.
+- Litz is SPA-first. The browser owns the document.
 - Server logic only exists at explicit framework boundaries.
 - `view(...)` uses RSC as a transport, not as the whole app architecture.
 - Routes, resources, and API routes are discovered from top-level glob options.

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "volt",
+      "name": "litz",
       "dependencies": {
         "tinyglobby": "0.2.15",
       },

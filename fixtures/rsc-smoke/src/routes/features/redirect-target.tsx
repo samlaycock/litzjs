@@ -1,4 +1,4 @@
-import { defineRoute } from "volt";
+import { defineRoute } from "litz";
 
 export const route = defineRoute("/features/redirect-target", {
   component: LoginPage,
@@ -9,7 +9,7 @@ function LoginPage() {
 
   return (
     <>
-      <title>Redirect Target | Volt RSC Smoke</title>
+      <title>Redirect Target | Litz RSC Smoke</title>
       <main>
         <h1>Login</h1>
         <p>Redirect source: {search.get("from") ?? "direct"}</p>

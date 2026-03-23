@@ -1,5 +1,5 @@
+import { defineRoute, server, view } from "litz";
 import * as React from "react";
-import { defineRoute, server, view } from "volt";
 
 export const route = defineRoute("/features/use-view", {
   component: UseViewPage,
@@ -11,7 +11,7 @@ function UseViewPage() {
 
   return (
     <>
-      <title>useView | Volt RSC Smoke</title>
+      <title>useView | Litz RSC Smoke</title>
       <main>
         <h1>useView Example</h1>
         <React.Suspense fallback={<p>Streaming useView fragment...</p>}>{node}</React.Suspense>

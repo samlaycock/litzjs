@@ -3,7 +3,7 @@ import * as React from "react";
 import type { ActionHookResult, LoaderHookResult, ResourceRequest } from "../index";
 
 import { matchPathname } from "../path-matching";
-import { createInternalActionRequestInit, VOLT_RESULT_ACCEPT } from "../server/internal-requests";
+import { createInternalActionRequestInit, LITZ_RESULT_ACCEPT } from "../server/internal-requests";
 import {
   isRedirectSignal,
   isRouteLikeError,
@@ -16,11 +16,11 @@ export async function fetchRouteLoader(
   request: ResourceRequest,
   target?: string,
 ): Promise<LoaderHookResult> {
-  const response = await fetch("/_volt/route", {
+  const response = await fetch("/_litz/route", {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      accept: VOLT_RESULT_ACCEPT,
+      accept: LITZ_RESULT_ACCEPT,
     },
     body: JSON.stringify({
       path,
@@ -47,7 +47,7 @@ export async function fetchRouteAction(
     payload,
   );
 
-  const response = await fetch("/_volt/action", {
+  const response = await fetch("/_litz/action", {
     method: "POST",
     headers: actionRequest.headers,
     body: actionRequest.body,

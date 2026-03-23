@@ -110,7 +110,7 @@ export function createClientModuleProjection(filePath: string, source: string): 
           ts.factory.createVariableDeclarationList(
             [
               ts.factory.createVariableDeclaration(
-                ts.factory.createIdentifier("__volt_server_placeholder__"),
+                ts.factory.createIdentifier("__litz_server_placeholder__"),
                 undefined,
                 undefined,
                 ts.factory.createObjectLiteralExpression(),
@@ -413,7 +413,7 @@ function transformProjectionStatement(statement: ts.Statement): ts.Statement {
       const visit: ts.Visitor = (node) => {
         if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
           if (node.expression.text === "server") {
-            return ts.factory.createIdentifier("__volt_server_placeholder__");
+            return ts.factory.createIdentifier("__litz_server_placeholder__");
           }
 
           if (
@@ -431,7 +431,7 @@ function transformProjectionStatement(statement: ts.Statement): ts.Statement {
                 if (name === "loader" || name === "action") {
                   return ts.factory.createPropertyAssignment(
                     property.name,
-                    ts.factory.createIdentifier("__volt_server_placeholder__"),
+                    ts.factory.createIdentifier("__litz_server_placeholder__"),
                   );
                 }
 
@@ -455,7 +455,7 @@ function transformProjectionStatement(statement: ts.Statement): ts.Statement {
                 return ts.factory.updatePropertyAssignment(
                   property,
                   property.name,
-                  ts.factory.createIdentifier("__volt_server_placeholder__"),
+                  ts.factory.createIdentifier("__litz_server_placeholder__"),
                 );
               }
 
@@ -487,21 +487,21 @@ function transformProjectionStatement(statement: ts.Statement): ts.Statement {
                 return ts.factory.updatePropertyAssignment(
                   property,
                   property.name,
-                  ts.factory.createIdentifier("__volt_server_placeholder__"),
+                  ts.factory.createIdentifier("__litz_server_placeholder__"),
                 );
               }
 
               if (ts.isMethodDeclaration(property)) {
                 return ts.factory.createPropertyAssignment(
                   property.name,
-                  ts.factory.createIdentifier("__volt_server_placeholder__"),
+                  ts.factory.createIdentifier("__litz_server_placeholder__"),
                 );
               }
 
               if (ts.isShorthandPropertyAssignment(property)) {
                 return ts.factory.createPropertyAssignment(
                   property.name,
-                  ts.factory.createIdentifier("__volt_server_placeholder__"),
+                  ts.factory.createIdentifier("__litz_server_placeholder__"),
                 );
               }
 

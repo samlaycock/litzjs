@@ -5,7 +5,7 @@ import { createClientModuleProjection } from "../src/client-projection";
 describe("client projection", () => {
   test("strips shorthand middleware references from client output", () => {
     const source = `
-import { defineRoute, server } from "volt";
+import { defineRoute, server } from "litz";
 
 const auditMiddleware = [function requireSession() {
   return "server-secret";
@@ -28,7 +28,7 @@ function HomePage() {
 
     const projected = createClientModuleProjection("/virtual/routes/home.tsx", source);
 
-    expect(projected).toContain("loader: __volt_server_placeholder__");
+    expect(projected).toContain("loader: __litz_server_placeholder__");
     expect(projected).toContain("middleware: []");
     expect(projected).not.toContain("requireSession");
     expect(projected).not.toContain("server-secret");
@@ -36,7 +36,7 @@ function HomePage() {
 
   test("strips shorthand middleware properties as well", () => {
     const source = `
-import { defineRoute } from "volt";
+import { defineRoute } from "litz";
 
 const middleware = [function requireAuth() {
   return "never ship this";

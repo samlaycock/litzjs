@@ -1,5 +1,5 @@
+import { defineResource, server, view } from "litz";
 import * as React from "react";
-import { defineResource, server, view } from "volt";
 
 import { ClientCounter } from "../../components/client-counter";
 

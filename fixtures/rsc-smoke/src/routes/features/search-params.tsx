@@ -1,5 +1,5 @@
-import { data, defineRoute, server } from "volt";
-import { Link } from "volt/client";
+import { data, defineRoute, server } from "litz";
+import { Link } from "litz/client";
 
 export const route = defineRoute("/features/search-params", {
   component: SearchPage,
@@ -18,7 +18,7 @@ function SearchPage() {
 
   return (
     <>
-      <title>Search Params | Volt RSC Smoke</title>
+      <title>Search Params | Litz RSC Smoke</title>
       <main>
         <h1>Search Params</h1>
         <p>Loader term: {loader?.term || "(empty)"}</p>
@@ -36,7 +36,7 @@ function SearchPage() {
           </button>
         </p>
         <p>
-          Try: <Link href="/features/search-params?term=volt&tab=active">Active search</Link>
+          Try: <Link href="/features/search-params?term=litz&tab=active">Active search</Link>
         </p>
       </main>
     </>

@@ -6,20 +6,20 @@ describe("transport security", () => {
   test("does not expose arbitrary server headers to client hooks", async () => {
     const result = createPublicResultHeaders(
       new Headers({
-        "content-type": "application/vnd.volt.result+json",
-        "x-volt-kind": "data",
-        "x-volt-revalidate": "/projects",
-        "x-volt-secret": "should-not-leak",
-        "x-volt-public-trace": "public",
+        "content-type": "application/vnd.litz.result+json",
+        "x-litz-kind": "data",
+        "x-litz-revalidate": "/projects",
+        "x-litz-secret": "should-not-leak",
+        "x-litz-public-trace": "public",
         authorization: "Bearer secret",
         "x-internal-token": "secret",
       }),
     );
 
-    expect(result.get("x-volt-kind")).toBe("data");
-    expect(result.get("x-volt-revalidate")).toBe("/projects");
-    expect(result.get("x-volt-public-trace")).toBe("public");
-    expect(result.get("x-volt-secret")).toBeNull();
+    expect(result.get("x-litz-kind")).toBe("data");
+    expect(result.get("x-litz-revalidate")).toBe("/projects");
+    expect(result.get("x-litz-public-trace")).toBe("public");
+    expect(result.get("x-litz-secret")).toBeNull();
     expect(result.get("authorization")).toBeNull();
     expect(result.get("x-internal-token")).toBeNull();
   });

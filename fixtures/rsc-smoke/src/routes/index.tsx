@@ -1,5 +1,5 @@
-import { defineRoute } from "volt";
-import { Link } from "volt/client";
+import { defineRoute } from "litz";
+import { Link } from "litz/client";
 
 export const route = defineRoute("/", {
   component: HomePage,
@@ -18,7 +18,7 @@ function HomePage() {
     ["/features/submit-imperative", "Feature: Imperative Submit"],
     ["/features/status-pending", "Feature: Status + Pending"],
     ["/features/use-view", "Feature: useView"],
-    ["/features/search-params?term=volt&tab=active", "Feature: Search Params"],
+    ["/features/search-params?term=litz&tab=active", "Feature: Search Params"],
     ["/features/revalidate", "Feature: Revalidate"],
     ["/features/layouts", "Feature: Layouts"],
     ["/features/middleware", "Feature: Middleware"],
@@ -29,9 +29,9 @@ function HomePage() {
 
   return (
     <>
-      <title>Home | Volt RSC Smoke</title>
+      <title>Home | Litz RSC Smoke</title>
       <main>
-        <h1>Volt RSC Smoke</h1>
+        <h1>Litz RSC Smoke</h1>
         <p>This home route is fully client-rendered.</p>
 
         <nav>

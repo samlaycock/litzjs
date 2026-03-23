@@ -11,7 +11,7 @@ export function createLinkComponent(dependencies: {
   useNavigate(): (href: string, options?: { replace?: boolean }) => void;
   prefetchRouteModuleForHref(href: string, target?: string, download?: string | boolean): void;
 }): React.ComponentType<LinkProps> {
-  return function VoltLink(props: LinkProps): React.ReactElement {
+  return function LitzLink(props: LinkProps): React.ReactElement {
     const navigate = dependencies.useNavigate();
     const {
       href,

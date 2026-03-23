@@ -1,4 +1,4 @@
-import { defineRoute, redirect, server } from "volt";
+import { defineRoute, redirect, server } from "litz";
 
 export const route = defineRoute("/features/redirect-loader", {
   component: RedirectLoaderPage,
@@ -10,7 +10,7 @@ export const route = defineRoute("/features/redirect-loader", {
 function RedirectLoaderPage() {
   return (
     <>
-      <title>Redirect Loader | Volt RSC Smoke</title>
+      <title>Redirect Loader | Litz RSC Smoke</title>
       <main>Redirecting from loader...</main>
     </>
   );

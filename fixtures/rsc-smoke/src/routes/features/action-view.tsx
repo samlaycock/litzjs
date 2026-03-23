@@ -1,5 +1,5 @@
+import { defineRoute, invalid, server, view } from "litz";
 import * as React from "react";
-import { defineRoute, invalid, server, view } from "volt";
 
 import { appendProject, projects } from "../../data/state";
 
@@ -35,7 +35,7 @@ function ProjectsPage() {
 
   return (
     <>
-      <title>Action View | Volt RSC Smoke</title>
+      <title>Action View | Litz RSC Smoke</title>
       <main>
         <h1>Action + View Route</h1>
         <p>This route demonstrates a server-backed form action with inline validation feedback.</p>

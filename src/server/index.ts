@@ -112,11 +112,11 @@ export function createServer<TContext = unknown>(
     }
 
     try {
-      if (url.pathname === "/_volt/resource") {
+      if (url.pathname === "/_litz/resource") {
         return handleResourceRequest(request, manifest.resources ?? [], getContext);
       }
 
-      if (url.pathname === "/_volt/route" || url.pathname === "/_volt/action") {
+      if (url.pathname === "/_litz/route" || url.pathname === "/_litz/action") {
         return handleRouteRequest(request, manifest.routes ?? [], getContext);
       }
 
@@ -147,7 +147,7 @@ export function createServer<TContext = unknown>(
       const context = contextLoaded ? contextValue : undefined;
       options.onError?.(error, context);
 
-      return new Response("Volt server error.", {
+      return new Response("Litz server error.", {
         status: 500,
         headers: {
           "content-type": "text/plain; charset=utf-8",
@@ -204,14 +204,14 @@ async function handleResourceRequest<TContext>(
   const entry = resources.find((resource) => resource.path === resourcePath);
 
   if (!resourcePath || !entry?.resource) {
-    return createVoltJsonResponse(404, { kind: "error", message: "Resource not found." });
+    return createLitzJsonResponse(404, { kind: "error", message: "Resource not found." });
   }
 
   const handler = operation === "action" ? entry.resource.action : entry.resource.loader;
   const middleware = entry.resource.middleware ?? [];
 
   if (!handler) {
-    return createVoltJsonResponse(405, {
+    return createLitzJsonResponse(405, {
       kind: "error",
       message: `Resource does not define a ${operation}.`,
     });
@@ -257,11 +257,11 @@ async function handleRouteRequest<TContext>(
   const routePath = body.path;
   const targetId = body.target;
   const operation =
-    body.operation ?? (new URL(request.url).pathname === "/_volt/action" ? "action" : "loader");
+    body.operation ?? (new URL(request.url).pathname === "/_litz/action" ? "action" : "loader");
   const entry = routes.find((route) => route.path === routePath);
 
   if (!routePath || !entry?.route) {
-    return createVoltJsonResponse(404, { kind: "error", message: "Route not found." });
+    return createLitzJsonResponse(404, { kind: "error", message: "Route not found." });
   }
 
   const chain = getRouteMatchChain(entry);
@@ -271,7 +271,7 @@ async function handleRouteRequest<TContext>(
       : findTargetRouteMatch(chain, targetId ?? routePath);
 
   if (!target) {
-    return createVoltJsonResponse(404, { kind: "error", message: "Route target not found." });
+    return createLitzJsonResponse(404, { kind: "error", message: "Route target not found." });
   }
 
   const targetIndex = chain.findIndex((candidate) => candidate.id === target.id);
@@ -280,7 +280,7 @@ async function handleRouteRequest<TContext>(
   const middleware = chain.slice(0, targetIndex + 1).flatMap((candidate) => candidate.middleware);
 
   if (!handler) {
-    return createVoltJsonResponse(405, {
+    return createLitzJsonResponse(405, {
       kind: "error",
       message: `Route does not define a ${operation}.`,
     });
@@ -399,7 +399,7 @@ async function runMiddlewareChain<TContext, TResult>(options: {
       },
       async (overrides) => {
         if (called) {
-          throw new Error("Volt middleware next() called multiple times.");
+          throw new Error("Litz middleware next() called multiple times.");
         }
 
         called = true;
@@ -468,10 +468,10 @@ function findTargetRouteMatch(
 
 async function createServerResultResponse(
   result: unknown,
-  viewId = "volt#view",
+  viewId = "litz#view",
 ): Promise<Response> {
   if (!result || typeof result !== "object" || !("kind" in result)) {
-    return createVoltJsonResponse(500, {
+    return createLitzJsonResponse(500, {
       kind: "fault",
       message: "Handler returned an unknown result.",
     });
@@ -498,7 +498,7 @@ async function createServerResultResponse(
 
   switch (serverResult.kind) {
     case "data":
-      return createVoltJsonResponse(
+      return createLitzJsonResponse(
         serverResult.status ?? 200,
         {
           kind: "data",
@@ -508,7 +508,7 @@ async function createServerResultResponse(
         headers,
       );
     case "invalid":
-      return createVoltJsonResponse(
+      return createLitzJsonResponse(
         serverResult.status ?? 422,
         {
           kind: "invalid",
@@ -519,7 +519,7 @@ async function createServerResultResponse(
         headers,
       );
     case "redirect":
-      return createVoltJsonResponse(
+      return createLitzJsonResponse(
         serverResult.status ?? 303,
         {
           kind: "redirect",
@@ -530,7 +530,7 @@ async function createServerResultResponse(
         headers,
       );
     case "error":
-      return createVoltJsonResponse(
+      return createLitzJsonResponse(
         serverResult.status ?? 500,
         {
           kind: "error",
@@ -541,7 +541,7 @@ async function createServerResultResponse(
         headers,
       );
     case "fault":
-      return createVoltJsonResponse(
+      return createLitzJsonResponse(
         serverResult.status ?? 500,
         {
           kind: "fault",
@@ -552,9 +552,9 @@ async function createServerResultResponse(
       );
     case "view": {
       headers.set("content-type", "text/x-component");
-      headers.set("x-volt-kind", "view");
-      headers.set("x-volt-status", String(serverResult.status ?? 200));
-      headers.set("x-volt-view-id", viewId);
+      headers.set("x-litz-kind", "view");
+      headers.set("x-litz-status", String(serverResult.status ?? 200));
+      headers.set("x-litz-view-id", viewId);
       const renderer = await loadRscRenderer();
       const stream = renderer.renderToReadableStream(serverResult.node);
       return new Response(stream, {
@@ -563,7 +563,7 @@ async function createServerResultResponse(
       });
     }
     default:
-      return createVoltJsonResponse(500, {
+      return createLitzJsonResponse(500, {
         kind: "fault",
         message: `Unsupported result kind "${serverResult.kind}".`,
       });
@@ -577,13 +577,13 @@ async function loadRscRenderer(): Promise<{
   return rscRendererPromise;
 }
 
-function createVoltJsonResponse(
+function createLitzJsonResponse(
   status: number,
   body: Record<string, unknown>,
   headers?: Headers,
 ): Response {
   const responseHeaders = new Headers(headers);
-  responseHeaders.set("content-type", "application/vnd.volt.result+json");
+  responseHeaders.set("content-type", "application/vnd.litz.result+json");
   return new Response(JSON.stringify(body), {
     status,
     headers: responseHeaders,
@@ -595,7 +595,7 @@ function applyRevalidateHeader(headers: Headers, revalidate?: string[]): void {
     return;
   }
 
-  headers.set("x-volt-revalidate", revalidate.join(","));
+  headers.set("x-litz-revalidate", revalidate.join(","));
 }
 
 function normalizeInternalRequest(
@@ -653,7 +653,7 @@ function interpolatePath(pathPattern: string, params: Record<string, string>): s
 }
 
 function shouldServeDocument(request: Request, pathname: string): boolean {
-  if (pathname.startsWith("/_volt/") || pathname.startsWith("/api/")) {
+  if (pathname.startsWith("/_litz/") || pathname.startsWith("/api/")) {
     return false;
   }
 

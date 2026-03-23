@@ -1,5 +1,5 @@
 import * as React from "react";
-import { routeManifest } from "virtual:volt:route-manifest";
+import { routeManifest } from "virtual:litz:route-manifest";
 
 import type { ActionHookResult, LoaderHookResult, SubmitOptions } from "../index";
 import type { RouteRuntimeState } from "./runtime";
@@ -131,7 +131,7 @@ function getNavigationContext(): React.Context<{
     ).createContext;
 
     if (!createContext) {
-      throw new Error("Volt client navigation is not available in this environment.");
+      throw new Error("Litz client navigation is not available in this environment.");
     }
 
     navigationContext = createContext<{
@@ -158,7 +158,7 @@ function getMatchesContext(): React.Context<
     ).createContext;
 
     if (!createContext) {
-      throw new Error("Volt client matches are not available in this environment.");
+      throw new Error("Litz client matches are not available in this environment.");
     }
 
     matchesContext = createContext<
@@ -188,7 +188,7 @@ function getLocationContext(): React.Context<{
     ).createContext;
 
     if (!createContext) {
-      throw new Error("Volt client location is not available in this environment.");
+      throw new Error("Litz client location is not available in this environment.");
     }
 
     locationContext = createContext<{
@@ -208,7 +208,7 @@ export function mountApp(
 ): void {
   void import("react-dom/client").then(({ createRoot }) => {
     const root = createRoot(element);
-    root.render(React.createElement(VoltApp, { wrapper }));
+    root.render(React.createElement(LitzApp, { wrapper }));
   });
 }
 
@@ -216,7 +216,7 @@ export function useNavigate(): (href: string, options?: { replace?: boolean }) =
   const context = React.useContext(getNavigationContext());
 
   if (!context) {
-    throw new Error("useNavigate() must be used inside the Volt client runtime.");
+    throw new Error("useNavigate() must be used inside the Litz client runtime.");
   }
 
   return (href: string, options?: { replace?: boolean }) => context.navigate(href, options);
@@ -235,7 +235,7 @@ export function usePathname(): string {
   const location = React.useContext(getLocationContext());
 
   if (!location) {
-    throw new Error("usePathname() must be used inside the Volt client runtime.");
+    throw new Error("usePathname() must be used inside the Litz client runtime.");
   }
 
   return location.pathname;
@@ -250,7 +250,7 @@ export function useLocation(): {
   const location = React.useContext(getLocationContext());
 
   if (!location) {
-    throw new Error("useLocation() must be used inside the Volt client runtime.");
+    throw new Error("useLocation() must be used inside the Litz client runtime.");
   }
 
   return location;
@@ -261,7 +261,7 @@ export const Link = createLinkComponent({
   prefetchRouteModuleForHref,
 });
 
-function VoltApp(props: {
+function LitzApp(props: {
   wrapper?: React.JSXElementConstructor<{ children: React.ReactNode }>;
 }): React.ReactElement {
   const [location, setLocation] = React.useState(() => window.location.href);

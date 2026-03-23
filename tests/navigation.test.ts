@@ -65,45 +65,45 @@ describe("client navigation interception", () => {
 describe("search param navigation", () => {
   test("merges updates into the current query string", () => {
     expect(
-      applySearchParams(new URL("https://example.com/docs?term=volt"), {
+      applySearchParams(new URL("https://example.com/docs?term=litz"), {
         tab: "active",
       }),
     ).toEqual({
       changed: true,
-      href: "/docs?term=volt&tab=active",
+      href: "/docs?term=litz&tab=active",
     });
   });
 
   test("supports repeated keys for array values", () => {
     expect(
-      applySearchParams(new URL("https://example.com/docs?term=volt"), {
+      applySearchParams(new URL("https://example.com/docs?term=litz"), {
         tag: ["framework", "bun"],
       }),
     ).toEqual({
       changed: true,
-      href: "/docs?term=volt&tag=framework&tag=bun",
+      href: "/docs?term=litz&tag=framework&tag=bun",
     });
   });
 
   test("deletes keys when passed nullish values", () => {
     expect(
-      applySearchParams(new URL("https://example.com/docs?term=volt&tab=active#intro"), {
+      applySearchParams(new URL("https://example.com/docs?term=litz&tab=active#intro"), {
         tab: null,
       }),
     ).toEqual({
       changed: true,
-      href: "/docs?term=volt#intro",
+      href: "/docs?term=litz#intro",
     });
   });
 
   test("returns unchanged when the resulting query string matches", () => {
     expect(
-      applySearchParams(new URL("https://example.com/docs?term=volt"), {
-        term: "volt",
+      applySearchParams(new URL("https://example.com/docs?term=litz"), {
+        term: "litz",
       }),
     ).toEqual({
       changed: false,
-      href: "/docs?term=volt",
+      href: "/docs?term=litz",
     });
   });
 });

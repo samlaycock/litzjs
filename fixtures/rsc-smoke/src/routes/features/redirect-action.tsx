@@ -1,4 +1,4 @@
-import { defineRoute, redirect, server } from "volt";
+import { defineRoute, redirect, server } from "litz";
 
 export const route = defineRoute("/features/redirect-action", {
   component: RedirectActionPage,
@@ -21,7 +21,7 @@ export const route = defineRoute("/features/redirect-action", {
 function RedirectActionPage() {
   return (
     <>
-      <title>Redirect Action | Volt RSC Smoke</title>
+      <title>Redirect Action | Litz RSC Smoke</title>
       <main>
         <h1>Redirect Action</h1>
         <p>This route demonstrates hidden form fields plus a route action redirect.</p>

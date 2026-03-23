@@ -6,15 +6,15 @@ import { createRoot, type Root } from "react-dom/client";
 import { installClientBindings, resetClientBindings } from "../src/client/bindings";
 import { createResourceComponent, createResourceFormComponent } from "../src/client/resources";
 import { createRouteFormComponent } from "../src/client/route-runtime";
-import { useMatches, type VoltMatch } from "../src/index";
+import { useMatches, type LitzMatch } from "../src/index";
 import { flushDom, installTestDom } from "./test-dom";
 
 type MatchesState = {
   pending: boolean;
-  matches: VoltMatch[];
+  matches: LitzMatch[];
 };
 
-const MatchesContext = React.createContext<VoltMatch[]>([]);
+const MatchesContext = React.createContext<LitzMatch[]>([]);
 
 function installMatchesBindings(): void {
   installClientBindings({

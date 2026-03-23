@@ -6,10 +6,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { installClientBindings, resetClientBindings } from "../src/client/bindings";
 import { createResourceComponent, createResourceFormComponent } from "../src/client/resources";
 import { createRouteFormComponent } from "../src/client/route-runtime";
-import { useLocation, usePathname, type VoltLocation } from "../src/index";
+import { useLocation, usePathname, type LitzLocation } from "../src/index";
 import { flushDom, installTestDom } from "./test-dom";
 
-const LocationContext = React.createContext<VoltLocation>({
+const LocationContext = React.createContext<LitzLocation>({
   href: "https://example.com/",
   pathname: "/",
   search: new URLSearchParams(),
@@ -103,7 +103,7 @@ describe("location hooks", () => {
 
   test("usePathname() and useLocation() expose the current client location state", async () => {
     function Harness(): React.ReactElement {
-      const [location, setLocation] = React.useState<VoltLocation>({
+      const [location, setLocation] = React.useState<LitzLocation>({
         href: "https://example.com/projects/123?tab=overview#summary",
         pathname: "/projects/123",
         search: new URLSearchParams("tab=overview"),

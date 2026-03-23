@@ -1,5 +1,5 @@
+import { defineRoute } from "litz";
 import * as React from "react";
-import { defineRoute } from "volt";
 
 import { api as healthApi } from "../api/health";
 
@@ -12,7 +12,7 @@ function ApiDemoPage() {
 
   return (
     <>
-      <title>API Route | Volt RSC Smoke</title>
+      <title>API Route | Litz RSC Smoke</title>
       <main>
         <h1>API Route Demo</h1>
         <React.Suspense fallback={<p>Loading...</p>}>

@@ -1,5 +1,5 @@
+import { data, defineRoute, error, invalid, server } from "litz";
 import * as React from "react";
-import { data, defineRoute, error, invalid, server } from "volt";
 
 import { appendQuickProject, delay } from "../../data/state";
 
@@ -42,7 +42,7 @@ function QuickCreatePage() {
 
   return (
     <>
-      <title>Imperative Submit | Volt RSC Smoke</title>
+      <title>Imperative Submit | Litz RSC Smoke</title>
       <main>
         <h1>Imperative Submit</h1>
         <p>This route demonstrates a manual optimistic update before the action resolves.</p>

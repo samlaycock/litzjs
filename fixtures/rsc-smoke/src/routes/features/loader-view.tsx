@@ -1,5 +1,5 @@
+import { defineRoute, server, view } from "litz";
 import * as React from "react";
-import { defineRoute, server, view } from "volt";
 
 import { ClientCounter } from "../../components/client-counter";
 import { nextReportsLoadCount } from "../../data/state";
@@ -17,7 +17,7 @@ function ReportsPage() {
 
   return (
     <>
-      <title>Loader View | Volt RSC Smoke</title>
+      <title>Loader View | Litz RSC Smoke</title>
       <main>
         <h1>View Loader Route</h1>
         <p>Kind: {result?.kind ?? "(pending)"}</p>

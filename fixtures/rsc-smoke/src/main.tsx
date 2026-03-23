@@ -1,4 +1,4 @@
-import { mountApp } from "volt/client";
+import { mountApp } from "litz/client";
 
 import { AppShell } from "./components/app-shell";
 

@@ -1,3 +1,3 @@
-import { createServer } from "volt/server";
+import { createServer } from "litz/server";
 
 export default createServer();

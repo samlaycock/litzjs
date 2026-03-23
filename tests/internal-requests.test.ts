@@ -8,7 +8,7 @@ import {
 describe("internal action requests", () => {
   test("preserves File uploads through the internal action transport", async () => {
     const formData = new FormData();
-    const upload = new File(["hello volt"], "greeting.txt", {
+    const upload = new File(["hello litz"], "greeting.txt", {
       type: "text/plain",
     });
 
@@ -28,7 +28,7 @@ describe("internal action requests", () => {
     );
 
     const parsed = await parseInternalRequestBody(
-      new Request("http://volt.local/_volt/action", {
+      new Request("http://litz.local/_litz/action", {
         method: "POST",
         headers: actionRequest.headers,
         body: actionRequest.body,
@@ -45,7 +45,7 @@ describe("internal action requests", () => {
     expect(title).toBe("Release Notes");
     expect(receivedUpload).toBeInstanceOf(File);
     expect((receivedUpload as File).name).toBe("greeting.txt");
-    expect(await (receivedUpload as File).text()).toBe("hello volt");
+    expect(await (receivedUpload as File).text()).toBe("hello litz");
   });
 
   test("serializes object payload values consistently for internal actions", async () => {
@@ -55,7 +55,7 @@ describe("internal action requests", () => {
         operation: "action",
       },
       {
-        name: "Volt",
+        name: "Litz",
         metadata: {
           published: false,
           tags: ["framework"],
@@ -64,7 +64,7 @@ describe("internal action requests", () => {
     );
 
     const parsed = await parseInternalRequestBody(
-      new Request("http://volt.local/_volt/action", {
+      new Request("http://litz.local/_litz/action", {
         method: "POST",
         headers: actionRequest.headers,
         body: actionRequest.body,
@@ -72,7 +72,7 @@ describe("internal action requests", () => {
     );
 
     expect(parsed.payload?.entries).toEqual([
-      ["name", "Volt"],
+      ["name", "Litz"],
       ["metadata", JSON.stringify({ published: false, tags: ["framework"] })],
     ]);
   });

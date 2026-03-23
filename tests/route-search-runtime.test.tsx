@@ -70,7 +70,7 @@ describe("route search runtime", () => {
   let root: Root | null = null;
 
   beforeEach(() => {
-    const dom = installTestDom("https://example.com/projects?term=volt");
+    const dom = installTestDom("https://example.com/projects?term=litz");
     cleanupDom = () => dom.cleanup();
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -195,9 +195,9 @@ describe("route search runtime", () => {
     const replaceButton = document.getElementById("replace-search") as HTMLButtonElement | null;
     const noopButton = document.getElementById("noop-search") as HTMLButtonElement | null;
 
-    expect(readSearchEntries()).toEqual([["term", "volt"]]);
+    expect(readSearchEntries()).toEqual([["term", "litz"]]);
     expect(readLocation().pathname).toBe("/projects");
-    expect(Array.from(readLocation().searchParams.entries())).toEqual([["term", "volt"]]);
+    expect(Array.from(readLocation().searchParams.entries())).toEqual([["term", "litz"]]);
     expect(document.getElementById("navigation-log")?.getAttribute("data-value")).toBe("(empty)");
     expect(window.history.length).toBe(1);
 
@@ -207,12 +207,12 @@ describe("route search runtime", () => {
     });
 
     expect(readSearchEntries()).toEqual([
-      ["term", "volt"],
+      ["term", "litz"],
       ["tab", "active"],
     ]);
     expect(readLocation().pathname).toBe("/projects");
     expect(Array.from(readLocation().searchParams.entries())).toEqual([
-      ["term", "volt"],
+      ["term", "litz"],
       ["tab", "active"],
     ]);
     expect(document.getElementById("navigation-log")?.getAttribute("data-value")).toBe("push");

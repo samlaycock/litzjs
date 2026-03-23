@@ -1,4 +1,4 @@
-import { defineRoute, error, server } from "volt";
+import { defineRoute, error, server } from "litz";
 
 export const route = defineRoute("/features/error-boundary", {
   component: BrokenBoundaryPage,
@@ -19,7 +19,7 @@ function BrokenBoundaryFallback(props: {
 }) {
   return (
     <>
-      <title>Boundary Error | Volt RSC Smoke</title>
+      <title>Boundary Error | Litz RSC Smoke</title>
       <main>
         <h1>Boundary Error Route</h1>
         <p>

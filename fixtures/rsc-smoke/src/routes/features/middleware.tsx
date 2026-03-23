@@ -6,7 +6,7 @@ import {
   type Middleware,
   type ServerResult,
   withHeaders,
-} from "volt";
+} from "litz";
 
 type MiddlewareContext = {
   trace: string[];
@@ -63,7 +63,7 @@ function MiddlewarePage() {
 
   return (
     <>
-      <title>Middleware | Volt RSC Smoke</title>
+      <title>Middleware | Litz RSC Smoke</title>
       <main>
         <h1>Middleware</h1>
         <p>Order: {loader?.trace.join(" -> ") ?? "(loading)"}</p>
