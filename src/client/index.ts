@@ -7,12 +7,8 @@ import type { RouteRuntimeState } from "./runtime";
 import { createFormDataPayload } from "../form-data";
 import { extractRouteLikeParams, matchPathname, sortByPathSpecificity } from "../path-matching";
 import { installClientBindings } from "./bindings";
-import {
-  applySearchParams,
-  shouldInterceptLinkNavigation,
-  shouldPrefetchLink,
-  toNavigationHref,
-} from "./navigation";
+import { createLinkComponent } from "./link";
+import { applySearchParams, shouldPrefetchLink } from "./navigation";
 import { useResourceAction, useResourceLoader } from "./resources";
 import { useResolvedRouteState } from "./route-host-state";
 import {
@@ -180,90 +176,10 @@ export function useMatches(): Array<{
   return React.useContext(getMatchesContext());
 }
 
-export function Link(
-  props: Omit<React.ComponentPropsWithoutRef<"a">, "href"> & {
-    href: string;
-    replace?: boolean;
-  },
-): React.ReactElement {
-  const navigate = useNavigate();
-  const {
-    href,
-    replace = false,
-    onClick,
-    onMouseEnter,
-    onFocus,
-    onTouchStart,
-    target,
-    download,
-    rel,
-    ...rest
-  } = props;
-
-  return React.createElement("a", {
-    ...rest,
-    href,
-    target,
-    download,
-    rel,
-    onMouseEnter(event: React.MouseEvent<HTMLAnchorElement>) {
-      onMouseEnter?.(event);
-
-      if (event.defaultPrevented) {
-        return;
-      }
-
-      prefetchRouteModuleForHref(href, target, download);
-    },
-    onFocus(event: React.FocusEvent<HTMLAnchorElement>) {
-      onFocus?.(event);
-
-      if (event.defaultPrevented) {
-        return;
-      }
-
-      prefetchRouteModuleForHref(href, target, download);
-    },
-    onTouchStart(event: React.TouchEvent<HTMLAnchorElement>) {
-      onTouchStart?.(event);
-
-      if (event.defaultPrevented) {
-        return;
-      }
-
-      prefetchRouteModuleForHref(href, target, download);
-    },
-    onClick(event: React.MouseEvent<HTMLAnchorElement>) {
-      onClick?.(event);
-
-      if (event.defaultPrevented) {
-        return;
-      }
-
-      const nextUrl = new URL(href, window.location.href);
-      const currentUrl = new URL(window.location.href);
-
-      if (
-        !shouldInterceptLinkNavigation({
-          button: event.button,
-          metaKey: event.metaKey,
-          altKey: event.altKey,
-          ctrlKey: event.ctrlKey,
-          shiftKey: event.shiftKey,
-          target,
-          download,
-          currentUrl,
-          nextUrl,
-        })
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-      navigate(toNavigationHref(nextUrl), { replace });
-    },
-  });
-}
+export const Link = createLinkComponent({
+  useNavigate,
+  prefetchRouteModuleForHref,
+});
 
 function VoltApp(props: {
   wrapper?: React.JSXElementConstructor<{ children: React.ReactNode }>;
