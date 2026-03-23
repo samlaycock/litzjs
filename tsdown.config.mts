@@ -11,4 +11,8 @@ export default defineConfig({
   platform: "neutral",
   dts: true,
   outDir: "./dist",
+  deps: {
+    neverBundle: ["virtual:litz:route-manifest"],
+    onlyBundle: false,
+  },
 });
