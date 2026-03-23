@@ -344,6 +344,148 @@ describe("route result hooks", () => {
     );
   });
 
+  test("clears useInvalid() after a subsequent successful action", async () => {
+    await act(async () => {
+      root?.render(
+        <RouteRuntimeProvider
+          value={createRuntimeState({
+            actionResult: invalid({
+              fields: {
+                name: "Name is required",
+              },
+            }) as RouteRuntimeState["actionResult"],
+          })}
+        >
+          <HookProbe />
+        </RouteRuntimeProvider>,
+      );
+      await flushDom();
+    });
+
+    expect(document.getElementById("invalid")?.getAttribute("data-value")).toBe("Name is required");
+
+    await act(async () => {
+      root?.render(
+        <RouteRuntimeProvider
+          value={createRuntimeState({
+            actionResult: data({
+              saved: true,
+            }) as RouteRuntimeState["actionResult"],
+            data: {
+              saved: true,
+            },
+          })}
+        >
+          <HookProbe />
+        </RouteRuntimeProvider>,
+      );
+      await flushDom();
+    });
+
+    expect(document.getElementById("action-result-kind")?.getAttribute("data-value")).toBe("data");
+    expect(document.getElementById("invalid")?.getAttribute("data-value")).toBe("null");
+  });
+
+  test("clears useActionError() and useError() after a subsequent successful action", async () => {
+    await act(async () => {
+      root?.render(
+        <RouteRuntimeProvider
+          value={createRuntimeState({
+            actionResult: error(
+              422,
+              "Project name is invalid",
+            ) as RouteRuntimeState["actionResult"],
+          })}
+        >
+          <HookProbe />
+        </RouteRuntimeProvider>,
+      );
+      await flushDom();
+    });
+
+    expect(document.getElementById("action-error")?.getAttribute("data-value")).toBe(
+      "Project name is invalid",
+    );
+    expect(document.getElementById("merged-error")?.getAttribute("data-value")).toBe(
+      "Project name is invalid",
+    );
+
+    await act(async () => {
+      root?.render(
+        <RouteRuntimeProvider
+          value={createRuntimeState({
+            actionResult: data({
+              saved: true,
+            }) as RouteRuntimeState["actionResult"],
+            data: {
+              saved: true,
+            },
+          })}
+        >
+          <HookProbe />
+        </RouteRuntimeProvider>,
+      );
+      await flushDom();
+    });
+
+    expect(document.getElementById("action-error")?.getAttribute("data-value")).toBe("null");
+    expect(document.getElementById("merged-error")?.getAttribute("data-value")).toBe("null");
+  });
+
+  test("clears merged useView() after a newer non-view result wins on the same route", async () => {
+    const actionNode = <span id="stale-view">Action view</span>;
+
+    await act(async () => {
+      root?.render(
+        <RouteRuntimeProvider
+          value={createRuntimeState({
+            actionResult: view(actionNode) as RouteRuntimeState["actionResult"],
+            view: actionNode,
+          })}
+        >
+          <HookProbe />
+        </RouteRuntimeProvider>,
+      );
+      await flushDom();
+    });
+
+    expect(document.getElementById("merged-view")?.getAttribute("data-value")).toBe("present");
+    expect(document.getElementById("stale-view")?.textContent).toBe("Action view");
+
+    await act(async () => {
+      root?.render(
+        <RouteRuntimeProvider
+          value={createRuntimeState({
+            loaderResult: {
+              kind: "data",
+              status: 200,
+              headers: new Headers(),
+              stale: false,
+              data: {
+                count: 20,
+              },
+              render() {
+                return null;
+              },
+            },
+            data: {
+              count: 20,
+            },
+          })}
+        >
+          <HookProbe />
+        </RouteRuntimeProvider>,
+      );
+      await flushDom();
+    });
+
+    expect(document.getElementById("loader-data")?.getAttribute("data-value")).toContain(
+      '"count":20',
+    );
+    expect(document.getElementById("merged-view")?.getAttribute("data-value")).toBe("null");
+    expect(document.getElementById("stale-view")).toBeNull();
+  });
+
   test("clears prior action-derived merged state when navigating to a different route", async () => {
     await act(async () => {
       root?.render(
