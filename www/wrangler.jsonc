@@ -2,8 +2,9 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "litz-docs",
   "compatibility_date": "2026-03-17",
+  "compatibility_flags": ["nodejs_compat"],
   "main": "./src/server.ts",
   "assets": {
-    "not_found_handling": "single-page-application",
-  },
+    "not_found_handling": "single-page-application"
+  }
 }

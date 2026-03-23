@@ -9,7 +9,16 @@ const packageRoot = path.resolve(__dirname, "..");
 const docsNodeModules = path.resolve(__dirname, "node_modules");
 
 export default defineConfig(() => ({
-  plugins: [litz(), tailwindcss(), cloudflare()],
+  plugins: [
+    litz(),
+    tailwindcss(),
+    cloudflare({
+      viteEnvironment: {
+        name: "rsc",
+        // childEnvironments: ["ssr"],
+      },
+    }),
+  ],
   resolve: {
     dedupe: ["react", "react-dom"],
     alias: [
