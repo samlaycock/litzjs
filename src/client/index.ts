@@ -332,6 +332,7 @@ function RouteHost(props: {
             withMatchLoaderResult(
               current,
               entry.id,
+              renderedRoute.id,
               loaderResult,
               entry.id === finalLoaderMatchId ? "idle" : current.status,
               entry.id === finalLoaderMatchId ? false : current.pending,
@@ -451,6 +452,16 @@ type MatchErrorInfo = {
   data?: unknown;
 };
 
+type LoaderDataResult = Extract<LoaderHookResult, { kind: "data" }>;
+type LoaderViewResult = Extract<LoaderHookResult, { kind: "view" }>;
+type ActionResolvedResult = Exclude<ActionHookResult, null>;
+type ActionDataResult = Extract<ActionResolvedResult, { kind: "data" }>;
+type ActionViewResult = Extract<ActionResolvedResult, { kind: "view" }>;
+type ResultSnapshot<TResult> = {
+  sequence: number;
+  result: TResult;
+};
+
 type ActiveMatch = {
   id: string;
   path: string;
@@ -477,6 +488,9 @@ type PageState = {
     }
   >;
   actionResult: ActionHookResult;
+  nextResultSequence: number;
+  latestDataResult: ResultSnapshot<LoaderDataResult | ActionDataResult> | null;
+  latestViewResult: ResultSnapshot<LoaderViewResult | ActionViewResult> | null;
   status: RouteRuntimeState["status"];
   pending: boolean;
   errorInfo?: MatchErrorInfo;
@@ -487,6 +501,9 @@ function createEmptyPageState(): PageState {
   return {
     matchStates: {},
     actionResult: null,
+    nextResultSequence: 1,
+    latestDataResult: null,
+    latestViewResult: null,
     status: "loading",
     pending: true,
   };
@@ -502,6 +519,9 @@ function createBootstrapPageState(
   let hasAnyLoader = false;
   let hasCachedLoader = false;
   let missingLoader = false;
+  let nextResultSequence = 1;
+  let latestDataResult: PageState["latestDataResult"] = null;
+  let latestViewResult: PageState["latestViewResult"] = null;
 
   for (const match of matches) {
     if (!match.options?.loader) {
@@ -513,9 +533,26 @@ function createBootstrapPageState(
 
     if (cached) {
       hasCachedLoader = true;
+      const staleCached = withLoaderStaleState(cached, true);
       matchStates[match.id] = {
-        loaderResult: withLoaderStaleState(cached, true),
+        loaderResult: staleCached,
       };
+
+      if (match.id === route.id) {
+        if (staleCached.kind === "data") {
+          latestDataResult = {
+            sequence: nextResultSequence,
+            result: staleCached,
+          };
+          nextResultSequence += 1;
+        } else if (staleCached.kind === "view") {
+          latestViewResult = {
+            sequence: nextResultSequence,
+            result: staleCached,
+          };
+          nextResultSequence += 1;
+        }
+      }
     } else {
       missingLoader = true;
       matchStates[match.id] = {
@@ -528,6 +565,9 @@ function createBootstrapPageState(
     return {
       matchStates,
       actionResult: null,
+      nextResultSequence,
+      latestDataResult,
+      latestViewResult,
       status: "idle",
       pending: false,
     };
@@ -536,8 +576,43 @@ function createBootstrapPageState(
   return {
     matchStates,
     actionResult: null,
+    nextResultSequence,
+    latestDataResult,
+    latestViewResult,
     status: hasCachedLoader ? "revalidating" : "loading",
     pending: missingLoader || hasCachedLoader,
+  };
+}
+
+function withLatestDataResult(
+  current: PageState,
+  result: LoaderDataResult | ActionDataResult,
+): PageState {
+  const sequence = current.nextResultSequence;
+
+  return {
+    ...current,
+    nextResultSequence: sequence + 1,
+    latestDataResult: {
+      sequence,
+      result,
+    },
+  };
+}
+
+function withLatestViewResult(
+  current: PageState,
+  result: LoaderViewResult | ActionViewResult,
+): PageState {
+  const sequence = current.nextResultSequence;
+
+  return {
+    ...current,
+    nextResultSequence: sequence + 1,
+    latestViewResult: {
+      sequence,
+      result,
+    },
   };
 }
 
@@ -579,11 +654,12 @@ function applyCachedLoaderStateToPageState(
 function withMatchLoaderResult(
   current: PageState,
   matchId: string,
+  routeId: string,
   loaderResult: LoaderHookResult,
   status: RouteRuntimeState["status"],
   pending: boolean,
 ): PageState {
-  return {
+  let nextState: PageState = {
     ...current,
     matchStates: {
       ...current.matchStates,
@@ -596,6 +672,16 @@ function withMatchLoaderResult(
     errorInfo: undefined,
     errorTargetId: undefined,
   };
+
+  if (matchId === routeId) {
+    if (loaderResult.kind === "data") {
+      nextState = withLatestDataResult(nextState, loaderResult);
+    } else if (loaderResult.kind === "view") {
+      nextState = withLatestViewResult(nextState, loaderResult);
+    }
+  }
+
+  return nextState;
 }
 
 async function reloadCurrentRoute(options: {
@@ -637,6 +723,7 @@ async function reloadCurrentRoute(options: {
         withMatchLoaderResult(
           current,
           entry.id,
+          options.route.id,
           loaderResult,
           entry === loaderMatches[loaderMatches.length - 1] ? "idle" : current.status,
           entry === loaderMatches[loaderMatches.length - 1] ? false : current.pending,
@@ -836,7 +923,18 @@ function useMatchRuntime(options: {
   const { match, route, pageState, location, navigate, reloadImpl, setPageState } = options;
   const loaderResult = pageState.matchStates[match.id]?.loaderResult ?? null;
   const actionResult = match.kind === "route" ? pageState.actionResult : null;
-  const view = loaderResult?.kind === "view" ? loaderResult.node : null;
+  const data =
+    match.kind === "route"
+      ? (pageState.latestDataResult?.result.data ?? null)
+      : loaderResult?.kind === "data"
+        ? loaderResult.data
+        : null;
+  const view =
+    match.kind === "route"
+      ? (pageState.latestViewResult?.result.node ?? null)
+      : loaderResult?.kind === "view"
+        ? loaderResult.node
+        : null;
 
   const setSearch = React.useCallback<RouteRuntimeState["setSearch"]>(
     (updates, submitOptions) => {
@@ -881,34 +979,29 @@ function useMatchRuntime(options: {
       }
 
       if (result?.kind === "view") {
-        setCachedLoaderResult(match.cacheKey, {
-          kind: "view",
-          status: result.status,
-          headers: result.headers,
-          stale: false,
-          node: result.node,
-          render: result.render,
-        });
-
-        setPageState((current) => ({
-          ...current,
-          matchStates: {
-            ...current.matchStates,
-            [route.id]: {
-              loaderResult: {
-                kind: "view",
-                status: result.status,
-                headers: result.headers,
-                stale: false,
-                node: result.node,
-                render: result.render,
-              },
+        setPageState((current) =>
+          withLatestViewResult(
+            {
+              ...current,
+              actionResult: result,
+              status: "idle",
+              pending: false,
             },
-          },
-          actionResult: result,
-          status: "idle",
-          pending: false,
-        }));
+            result,
+          ),
+        );
+      } else if (result?.kind === "data") {
+        setPageState((current) =>
+          withLatestDataResult(
+            {
+              ...current,
+              actionResult: result,
+              status: "idle",
+              pending: false,
+            },
+            result,
+          ),
+        );
       } else if (result) {
         setPageState((current) => ({
           ...current,
@@ -955,6 +1048,7 @@ function useMatchRuntime(options: {
       pending: pageState.pending,
       loaderResult,
       actionResult,
+      data,
       view,
       submit,
       reload,
@@ -962,6 +1056,7 @@ function useMatchRuntime(options: {
     }),
     [
       actionResult,
+      data,
       loaderResult,
       match.id,
       match.params,

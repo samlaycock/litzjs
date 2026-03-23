@@ -23,7 +23,7 @@ export const route = defineRoute("/features/revalidate", {
 });
 
 function RevalidatePage() {
-  const loader = route.useLoaderResult();
+  const loader = route.useLoaderData();
   const status = route.useStatus();
 
   return (
@@ -32,7 +32,7 @@ function RevalidatePage() {
       <main>
         <h1>Revalidation Demo</h1>
         <p>Status: {status}</p>
-        <p>Count: {String(loader.data.count)}</p>
+        <p>Count: {String(loader?.count ?? 0)}</p>
         <route.Form>
           <button type="submit">Increment and revalidate</button>
         </route.Form>

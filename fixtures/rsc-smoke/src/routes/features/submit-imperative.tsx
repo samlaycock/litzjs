@@ -1,5 +1,5 @@
 import * as React from "react";
-import { data, defineRoute, invalid, server } from "volt";
+import { data, defineRoute, error, invalid, server } from "volt";
 
 import { appendQuickProject, delay } from "../../data/state";
 
@@ -19,6 +19,10 @@ export const route = defineRoute("/features/submit-imperative", {
       });
     }
 
+    if (name.toLowerCase() === "error") {
+      return error(422, "Project name 'error' is reserved");
+    }
+
     return data({
       project: appendQuickProject(name),
     });
@@ -27,17 +31,14 @@ export const route = defineRoute("/features/submit-imperative", {
 
 function QuickCreatePage() {
   const [name, setName] = React.useState("");
-  const [lastSuccess, setLastSuccess] = React.useState<string | null>(null);
   const [optimisticName, setOptimisticName] = React.useState<string | null>(null);
   const action = route.useActionResult();
+  const actionData = route.useActionData();
+  const actionError = route.useActionError();
+  const mergedData = route.useData();
+  const mergedError = route.useError();
   const pending = route.usePending();
-  const submit = route.useSubmit({
-    onSuccess(result) {
-      if (result?.kind === "data") {
-        setLastSuccess(result.data.project.name);
-      }
-    },
-  });
+  const submit = route.useSubmit();
 
   return (
     <>
@@ -78,7 +79,11 @@ function QuickCreatePage() {
 
         {optimisticName ? <p>Optimistic project: {optimisticName} (sending...)</p> : null}
         {action?.kind === "invalid" ? <p>{action.fields?.name}</p> : null}
-        {lastSuccess ? <p>Created project: {lastSuccess}</p> : null}
+        {actionError ? <p>Action error: {actionError.message}</p> : null}
+        {mergedError ? <p>Merged error: {mergedError.message}</p> : null}
+        {actionData ? <p>Action data project: {actionData.project.name}</p> : null}
+        {mergedData ? <p>Merged data project: {mergedData.project.name}</p> : null}
+        <p>Tip: submit the name "error" to trigger the explicit action error branch.</p>
       </main>
     </>
   );

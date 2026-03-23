@@ -145,6 +145,7 @@ describe("route search runtime", () => {
           pending: false,
           loaderResult: null,
           actionResult: null,
+          data: null,
           view: null,
           async submit() {
             throw new Error("submit() is not used in this test.");

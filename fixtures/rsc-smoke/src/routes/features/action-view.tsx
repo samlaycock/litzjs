@@ -28,8 +28,10 @@ export const route = defineRoute("/features/action-view", {
 });
 
 function ProjectsPage() {
-  const loader = route.useLoaderResult();
-  const action = route.useActionResult();
+  const loaderView = route.useLoaderView();
+  const actionView = route.useActionView();
+  const invalidResult = route.useInvalid();
+  const view = route.useView();
 
   return (
     <>
@@ -40,11 +42,13 @@ function ProjectsPage() {
 
         <route.Form>
           <input name="name" placeholder="New project name" />
-          {action?.kind === "invalid" ? <p role="alert">{action.fields?.name}</p> : null}
+          {invalidResult ? <p role="alert">{invalidResult.fields?.name}</p> : null}
           <button type="submit">Create</button>
         </route.Form>
 
-        <React.Suspense fallback={<p>Refreshing projects...</p>}>{loader.render()}</React.Suspense>
+        <p>Initial loader view: {loaderView ? "ready" : "pending"}</p>
+        <p>Most recent action view: {actionView ? "ready" : "none"}</p>
+        <React.Suspense fallback={<p>Refreshing projects...</p>}>{view}</React.Suspense>
       </main>
     </>
   );

@@ -14,16 +14,17 @@ export const route = defineRoute("/features/loader-data", {
 });
 
 function MePage() {
-  const result = route.useLoaderResult();
+  const user = route.useLoaderData();
+  const status = route.useStatus();
 
   return (
     <>
       <title>Loader Data | Volt RSC Smoke</title>
       <main>
         <h1>Data Loader Route</h1>
-        <p>Name: {result.data.user.name}</p>
-        <p>Email: {result.data.user.email}</p>
-        <p>Status: {result.status}</p>
+        <p>Name: {user?.user.name ?? "(loading)"}</p>
+        <p>Email: {user?.user.email ?? "(loading)"}</p>
+        <p>Status: {status}</p>
       </main>
     </>
   );

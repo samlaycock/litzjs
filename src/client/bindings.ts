@@ -18,6 +18,7 @@ export type VoltClientBindings = {
   useRequiredRouteData(routeId: string): {
     loaderResult: unknown;
     actionResult: unknown;
+    data: unknown;
     view: React.ReactNode | null;
   };
   useRequiredRouteActions(routeId: string): {

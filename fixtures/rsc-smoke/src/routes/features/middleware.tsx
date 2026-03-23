@@ -59,19 +59,15 @@ export const route = defineRoute("/features/middleware", {
 });
 
 function MiddlewarePage() {
-  const loader = route.useLoaderResult();
-
-  if (loader.kind !== "data") {
-    return null;
-  }
+  const loader = route.useLoaderData();
 
   return (
     <>
       <title>Middleware | Volt RSC Smoke</title>
       <main>
         <h1>Middleware</h1>
-        <p>Order: {loader.data.trace.join(" -> ")}</p>
-        <p>Note: {loader.data.note}</p>
+        <p>Order: {loader?.trace.join(" -> ") ?? "(loading)"}</p>
+        <p>Note: {loader?.note ?? "(loading)"}</p>
       </main>
     </>
   );

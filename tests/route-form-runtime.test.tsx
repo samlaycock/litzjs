@@ -39,6 +39,7 @@ function createRuntimeState(): RouteRuntimeState {
     pending: false,
     loaderResult: null,
     actionResult: null,
+    data: null,
     view: null,
     async submit() {},
     reload() {},

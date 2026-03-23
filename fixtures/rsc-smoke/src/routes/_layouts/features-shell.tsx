@@ -10,15 +10,11 @@ export const layout = defineLayout("/layouts/features", {
 });
 
 function FeaturesShell({ children }: { children: React.ReactNode }) {
-  const result = layout.useLoaderResult();
-
-  if (result.kind !== "data") {
-    return null;
-  }
+  const data = layout.useLoaderData();
 
   return (
     <section>
-      <p>Section: {result.data.section}</p>
+      <p>Section: {data?.section ?? "(loading)"}</p>
       {children}
     </section>
   );

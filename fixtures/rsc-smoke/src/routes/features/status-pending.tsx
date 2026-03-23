@@ -28,22 +28,13 @@ export const route = defineRoute("/features/status-pending", {
 });
 
 function StatusPage() {
-  const loader = route.useLoaderResult();
-  const action = route.useActionResult();
+  const loader = route.useLoaderData();
+  const action = route.useActionData();
   const status = route.useStatus();
   const pending = route.usePending();
   const submitting = status === "submitting";
   const retry = route.useRetry();
   const reload = route.useReload();
-
-  if (loader.kind !== "data") {
-    return (
-      <>
-        <title>Status Pending | Volt RSC Smoke</title>
-        <main>Unexpected status loader result.</main>
-      </>
-    );
-  }
 
   return (
     <>
@@ -52,9 +43,9 @@ function StatusPage() {
         <h1>Status Demo</h1>
         <p>Status: {status}</p>
         <p>Pending: {pending ? "yes" : "no"}</p>
-        <p>Loaded at: {loader.data.loadedAt}</p>
-        <p>Saves: {action?.kind === "data" ? String(action.data.saves) : "0"}</p>
-        <p>Last note: {action?.kind === "data" ? action.data.note : "(none)"}</p>
+        <p>Loaded at: {loader?.loadedAt ?? "(loading)"}</p>
+        <p>Saves: {action ? String(action.saves) : "0"}</p>
+        <p>Last note: {action?.note ?? "(none)"}</p>
 
         <div>
           <button type="button" onClick={() => retry()}>

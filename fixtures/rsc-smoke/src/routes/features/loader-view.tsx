@@ -13,14 +13,15 @@ export const route = defineRoute("/features/loader-view", {
 
 function ReportsPage() {
   const result = route.useLoaderResult();
+  const view = route.useLoaderView();
 
   return (
     <>
       <title>Loader View | Volt RSC Smoke</title>
       <main>
         <h1>View Loader Route</h1>
-        <p>Kind: {result.kind}</p>
-        <React.Suspense fallback={<p>Streaming reports...</p>}>{result.render()}</React.Suspense>
+        <p>Kind: {result?.kind ?? "(pending)"}</p>
+        <React.Suspense fallback={<p>Streaming reports...</p>}>{view}</React.Suspense>
       </main>
     </>
   );

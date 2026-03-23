@@ -31,6 +31,7 @@ export type RouteDataState = {
   id: string;
   loaderResult: LoaderHookResult | null;
   actionResult: ActionHookResult;
+  data: unknown;
   view: React.ReactNode | null;
 };
 
@@ -131,9 +132,16 @@ export function RouteRuntimeProvider(props: {
       id: props.value.id,
       loaderResult: props.value.loaderResult,
       actionResult: props.value.actionResult,
+      data: props.value.data,
       view: props.value.view,
     }),
-    [props.value.actionResult, props.value.id, props.value.loaderResult, props.value.view],
+    [
+      props.value.actionResult,
+      props.value.data,
+      props.value.id,
+      props.value.loaderResult,
+      props.value.view,
+    ],
   );
   const actionsValue = React.useMemo(
     () => ({
@@ -203,6 +211,7 @@ export function createPendingRuntimeState(routeId: string): RouteRuntimeState {
     pending: true,
     loaderResult: null,
     actionResult: null,
+    data: null,
     view: null,
     submit: async () => {
       throw new Error(`Route "${routeId}" is not ready to submit.`);

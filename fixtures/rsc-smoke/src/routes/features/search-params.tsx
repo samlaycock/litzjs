@@ -13,7 +13,7 @@ export const route = defineRoute("/features/search-params", {
 });
 
 function SearchPage() {
-  const loader = route.useLoaderResult();
+  const loader = route.useLoaderData();
   const [search, setSearch] = route.useSearch();
 
   return (
@@ -21,8 +21,8 @@ function SearchPage() {
       <title>Search Params | Volt RSC Smoke</title>
       <main>
         <h1>Search Params</h1>
-        <p>Loader term: {loader.data.term || "(empty)"}</p>
-        <p>Loader tab: {loader.data.tab}</p>
+        <p>Loader term: {loader?.term || "(empty)"}</p>
+        <p>Loader tab: {loader?.tab ?? "all"}</p>
         <p>Hook term: {search.get("term") ?? "(empty)"}</p>
         <p>Hook tab: {search.get("tab") ?? "all"}</p>
         <p>

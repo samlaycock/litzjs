@@ -13,19 +13,15 @@ export const route = defineRoute("/features/layouts", {
 });
 
 function LayoutsFeaturePage() {
-  const result = route.useLoaderResult();
+  const result = route.useLoaderData();
   const matches = useMatches();
-
-  if (result.kind !== "data") {
-    return null;
-  }
 
   return (
     <>
       <title>Layouts | Volt RSC Smoke</title>
       <main>
         <h1>Feature: Layouts</h1>
-        <p>{result.data.message}</p>
+        <p>{result?.message ?? "(loading)"}</p>
         <p>Matches: {matches.map((match) => match.path).join(" -> ")}</p>
       </main>
     </>

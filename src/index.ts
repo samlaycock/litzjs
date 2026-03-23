@@ -371,6 +371,31 @@ export type ActionHookResultFor<TResult extends ServerResult = ServerResult> =
 export type LoaderHookResult = LoaderHookResultFor<ServerResult>;
 export type ActionHookResult = ActionHookResultFor<ServerResult>;
 
+type LoaderDataValueFor<TResult extends ServerResult> = LoaderDataFor<TResult> | null;
+type LoaderViewValueFor<TResult extends ServerResult> =
+  | (LoaderNodeFor<TResult> & React.ReactNode)
+  | null;
+type ActionDataValueFor<TResult extends ServerResult> = ActionDataFor<TResult> | null;
+type ActionViewValueFor<TResult extends ServerResult> =
+  | (ActionViewNodeFor<TResult> & React.ReactNode)
+  | null;
+type ActionInvalidValueFor<TResult extends ServerResult> = Extract<
+  ActionHookResultFor<TResult>,
+  { kind: "invalid" }
+> | null;
+type ActionExplicitErrorValueFor<TResult extends ServerResult> = Extract<
+  ActionHookResultFor<TResult>,
+  { kind: "error" }
+> | null;
+type MergedDataValueFor<TLoaderResult extends ServerResult, TActionResult extends ServerResult> =
+  | LoaderDataFor<TLoaderResult>
+  | ActionDataFor<TActionResult>
+  | null;
+type MergedViewValueFor<TLoaderResult extends ServerResult, TActionResult extends ServerResult> =
+  | (LoaderNodeFor<TLoaderResult> & React.ReactNode)
+  | (ActionViewNodeFor<TActionResult> & React.ReactNode)
+  | null;
+
 export type ActionErrorResultFor<TResult extends ServerResult = ServerResult> = Extract<
   ActionHookResultFor<TResult>,
   { kind: "error" | "fault" }
@@ -552,14 +577,7 @@ export type VoltLayout<
     useSearch(): [URLSearchParams, SetSearchParams];
     useStatus(): RouteStatus;
     usePending(): boolean;
-  } & ([TLoaderResult] extends [never]
-    ? {}
-    : {
-        useLoaderResult(): LoaderHookResultFor<TLoaderResult>;
-        useView(): (LoaderNodeFor<TLoaderResult> & React.ReactNode) | null;
-        useRetry(): () => void;
-        useReload(): () => void;
-      })
+  } & ([TLoaderResult] extends [never] ? {} : LayoutLoaderClientHooks<TLoaderResult>)
 >;
 
 type LayoutReference = {
@@ -573,6 +591,36 @@ type LayoutReference = {
     pendingComponent?: React.ComponentType;
     errorComponent?: React.ComponentType<{ error: RouteErrorLike }>;
   };
+};
+
+type LayoutLoaderClientHooks<TLoaderResult extends ServerResult> = {
+  useLoaderResult(): LoaderHookResultFor<TLoaderResult> | null;
+  useLoaderData(): LoaderDataValueFor<TLoaderResult>;
+  useLoaderView(): LoaderViewValueFor<TLoaderResult>;
+  useData(): LoaderDataValueFor<TLoaderResult>;
+  useView(): LoaderViewValueFor<TLoaderResult>;
+  useRetry(): () => void;
+  useReload(): () => void;
+};
+
+type RouteLoaderClientHooks<TLoaderResult extends ServerResult> = {
+  useLoaderResult(): LoaderHookResultFor<TLoaderResult> | null;
+  useLoaderData(): LoaderDataValueFor<TLoaderResult>;
+  useLoaderView(): LoaderViewValueFor<TLoaderResult>;
+  useRetry(): () => void;
+  useReload(): () => void;
+};
+
+type RouteActionClientHooks<TActionResult extends ServerResult> = {
+  useActionResult(): ActionHookResultFor<TActionResult>;
+  useActionData(): ActionDataValueFor<TActionResult>;
+  useActionView(): ActionViewValueFor<TActionResult>;
+  useActionError(): ActionExplicitErrorValueFor<TActionResult>;
+  useInvalid(): ActionInvalidValueFor<TActionResult>;
+  useSubmit(
+    opts?: SubmitOptions<TActionResult>,
+  ): (payload: FormData | Record<string, unknown>) => Promise<void>;
+  Form: React.ComponentType<RouteFormProps>;
 };
 
 export type VoltRoute<
@@ -592,23 +640,26 @@ export type VoltRoute<
     useSearch(): [URLSearchParams, SetSearchParams];
     useStatus(): RouteStatus;
     usePending(): boolean;
-  } & ([TLoaderResult] extends [never]
-    ? {}
-    : {
-        useLoaderResult(): LoaderHookResultFor<TLoaderResult>;
-        useView(): (LoaderNodeFor<TLoaderResult> & React.ReactNode) | null;
-        useRetry(): () => void;
-        useReload(): () => void;
-      }) &
-    ([TActionResult] extends [never]
-      ? {}
-      : {
-          useActionResult(): ActionHookResultFor<TActionResult>;
-          useSubmit(
-            opts?: SubmitOptions<TActionResult>,
-          ): (payload: FormData | Record<string, unknown>) => Promise<void>;
-          Form: React.ComponentType<RouteFormProps>;
-        })
+  } & ([TLoaderResult] extends [never] ? {} : RouteLoaderClientHooks<TLoaderResult>) &
+    ([TActionResult] extends [never] ? {} : RouteActionClientHooks<TActionResult>) &
+    ([TLoaderResult] extends [never]
+      ? [TActionResult] extends [never]
+        ? {}
+        : {
+            useData(): ActionDataValueFor<TActionResult>;
+            useView(): ActionViewValueFor<TActionResult>;
+            useError(): ActionExplicitErrorValueFor<TActionResult>;
+          }
+      : [TActionResult] extends [never]
+        ? {
+            useData(): LoaderDataValueFor<TLoaderResult>;
+            useView(): LoaderViewValueFor<TLoaderResult>;
+          }
+        : {
+            useData(): MergedDataValueFor<TLoaderResult, TActionResult>;
+            useView(): MergedViewValueFor<TLoaderResult, TActionResult>;
+            useError(): ActionExplicitErrorValueFor<TActionResult>;
+          })
 >;
 
 export type VoltMatch<TPath extends string = string> = {
@@ -877,18 +928,47 @@ export function defineRoute(path: string, options: DefineRouteOptions<any, any, 
     component: options.component,
     options,
     useLoaderResult: () => {
+      return getRequiredRouteData(path).loaderResult as LoaderHookResultFor<ServerResult> | null;
+    },
+    useLoaderData: () => {
       const loaderResult = getRequiredRouteData(path)
         .loaderResult as LoaderHookResultFor<ServerResult> | null;
-
-      if (!loaderResult) {
-        throw new Error(`route.useLoaderResult() called before route "${path}" resolved a loader.`);
-      }
-
-      return loaderResult;
+      return loaderResult?.kind === "data" ? loaderResult.data : null;
     },
+    useLoaderView: () => {
+      const loaderResult = getRequiredRouteData(path)
+        .loaderResult as LoaderHookResultFor<ServerResult> | null;
+      return loaderResult?.kind === "view" ? loaderResult.node : null;
+    },
+    useData: () => getRequiredRouteData(path).data as unknown,
     useView: () => getRequiredRouteData(path).view as React.ReactNode | null,
+    useError: () => {
+      const actionResult = getRequiredRouteData(path)
+        .actionResult as ActionHookResultFor<ServerResult>;
+      return actionResult?.kind === "error" ? actionResult : null;
+    },
     useActionResult: () =>
       getRequiredRouteData(path).actionResult as ActionHookResultFor<ServerResult>,
+    useActionData: () => {
+      const actionResult = getRequiredRouteData(path)
+        .actionResult as ActionHookResultFor<ServerResult>;
+      return actionResult?.kind === "data" ? actionResult.data : null;
+    },
+    useActionView: () => {
+      const actionResult = getRequiredRouteData(path)
+        .actionResult as ActionHookResultFor<ServerResult>;
+      return actionResult?.kind === "view" ? actionResult.node : null;
+    },
+    useActionError: () => {
+      const actionResult = getRequiredRouteData(path)
+        .actionResult as ActionHookResultFor<ServerResult>;
+      return actionResult?.kind === "error" ? actionResult : null;
+    },
+    useInvalid: () => {
+      const actionResult = getRequiredRouteData(path)
+        .actionResult as ActionHookResultFor<ServerResult>;
+      return actionResult?.kind === "invalid" ? actionResult : null;
+    },
     useStatus: () => getRequiredRouteStatus(path).status as RouteStatus,
     usePending: () => getRequiredRouteStatus(path).pending,
     useParams: () => getRequiredRouteLocation(path).params as PathParams<string>,
@@ -949,16 +1029,22 @@ export function defineLayout(path: string, options: DefineLayoutOptions<any, any
     component: options.component,
     options,
     useLoaderResult: () => {
+      return getRequiredRouteData(path).loaderResult as LoaderHookResultFor<ServerResult> | null;
+    },
+    useLoaderData: () => {
       const loaderResult = getRequiredRouteData(path)
         .loaderResult as LoaderHookResultFor<ServerResult> | null;
-
-      if (!loaderResult) {
-        throw new Error(
-          `layout.useLoaderResult() called before layout "${path}" resolved a loader.`,
-        );
-      }
-
-      return loaderResult;
+      return loaderResult?.kind === "data" ? loaderResult.data : null;
+    },
+    useLoaderView: () => {
+      const loaderResult = getRequiredRouteData(path)
+        .loaderResult as LoaderHookResultFor<ServerResult> | null;
+      return loaderResult?.kind === "view" ? loaderResult.node : null;
+    },
+    useData: () => {
+      const loaderResult = getRequiredRouteData(path)
+        .loaderResult as LoaderHookResultFor<ServerResult> | null;
+      return loaderResult?.kind === "data" ? loaderResult.data : null;
     },
     useView: () => getRequiredRouteData(path).view as React.ReactNode | null,
     useStatus: () => getRequiredRouteStatus(path).status as RouteStatus,

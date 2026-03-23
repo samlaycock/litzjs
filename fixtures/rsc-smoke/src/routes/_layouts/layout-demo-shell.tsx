@@ -13,15 +13,11 @@ export const layout = defineLayout("/layouts/features/layouts", {
 });
 
 function LayoutDemoShell({ children }: { children: React.ReactNode }) {
-  const result = layout.useLoaderResult();
-
-  if (result.kind !== "data") {
-    return null;
-  }
+  const data = layout.useLoaderData();
 
   return (
     <section>
-      <p>Layout: {result.data.title}</p>
+      <p>Layout: {data?.title ?? "(loading)"}</p>
       {children}
     </section>
   );
