@@ -274,10 +274,7 @@ function SaveToolbar() {
       <button onClick={() => retry()} disabled={pending}>
         Retry
       </button>
-      <button
-        onClick={() => submit({ name: "Ada" })}
-        disabled={pending}
-      >
+      <button onClick={() => submit({ name: "Ada" })} disabled={pending}>
         Save
       </button>
     </div>
@@ -400,6 +397,31 @@ function Breadcrumbs() {
 }
 ```
 
+If you want the current concrete browser location instead of the route pattern chain:
+
+```tsx
+import { useLocation, usePathname } from "volt";
+
+function RouteMeta() {
+  const pathname = usePathname();
+  const location = useLocation();
+
+  return (
+    <>
+      <p>Pathname: {pathname}</p>
+      <p>Hash: {location.hash || "(none)"}</p>
+    </>
+  );
+}
+```
+
+`useLocation()` returns:
+
+- `href`
+- `pathname`
+- `search`
+- `hash`
+
 ## Search Params
 
 Search params are part of the route runtime:
@@ -477,7 +499,11 @@ import { defineResource, server, view } from "volt";
 export const resource = defineResource("/resource/feed/:id", {
   component: FeedPanel,
   loader: server(async ({ params }) => {
-    return view(<ul><li>Feed {params.id}</li></ul>);
+    return view(
+      <ul>
+        <li>Feed {params.id}</li>
+      </ul>,
+    );
   }),
   action: server(async ({ params, request }) => {
     const formData = await request.formData();
@@ -608,10 +634,9 @@ export const route = defineRoute("/projects/:id", {
       return redirect("/projects/create");
     }
 
-    return withHeaders(
-      data({ id: params.id }, { revalidate: ["/projects/:id"] }),
-      { "cache-control": "private, max-age=60" },
-    );
+    return withHeaders(data({ id: params.id }, { revalidate: ["/projects/:id"] }), {
+      "cache-control": "private, max-age=60",
+    });
   }),
   action: server(async ({ request }) => {
     const formData = await request.formData();

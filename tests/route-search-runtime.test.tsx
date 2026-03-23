@@ -76,6 +76,17 @@ describe("route search runtime", () => {
     root = createRoot(container);
 
     installClientBindings({
+      usePathname() {
+        return window.location.pathname;
+      },
+      useLocation() {
+        return {
+          href: window.location.href,
+          pathname: window.location.pathname,
+          search: new URLSearchParams(window.location.search),
+          hash: window.location.hash,
+        };
+      },
       useRequiredRouteLocation,
       useRequiredRouteStatus,
       useRequiredRouteData,

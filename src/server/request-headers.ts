@@ -1,7 +1,6 @@
 const INTERNAL_REQUEST_HEADER_NAMES = new Set([
   "content-length",
   "content-type",
-  "host",
   "transfer-encoding",
   "x-volt-request",
 ]);

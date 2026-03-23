@@ -19,8 +19,10 @@ describe("server security", () => {
                   kind: "data",
                   data: {
                     cookie: request.headers.get("cookie"),
+                    host: request.headers.get("host"),
                     origin: request.headers.get("origin"),
                     internalHeader: request.headers.get("x-volt-request"),
+                    href: request.url,
                     pathname: new URL(request.url).pathname,
                   },
                 };
@@ -51,6 +53,7 @@ describe("server security", () => {
     const headers = new Headers(actionRequest.headers);
 
     headers.set("cookie", "session=top-secret");
+    headers.set("host", "app.example.com");
     headers.set("origin", "https://app.example.com");
 
     const response = await server(
@@ -67,16 +70,20 @@ describe("server security", () => {
       kind: "data";
       data: {
         cookie: string | null;
+        host: string | null;
         origin: string | null;
         internalHeader: string | null;
+        href: string;
         pathname: string;
       };
     };
 
     expect(body.kind).toBe("data");
     expect(body.data.cookie).toBe("session=top-secret");
+    expect(body.data.host).toBe("app.example.com");
     expect(body.data.origin).toBe("https://app.example.com");
     expect(body.data.internalHeader).toBeNull();
+    expect(body.data.href).toBe("https://app.example.com/projects/42?tab=settings");
     expect(body.data.pathname).toBe("/projects/42");
   });
 

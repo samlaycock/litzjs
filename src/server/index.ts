@@ -614,8 +614,10 @@ function normalizeInternalRequest(
 } {
   const params = requestData?.params ?? {};
   const search = new URLSearchParams(requestData?.search ?? {});
-  const url = new URL("http://volt.local" + interpolatePath(pathPattern, params));
+  const url = new URL(originalRequest.url);
+  url.pathname = interpolatePath(pathPattern, params);
   url.search = search.toString();
+  url.hash = "";
 
   let body: FormData | undefined;
 

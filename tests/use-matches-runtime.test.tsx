@@ -17,6 +17,17 @@ const MatchesContext = React.createContext<VoltMatch[]>([]);
 
 function installMatchesBindings(): void {
   installClientBindings({
+    usePathname() {
+      return "/projects/123";
+    },
+    useLocation() {
+      return {
+        href: "https://example.com/projects/123?tab=overview",
+        pathname: "/projects/123",
+        search: new URLSearchParams("tab=overview"),
+        hash: "",
+      };
+    },
     useRequiredRouteLocation() {
       throw new Error("Route location runtime is not used in useMatches runtime tests.");
     },

@@ -1,6 +1,13 @@
 import type * as React from "react";
 
 export type VoltClientBindings = {
+  usePathname(): string;
+  useLocation(): {
+    href: string;
+    pathname: string;
+    search: URLSearchParams;
+    hash: string;
+  };
   useRequiredRouteLocation(routeId: string): {
     params: Record<string, string>;
     search: URLSearchParams;

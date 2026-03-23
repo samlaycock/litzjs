@@ -26,6 +26,8 @@ import {
 import { getRevalidateTargets } from "./transport";
 
 installClientBindings({
+  usePathname,
+  useLocation,
   useRequiredRouteLocation,
   useRequiredRouteStatus,
   useRequiredRouteData,
@@ -78,6 +80,12 @@ const ROUTE_CACHE_LIMIT = 200;
 const ROUTE_MODULE_CACHE_LIMIT = Math.max(manifest.length, 1);
 let navigationContext: React.Context<{
   navigate(href: string, options?: { replace?: boolean }): void;
+} | null> | null = null;
+let locationContext: React.Context<{
+  href: string;
+  pathname: string;
+  search: URLSearchParams;
+  hash: string;
 } | null> | null = null;
 let matchesContext: React.Context<
   Array<{
@@ -155,6 +163,34 @@ function getMatchesContext(): React.Context<
   return matchesContext;
 }
 
+function getLocationContext(): React.Context<{
+  href: string;
+  pathname: string;
+  search: URLSearchParams;
+  hash: string;
+} | null> {
+  if (!locationContext) {
+    const createContext = (
+      React as typeof React & {
+        createContext?: typeof React.createContext;
+      }
+    ).createContext;
+
+    if (!createContext) {
+      throw new Error("Volt client location is not available in this environment.");
+    }
+
+    locationContext = createContext<{
+      href: string;
+      pathname: string;
+      search: URLSearchParams;
+      hash: string;
+    } | null>(null);
+  }
+
+  return locationContext;
+}
+
 export function mountApp(
   element: Element,
   wrapper?: React.JSXElementConstructor<{ children: React.ReactNode }>,
@@ -182,6 +218,31 @@ export function useMatches(): Array<{
   search: URLSearchParams;
 }> {
   return React.useContext(getMatchesContext());
+}
+
+export function usePathname(): string {
+  const location = React.useContext(getLocationContext());
+
+  if (!location) {
+    throw new Error("usePathname() must be used inside the Volt client runtime.");
+  }
+
+  return location.pathname;
+}
+
+export function useLocation(): {
+  href: string;
+  pathname: string;
+  search: URLSearchParams;
+  hash: string;
+} {
+  const location = React.useContext(getLocationContext());
+
+  if (!location) {
+    throw new Error("useLocation() must be used inside the Volt client runtime.");
+  }
+
+  return location;
 }
 
 export const Link = createLinkComponent({
@@ -225,6 +286,15 @@ function VoltApp(props: {
     }),
     [navigate],
   );
+  const locationValue = React.useMemo(() => {
+    const url = new URL(location);
+    return {
+      href: location,
+      pathname: url.pathname,
+      search: new URLSearchParams(url.search),
+      hash: url.hash,
+    };
+  }, [location]);
 
   const content = React.createElement(RouteHost, {
     location,
@@ -237,7 +307,13 @@ function VoltApp(props: {
     {
       value: navigationValue,
     },
-    content,
+    React.createElement(
+      getLocationContext().Provider,
+      {
+        value: locationValue,
+      },
+      content,
+    ),
   );
 }
 

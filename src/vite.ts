@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { TLSSocket } from "node:tls";
 import type { Connect, Plugin, ViteDevServer } from "vite";
 
 import vitePluginRsc from "@vitejs/plugin-rsc";
@@ -1223,7 +1224,7 @@ async function readRequestBuffer(request: IncomingMessage): Promise<Buffer> {
 
 async function createNodeRequest(
   request: IncomingMessage,
-  url = new URL(request.url ?? "/", "http://volt.local"),
+  url = createIncomingRequestUrl(request),
 ): Promise<Request> {
   const headers = new Headers();
 
@@ -1249,6 +1250,30 @@ async function createNodeRequest(
   });
 }
 
+function createIncomingRequestUrl(request: IncomingMessage): URL {
+  const host =
+    getForwardedRequestValue(request.headers["x-forwarded-host"]) ?? request.headers.host;
+  const socket = request.socket as TLSSocket;
+  const protocol =
+    getForwardedRequestValue(request.headers["x-forwarded-proto"]) ??
+    (socket.encrypted ? "https" : "http");
+
+  return new URL(request.url ?? "/", `${protocol}://${host ?? "volt.local"}`);
+}
+
+function getForwardedRequestValue(value: string | string[] | undefined): string | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+
+  if (!raw) {
+    return undefined;
+  }
+
+  return raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .find(Boolean);
+}
+
 function normalizeInternalResourceRequest(
   originalRequest: Request,
   resourcePath: string,
@@ -1265,8 +1290,10 @@ function normalizeInternalResourceRequest(
 } {
   const params = requestData?.params ?? {};
   const search = new URLSearchParams(requestData?.search ?? {});
-  const url = new URL("http://volt.local" + interpolatePath(resourcePath, params));
+  const url = new URL(originalRequest.url);
+  url.pathname = interpolatePath(resourcePath, params);
   url.search = search.toString();
+  url.hash = "";
 
   let body: FormData | undefined;
 

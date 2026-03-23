@@ -65,6 +65,13 @@ export type SubmitOptions<TResult extends ServerResult = ServerResult> = {
 
 export type SearchParamsUpdate = Record<string, string | string[] | null | undefined>;
 
+export type VoltLocation = {
+  href: string;
+  pathname: string;
+  search: URLSearchParams;
+  hash: string;
+};
+
 export type SetSearchParams = (
   params: SearchParamsUpdate,
   options?: {
@@ -1076,6 +1083,26 @@ export function useMatches(): VoltMatch[] {
   }
 
   return bindings.useMatches() as VoltMatch[];
+}
+
+export function usePathname(): string {
+  const bindings = getClientBindings();
+
+  if (!bindings) {
+    return unimplementedHook("usePathname()");
+  }
+
+  return bindings.usePathname();
+}
+
+export function useLocation(): VoltLocation {
+  const bindings = getClientBindings();
+
+  if (!bindings) {
+    return unimplementedHook("useLocation()");
+  }
+
+  return bindings.useLocation() as VoltLocation;
 }
 
 export function defineApiRoute<
