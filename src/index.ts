@@ -789,14 +789,44 @@ function mergeHeaders(current: HeadersInit | undefined, next: HeadersInit): Head
   return merged;
 }
 
-function getRequiredRouteRuntime(path: string) {
+function getRequiredRouteLocation(path: string) {
   const bindings = getClientBindings();
 
   if (!bindings) {
-    return unimplementedHook(`Route "${path}" runtime`);
+    return unimplementedHook(`Route "${path}" location runtime`);
   }
 
-  return bindings.useRequiredRouteRuntime(path);
+  return bindings.useRequiredRouteLocation(path);
+}
+
+function getRequiredRouteStatus(path: string) {
+  const bindings = getClientBindings();
+
+  if (!bindings) {
+    return unimplementedHook(`Route "${path}" status runtime`);
+  }
+
+  return bindings.useRequiredRouteStatus(path);
+}
+
+function getRequiredRouteData(path: string) {
+  const bindings = getClientBindings();
+
+  if (!bindings) {
+    return unimplementedHook(`Route "${path}" data runtime`);
+  }
+
+  return bindings.useRequiredRouteData(path);
+}
+
+function getRequiredRouteActions(path: string) {
+  const bindings = getClientBindings();
+
+  if (!bindings) {
+    return unimplementedHook(`Route "${path}" action runtime`);
+  }
+
+  return bindings.useRequiredRouteActions(path);
 }
 
 export function defineRoute<TContext = unknown, const TPath extends string = string>(
@@ -847,7 +877,7 @@ export function defineRoute(path: string, options: DefineRouteOptions<any, any, 
     component: options.component,
     options,
     useLoaderResult: () => {
-      const loaderResult = getRequiredRouteRuntime(path)
+      const loaderResult = getRequiredRouteData(path)
         .loaderResult as LoaderHookResultFor<ServerResult> | null;
 
       if (!loaderResult) {
@@ -856,30 +886,30 @@ export function defineRoute(path: string, options: DefineRouteOptions<any, any, 
 
       return loaderResult;
     },
-    useView: () => getRequiredRouteRuntime(path).view as React.ReactNode | null,
+    useView: () => getRequiredRouteData(path).view as React.ReactNode | null,
     useActionResult: () =>
-      getRequiredRouteRuntime(path).actionResult as ActionHookResultFor<ServerResult>,
-    useStatus: () => getRequiredRouteRuntime(path).status as RouteStatus,
-    usePending: () => getRequiredRouteRuntime(path).pending,
-    useParams: () => getRequiredRouteRuntime(path).params as PathParams<string>,
+      getRequiredRouteData(path).actionResult as ActionHookResultFor<ServerResult>,
+    useStatus: () => getRequiredRouteStatus(path).status as RouteStatus,
+    usePending: () => getRequiredRouteStatus(path).pending,
+    useParams: () => getRequiredRouteLocation(path).params as PathParams<string>,
     useSearch: () => {
-      const runtime = getRequiredRouteRuntime(path);
-      return [runtime.search, (params, options) => runtime.setSearch(params, options)] as [
+      const location = getRequiredRouteLocation(path);
+      return [location.search, (params, options) => location.setSearch(params, options)] as [
         URLSearchParams,
         SetSearchParams,
       ];
     },
     useRetry: () => {
-      const runtime = getRequiredRouteRuntime(path);
-      return () => runtime.retry();
+      const actions = getRequiredRouteActions(path);
+      return () => actions.retry();
     },
     useReload: () => {
-      const runtime = getRequiredRouteRuntime(path);
-      return () => runtime.reload();
+      const actions = getRequiredRouteActions(path);
+      return () => actions.reload();
     },
     useSubmit: (opts?: SubmitOptions<ServerResult>) => {
-      const runtime = getRequiredRouteRuntime(path);
-      return (payload: FormData | Record<string, unknown>) => runtime.submit(payload, opts);
+      const actions = getRequiredRouteActions(path);
+      return (payload: FormData | Record<string, unknown>) => actions.submit(payload, opts);
     },
     Form(props: RouteFormProps) {
       const bindings = getClientBindings();
@@ -919,7 +949,7 @@ export function defineLayout(path: string, options: DefineLayoutOptions<any, any
     component: options.component,
     options,
     useLoaderResult: () => {
-      const loaderResult = getRequiredRouteRuntime(path)
+      const loaderResult = getRequiredRouteData(path)
         .loaderResult as LoaderHookResultFor<ServerResult> | null;
 
       if (!loaderResult) {
@@ -930,24 +960,24 @@ export function defineLayout(path: string, options: DefineLayoutOptions<any, any
 
       return loaderResult;
     },
-    useView: () => getRequiredRouteRuntime(path).view as React.ReactNode | null,
-    useStatus: () => getRequiredRouteRuntime(path).status as RouteStatus,
-    usePending: () => getRequiredRouteRuntime(path).pending,
-    useParams: () => getRequiredRouteRuntime(path).params as PathParams<string>,
+    useView: () => getRequiredRouteData(path).view as React.ReactNode | null,
+    useStatus: () => getRequiredRouteStatus(path).status as RouteStatus,
+    usePending: () => getRequiredRouteStatus(path).pending,
+    useParams: () => getRequiredRouteLocation(path).params as PathParams<string>,
     useSearch: () => {
-      const runtime = getRequiredRouteRuntime(path);
-      return [runtime.search, (params, options) => runtime.setSearch(params, options)] as [
+      const location = getRequiredRouteLocation(path);
+      return [location.search, (params, options) => location.setSearch(params, options)] as [
         URLSearchParams,
         SetSearchParams,
       ];
     },
     useRetry: () => {
-      const runtime = getRequiredRouteRuntime(path);
-      return () => runtime.retry();
+      const actions = getRequiredRouteActions(path);
+      return () => actions.retry();
     },
     useReload: () => {
-      const runtime = getRequiredRouteRuntime(path);
-      return () => runtime.reload();
+      const actions = getRequiredRouteActions(path);
+      return () => actions.reload();
     },
   } as any;
 }

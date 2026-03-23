@@ -1,11 +1,7 @@
 import type * as React from "react";
 
 export type VoltClientBindings = {
-  useRequiredRouteRuntime(routeId: string): {
-    loaderResult: unknown;
-    actionResult: unknown;
-    status: unknown;
-    pending: boolean;
+  useRequiredRouteLocation(routeId: string): {
     params: Record<string, string>;
     search: URLSearchParams;
     setSearch(
@@ -14,10 +10,20 @@ export type VoltClientBindings = {
         replace?: boolean;
       },
     ): void;
+  };
+  useRequiredRouteStatus(routeId: string): {
+    status: unknown;
+    pending: boolean;
+  };
+  useRequiredRouteData(routeId: string): {
+    loaderResult: unknown;
+    actionResult: unknown;
+    view: React.ReactNode | null;
+  };
+  useRequiredRouteActions(routeId: string): {
     retry(): void;
     reload(): void;
     submit(payload: FormData | Record<string, unknown>, options?: unknown): Promise<void>;
-    view: React.ReactNode | null;
   };
   useMatches(): Array<{
     id: string;

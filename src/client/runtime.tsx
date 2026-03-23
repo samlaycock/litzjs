@@ -73,7 +73,11 @@ export {
   RouteRuntimeProvider,
   createPendingRuntimeState,
   createRouteFormComponent,
+  useRequiredRouteActions,
+  useRequiredRouteData,
+  useRequiredRouteLocation,
   useRequiredRouteRuntime,
+  useRequiredRouteStatus,
 } from "./route-runtime";
 export type { RouteRuntimeState } from "./route-runtime";
 export { isRedirectSignal, isRouteLikeError, matchPathname };

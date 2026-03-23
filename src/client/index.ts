@@ -18,12 +18,18 @@ import {
   fetchRouteLoader,
   isRedirectSignal,
   isRouteLikeError,
-  useRequiredRouteRuntime,
+  useRequiredRouteActions,
+  useRequiredRouteData,
+  useRequiredRouteLocation,
+  useRequiredRouteStatus,
 } from "./runtime";
 import { getRevalidateTargets } from "./transport";
 
 installClientBindings({
-  useRequiredRouteRuntime,
+  useRequiredRouteLocation,
+  useRequiredRouteStatus,
+  useRequiredRouteData,
+  useRequiredRouteActions,
   useMatches,
   createRouteFormComponent,
   useResourceLoader,

@@ -9,7 +9,10 @@ import {
   RouteRuntimeProvider,
   type RouteRuntimeState,
   createRouteFormComponent,
-  useRequiredRouteRuntime,
+  useRequiredRouteActions,
+  useRequiredRouteData,
+  useRequiredRouteLocation,
+  useRequiredRouteStatus,
 } from "../src/client/route-runtime";
 import { defineRoute } from "../src/index";
 import { flushDom, installTestDom } from "./test-dom";
@@ -73,7 +76,10 @@ describe("route search runtime", () => {
     root = createRoot(container);
 
     installClientBindings({
-      useRequiredRouteRuntime,
+      useRequiredRouteLocation,
+      useRequiredRouteStatus,
+      useRequiredRouteData,
+      useRequiredRouteActions,
       useMatches() {
         return [];
       },
