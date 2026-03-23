@@ -22,6 +22,7 @@ export type LitzPluginOptions = {
   api?: string[];
   resources?: string[];
   server?: string;
+  embedAssets?: boolean;
 };
 
 type DiscoveredRoute = {
@@ -70,7 +71,6 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
   let outputRootDir = path.resolve(root, "dist");
   let clientOutDir = path.resolve(root, "dist/client");
   let serverOutDir = path.resolve(root, "dist/server");
-  let serverRscOutDir = path.resolve(root, "dist/server/_rsc");
   let routeManifest: DiscoveredRoute[] = [];
   let layoutManifest: DiscoveredLayout[] = [];
   let resourceManifest: DiscoveredResource[] = [];
@@ -109,12 +109,13 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
           },
           rsc: {
             build: {
-              outDir: path.join(baseOutDir, "server", "_rsc"),
+              outDir: path.join(baseOutDir, "server"),
             },
           },
           ssr: {
             build: {
-              outDir: path.join(baseOutDir, "server", "_ssr"),
+              outDir: path.join(baseOutDir, "server"),
+              emptyOutDir: false,
             },
           },
         },
@@ -128,10 +129,9 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
         root,
         config.environments.client?.build.outDir || path.join("dist", "client"),
       );
-      serverOutDir = path.resolve(root, path.join(config.build.outDir || "dist", "server"));
-      serverRscOutDir = path.resolve(
+      serverOutDir = path.resolve(
         root,
-        config.environments.rsc?.build.outDir || path.join("dist", "server", "_rsc"),
+        config.environments.rsc?.build.outDir || path.join("dist", "server"),
       );
       browserEntryPath = await discoverBrowserEntry(root);
       serverEntryPath = await discoverServerEntry(root, options.server);
@@ -356,18 +356,16 @@ export async function renderView(node, metadata = {}) {
 
           hasFinalizedServerArtifacts = finalizeServerArtifacts(
             serverOutDir,
-            serverRscOutDir,
             clientOutDir,
-            !serverEntryPath,
+            options.embedAssets ?? false,
           );
         });
       }
 
       hasFinalizedServerArtifacts = finalizeServerArtifacts(
         serverOutDir,
-        serverRscOutDir,
         clientOutDir,
-        !serverEntryPath,
+        options.embedAssets ?? false,
       );
     },
   };
@@ -1750,21 +1748,16 @@ async function readJson<T>(filePath: string): Promise<T> {
 }
 
 async function removeLegacyBuildArtifacts(outputRootDir: string): Promise<void> {
-  await Promise.all([
-    rm(path.join(outputRootDir, "index.html"), { force: true }),
-    rm(path.join(outputRootDir, "rsc"), { force: true, recursive: true }),
-    rm(path.join(outputRootDir, "ssr"), { force: true, recursive: true }),
-  ]);
+  await rm(path.join(outputRootDir, "index.html"), { force: true });
 }
 
 function finalizeServerArtifacts(
   serverOutDir: string,
-  serverRscOutDir: string,
   clientOutDir: string,
   inlineClientAssets: boolean,
 ): boolean {
-  const rscIndexPath = path.join(serverRscOutDir, "index.mjs");
-  const rscAssetsManifestPath = path.join(serverRscOutDir, "__vite_rsc_assets_manifest.js");
+  const rscIndexPath = path.join(serverOutDir, "index.js");
+  const rscAssetsManifestPath = path.join(serverOutDir, "__vite_rsc_assets_manifest.js");
   let rscEntrySource: string;
   let rscAssetsManifestSource: string;
   let documentHtml = "";
@@ -1822,7 +1815,7 @@ function finalizeServerArtifacts(
   const wrapperSource = inlineClientAssets
     ? createInlineAssetServerWrapper(inlinedServerSource, documentHtml, clientAssets)
     : createServerModuleWrapper(inlinedServerSource);
-  const bundledWrapperSource = bundleServerWrapper(serverRscOutDir, wrapperSource);
+  const bundledWrapperSource = bundleServerWrapper(serverOutDir, wrapperSource);
 
   if (!bundledWrapperSource) {
     return false;
@@ -1830,9 +1823,6 @@ function finalizeServerArtifacts(
 
   mkdirSync(serverOutDir, { recursive: true });
   writeFileSync(path.join(serverOutDir, "index.js"), bundledWrapperSource, "utf8");
-
-  rmSync(serverRscOutDir, { force: true, recursive: true });
-  rmSync(path.join(serverOutDir, "_ssr"), { force: true, recursive: true });
   return true;
 }
 
@@ -2028,7 +2018,12 @@ export function transformServerModuleSource(serverModuleSource: string): {
       throw new Error("Unable to locate the default export in the bundled Litz server module.");
     }
 
-    transformedStatements.push(createHandlerDeclaration(defaultBinding));
+    const binding = defaultBinding as ts.Expression;
+    const alreadyBound = ts.isIdentifier(binding) && binding.text === handlerName;
+
+    if (!alreadyBound) {
+      transformedStatements.push(createHandlerDeclaration(binding));
+    }
   }
 
   const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
@@ -2085,7 +2080,7 @@ function createInlineAssetServerWrapper(
     "}",
     "",
     "function __litzjsShouldServeDocument(request, pathname) {",
-    "  if (pathname.startsWith('/_litz/') || pathname.startsWith('/api/')) {",
+    "  if (pathname.startsWith('/_litzjs/') || pathname.startsWith('/api/')) {",
     "    return false;",
     "  }",
     "",
@@ -2124,9 +2119,9 @@ function createInlineAssetServerWrapper(
   ].join("\n");
 }
 
-function bundleServerWrapper(serverRscOutDir: string, wrapperSource: string): string | null {
-  const wrapperEntryPath = path.join(serverRscOutDir, "__litzjs_wrapped_server_entry.mjs");
-  const bundleOutDir = path.join(serverRscOutDir, "__litzjs_bundle_out");
+function bundleServerWrapper(serverOutDir: string, wrapperSource: string): string | null {
+  const wrapperEntryPath = path.join(serverOutDir, "__litzjs_wrapped_server_entry.mjs");
+  const bundleOutDir = path.join(serverOutDir, "__litzjs_bundle_out");
   const bundleScript = `
 const entryPath = process.env.LITZ_SERVER_ENTRY_PATH;
 const outDir = process.env.LITZ_SERVER_OUT_DIR;
@@ -2171,7 +2166,7 @@ if (!entryPath || !outDir) {
   mkdirSync(bundleOutDir, { recursive: true });
 
   const result = spawnSync(process.execPath, ["-e", bundleScript], {
-    cwd: serverRscOutDir,
+    cwd: serverOutDir,
     encoding: "utf8",
     env: {
       ...process.env,

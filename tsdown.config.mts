@@ -12,7 +12,15 @@ export default defineConfig({
   dts: true,
   outDir: "./dist",
   deps: {
-    neverBundle: ["virtual:litzjs:route-manifest"],
+    neverBundle: [
+      "virtual:litzjs:route-manifest",
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+      "react-dom/client",
+      "@vitejs/plugin-rsc",
+    ],
     onlyBundle: false,
   },
 });

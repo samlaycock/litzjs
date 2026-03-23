@@ -15,7 +15,7 @@ export async function fetchRouteLoader(
   request: ResourceRequest,
   target?: string,
 ): Promise<LoaderHookResult> {
-  const response = await fetch("/_litz/route", {
+  const response = await fetch("/_litzjs/route", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -46,7 +46,7 @@ export async function fetchRouteAction(
     payload,
   );
 
-  const response = await fetch("/_litz/action", {
+  const response = await fetch("/_litzjs/action", {
     method: "POST",
     headers: actionRequest.headers,
     body: actionRequest.body,

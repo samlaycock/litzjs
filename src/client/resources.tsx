@@ -466,7 +466,7 @@ async function performPreparedResourceRequest(
     try {
       const response =
         operation === "action"
-          ? await fetch("/_litz/resource", {
+          ? await fetch("/_litzjs/resource", {
               method: "POST",
               ...createInternalActionRequestInit(
                 {
@@ -480,7 +480,7 @@ async function performPreparedResourceRequest(
                 payload,
               ),
             })
-          : await fetch("/_litz/resource", {
+          : await fetch("/_litzjs/resource", {
               method: "POST",
               headers: {
                 "content-type": "application/json",

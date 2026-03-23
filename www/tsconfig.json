@@ -1,4 +1,12 @@
 {
-  "files": [],
-  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "litz": ["../src/index.ts"],
+      "litz/client": ["../src/client/index.ts"],
+      "litz/server": ["../src/server/index.ts"],
+      "litz/vite": ["../src/vite.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "../src/virtual-modules.d.ts"]
 }

@@ -1,7 +1,7 @@
-import { createServer } from "litzjs/server";
+import { createServer } from "litz/server";
 
 export default createServer({
-  onError(error) {
-    console.error("Litz docs server error", error);
+  onError: (error) => {
+    console.error("An error occurred:", error);
   },
 });

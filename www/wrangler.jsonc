@@ -1,10 +1,21 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "litzjs-docs",
+  "account_id": "42ac382cf61662acfd7ac8ab4b3a3929",
   "compatibility_date": "2026-03-17",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "./src/server.ts",
+  "main": "./dist/server/index.js",
+  "routes": [
+    {
+      "pattern": "litzjs.dev",
+      "custom_domain": true,
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
   "assets": {
+    "directory": "./dist/client",
     "not_found_handling": "single-page-application",
   },
 }
