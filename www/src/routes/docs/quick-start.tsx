@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -23,7 +23,7 @@ function DocsQuickStartPage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { mountApp } from "litz/client";
+          code={`import { mountApp } from "litzjs/client";
 
 const root = document.getElementById("app");
 
@@ -41,7 +41,7 @@ mountApp(root);`}
         <CodeBlock
           language="tsx"
           code={`import { StrictMode } from "react";
-import { mountApp } from "litz/client";
+import { mountApp } from "litzjs/client";
 
 mountApp(root, { component: StrictMode });`}
         />
@@ -50,7 +50,7 @@ mountApp(root, { component: StrictMode });`}
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { mountApp } from "litz/client";
+          code={`import { mountApp } from "litzjs/client";
 
 function AppProviders({ children }: React.PropsWithChildren) {
   return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
@@ -84,7 +84,7 @@ mountApp(root, { component: AppProviders });`}
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { defineRoute } from "litz";
+          code={`import { defineRoute } from "litzjs";
 
 export const route = defineRoute("/", {
   component: HomePage,
@@ -107,7 +107,7 @@ function HomePage() {
         </h2>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, server } from "litz";
+          code={`import { data, defineRoute, server } from "litzjs";
 
 export const route = defineRoute("/me", {
   component: ProfilePage,

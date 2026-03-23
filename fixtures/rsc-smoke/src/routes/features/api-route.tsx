@@ -1,4 +1,4 @@
-import { defineRoute } from "litz";
+import { defineRoute } from "litzjs";
 import * as React from "react";
 
 import { api as healthApi } from "../api/health";

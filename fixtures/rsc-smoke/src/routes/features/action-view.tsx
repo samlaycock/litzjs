@@ -1,4 +1,4 @@
-import { defineRoute, invalid, server, view } from "litz";
+import { defineRoute, invalid, server, view } from "litzjs";
 import * as React from "react";
 
 import { appendProject, projects } from "../../data/state";

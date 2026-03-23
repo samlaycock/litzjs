@@ -28,7 +28,7 @@ describe("internal action requests", () => {
     );
 
     const parsed = await parseInternalRequestBody(
-      new Request("http://litz.local/_litz/action", {
+      new Request("http://litz.local/_litzjs/action", {
         method: "POST",
         headers: actionRequest.headers,
         body: actionRequest.body,
@@ -64,7 +64,7 @@ describe("internal action requests", () => {
     );
 
     const parsed = await parseInternalRequestBody(
-      new Request("http://litz.local/_litz/action", {
+      new Request("http://litz.local/_litzjs/action", {
         method: "POST",
         headers: actionRequest.headers,
         body: actionRequest.body,

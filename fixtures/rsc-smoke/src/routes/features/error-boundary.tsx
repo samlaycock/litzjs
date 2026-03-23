@@ -1,4 +1,4 @@
-import { defineRoute, error, server } from "litz";
+import { defineRoute, error, server } from "litzjs";
 
 export const route = defineRoute("/features/error-boundary", {
   component: BrokenBoundaryPage,

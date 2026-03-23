@@ -1,4 +1,4 @@
-import { data, defineLayout, server } from "litz";
+import { data, defineLayout, server } from "litzjs";
 
 import { layout as featuresShell } from "./features-shell";
 

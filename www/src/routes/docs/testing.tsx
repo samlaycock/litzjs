@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -111,7 +111,7 @@ describe("GET /api/users", () => {
 import { render, screen } from "@testing-library/react";
 import { route } from "./users-detail";
 
-vi.mock("litz/client", () => ({
+vi.mock("litzjs/client", () => ({
   Link: ({ href, children }: any) => <a href={href}>{children}</a>,
 }));
 

@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -27,7 +27,7 @@ function DocsAuthenticationPage() {
         </p>
         <CodeBlock
           language="ts"
-          code={`import { createServer } from "litz/server";
+          code={`import { createServer } from "litzjs/server";
 
 export default createServer({
   createContext(request) {
@@ -53,7 +53,7 @@ export default createServer({
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { error, redirect } from "litz";
+          code={`import { error, redirect } from "litzjs";
 
 // Return an error
 const requireAuth = async ({ context, next }) => {
@@ -81,7 +81,7 @@ const requireAuthRedirect = async ({ context, next }) => {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, error, server } from "litz";
+          code={`import { data, defineRoute, error, server } from "litzjs";
 
 const requireAuth = async ({ context, next }) => {
   if (!context.userId) {
@@ -116,7 +116,7 @@ function Dashboard() {
         </p>
         <CodeBlock
           language="ts"
-          code={`import { defineApiRoute } from "litz";
+          code={`import { defineApiRoute } from "litzjs";
 
 const apiAuth = async ({ context, next }) => {
   if (!context.userId) {
@@ -143,7 +143,7 @@ export const api = defineApiRoute("/api/profile", {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, invalid, redirect, server, withHeaders } from "litz";
+          code={`import { data, defineRoute, invalid, redirect, server, withHeaders } from "litzjs";
 
 export const route = defineRoute("/login", {
   component: LoginPage,
@@ -192,7 +192,7 @@ function LoginPage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { defineRoute, redirect, server, withHeaders } from "litz";
+          code={`import { defineRoute, redirect, server, withHeaders } from "litzjs";
 
 export const route = defineRoute("/logout", {
   component: () => null,

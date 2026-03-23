@@ -1,5 +1,5 @@
 {
-  "name": "litz",
+  "name": "litzjs",
   "version": "0.0.0",
   "description": "Client-first React framework with RSC support built on Vite",
   "keywords": [
@@ -11,7 +11,7 @@
   ],
   "license": "MIT",
   "repository": {
-    "url": "https://github.com/samlaycock/litz"
+    "url": "https://github.com/samlaycock/litzjs"
   },
   "files": [
     "dist"

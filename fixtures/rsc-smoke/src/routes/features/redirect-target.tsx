@@ -1,4 +1,4 @@
-import { defineRoute } from "litz";
+import { defineRoute } from "litzjs";
 
 export const route = defineRoute("/features/redirect-target", {
   component: LoginPage,

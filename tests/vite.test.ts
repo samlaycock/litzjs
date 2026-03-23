@@ -42,9 +42,9 @@ export { helper, server_default as default };
 `);
 
     expect(transformed.source).toContain("export { helper };");
-    expect(transformed.source).toContain("const __litzServerHandler = server_default;");
+    expect(transformed.source).toContain("const __litzjsServerHandler = server_default;");
     expect(transformed.source).not.toContain("server_default as default");
-    expect(transformed.handlerName).toBe("__litzServerHandler");
+    expect(transformed.handlerName).toBe("__litzjsServerHandler");
   });
 
   test("rewrites export default expressions into a local server handler binding", () => {
@@ -53,8 +53,8 @@ const helper = 1;
 export default createServer({ helper });
 `);
 
-    expect(transformed.source).toContain("const __litzServerHandler = createServer({ helper });");
+    expect(transformed.source).toContain("const __litzjsServerHandler = createServer({ helper });");
     expect(transformed.source).not.toContain("export default createServer");
-    expect(transformed.handlerName).toBe("__litzServerHandler");
+    expect(transformed.handlerName).toBe("__litzjsServerHandler");
   });
 });

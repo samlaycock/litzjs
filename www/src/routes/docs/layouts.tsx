@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -36,7 +36,7 @@ function DocsLayoutsPage() {
         <CodeBlock
           language="tsx"
           code={`import type { ReactNode } from "react";
-import { defineLayout, defineRoute } from "litz";
+import { defineLayout, defineRoute } from "litzjs";
 
 export const dashboardLayout = defineLayout("/dashboard", {
   component: DashboardShell,
@@ -71,7 +71,7 @@ function SettingsPage() {
         <CodeBlock
           language="tsx"
           code={`import type { ReactNode } from "react";
-import { data, defineLayout, server } from "litz";
+import { data, defineLayout, server } from "litzjs";
 
 export const appLayout = defineLayout("/app", {
   component: AppShell,
@@ -145,7 +145,7 @@ function AppShell(props: { children: ReactNode }) {
         <CodeBlock
           language="tsx"
           code={`import type { ReactNode } from "react";
-import { defineLayout, defineRoute } from "litz";
+import { defineLayout, defineRoute } from "litzjs";
 
 export const rootLayout = defineLayout("/", {
   component: RootShell,

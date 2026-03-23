@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -27,7 +27,7 @@ function DocsTypeScriptPage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, server } from "litz";
+          code={`import { data, defineRoute, server } from "litzjs";
 
 export const route = defineRoute("/users/:id", {
   component: UserProfile,
@@ -57,7 +57,7 @@ function UserProfile() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, server } from "litz";
+          code={`import { data, defineRoute, server } from "litzjs";
 
 export const route = defineRoute("/users/:id", {
   component: UserProfile,
@@ -99,7 +99,7 @@ function UserProfile() {
         </ul>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, invalid, server } from "litz";
+          code={`import { data, defineRoute, invalid, server } from "litzjs";
 
 export const route = defineRoute("/users/:id/edit", {
   component: EditUser,
@@ -144,7 +144,7 @@ function EditUser() {
         </p>
         <CodeBlock
           language="ts"
-          code={`import { createServer } from "litz/server";
+          code={`import { createServer } from "litzjs/server";
 
 type AppContext = {
   userId: string | null;
@@ -168,7 +168,7 @@ export default createServer<AppContext>({
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, server } from "litz";
+          code={`import { data, defineRoute, server } from "litzjs";
 
 export const route = defineRoute("/settings", {
   component: SettingsPage,
@@ -191,7 +191,7 @@ export const route = defineRoute("/settings", {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineResource, server } from "litz";
+          code={`import { data, defineResource, server } from "litzjs";
 
 export const resource = defineResource("/resource/user/:id", {
   component: UserCard,

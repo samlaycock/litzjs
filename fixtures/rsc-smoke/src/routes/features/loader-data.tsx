@@ -1,4 +1,4 @@
-import { data, defineRoute, server } from "litz";
+import { data, defineRoute, server } from "litzjs";
 
 export const route = defineRoute("/features/loader-data", {
   component: MePage,

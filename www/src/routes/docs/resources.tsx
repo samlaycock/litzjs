@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -37,7 +37,7 @@ function DocsResourcesPage() {
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Loader-only resource</h2>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineResource, server } from "litz";
+          code={`import { data, defineResource, server } from "litzjs";
 
 export const resource = defineResource("/resource/user/:id", {
   component: UserCard,
@@ -104,7 +104,7 @@ function UserCard() {
         <CodeBlock
           language="tsx"
           code={`import * as React from "react";
-import { defineResource, server, view } from "litz";
+import { defineResource, server, view } from "litzjs";
 
 export const resource = defineResource("/resource/account/:id", {
   component: AccountMenu,

@@ -1,5 +1,5 @@
-import { defineLayout } from "litz";
-import { Link, useLocation } from "litz/client";
+import { defineLayout } from "litzjs";
+import { Link, useLocation } from "litzjs/client";
 import { useState } from "react";
 import { DiGithubBadge, DiNpm } from "react-icons/di";
 

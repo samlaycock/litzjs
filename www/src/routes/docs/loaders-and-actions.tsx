@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -27,7 +27,7 @@ function DocsLoadersAndActionsPage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, server } from "litz";
+          code={`import { data, defineRoute, server } from "litzjs";
 
 export const route = defineRoute("/dashboard", {
   component: DashboardPage,
@@ -53,7 +53,7 @@ export const route = defineRoute("/dashboard", {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, server } from "litz";
+          code={`import { data, defineRoute, server } from "litzjs";
 
 export const route = defineRoute("/projects/:id", {
   component: ProjectPage,
@@ -107,7 +107,7 @@ function ProjectPage() {
         <h3 className="text-xl font-medium text-neutral-100 mb-3 mt-6">Example</h3>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, error, redirect, server, withHeaders } from "litz";
+          code={`import { data, defineRoute, error, redirect, server, withHeaders } from "litzjs";
 
 export const route = defineRoute("/projects/:id", {
   component: ProjectPage,
@@ -143,7 +143,7 @@ export const route = defineRoute("/projects/:id", {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, invalid, redirect, server } from "litz";
+          code={`import { data, defineRoute, invalid, redirect, server } from "litzjs";
 
 export const route = defineRoute("/projects/new", {
   component: NewProjectPage,
@@ -323,7 +323,7 @@ function NewProjectPage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, redirect, server, withHeaders } from "litz";
+          code={`import { data, defineRoute, redirect, server, withHeaders } from "litzjs";
 
 export const route = defineRoute("/projects/:id/settings", {
   component: ProjectSettingsPage,

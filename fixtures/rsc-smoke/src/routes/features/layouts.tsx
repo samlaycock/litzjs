@@ -1,4 +1,4 @@
-import { data, defineRoute, server, useMatches } from "litz";
+import { data, defineRoute, server, useMatches } from "litzjs";
 
 import { layout as layoutDemoShell } from "../_layouts/layout-demo-shell";
 

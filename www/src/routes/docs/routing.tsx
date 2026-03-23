@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -25,7 +25,7 @@ function DocsRoutingPage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { defineRoute } from "litz";
+          code={`import { defineRoute } from "litzjs";
 
 export const route = defineRoute("/", {
   component: HomePage,
@@ -94,7 +94,7 @@ function HomePage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { defineRoute } from "litz";
+          code={`import { defineRoute } from "litzjs";
 
 export const route = defineRoute("/users/:id", {
   component: UserPage,
@@ -119,7 +119,7 @@ function UserPage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, server } from "litz";
+          code={`import { data, defineRoute, server } from "litzjs";
 
 export const route = defineRoute("/me", {
   component: ProfilePage,
@@ -146,7 +146,7 @@ function ProfilePage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { defineRoute } from "litz";
+          code={`import { defineRoute } from "litzjs";
 import { dashboardLayout } from "./dashboard-layout";
 
 export const route = defineRoute("/dashboard/settings", {

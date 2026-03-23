@@ -12,7 +12,7 @@ export default defineConfig({
   dts: true,
   outDir: "./dist",
   deps: {
-    neverBundle: ["virtual:litz:route-manifest"],
+    neverBundle: ["virtual:litzjs:route-manifest"],
     onlyBundle: false,
   },
 });

@@ -26,8 +26,8 @@ export type InternalRequestBody = InternalRequestMetadata & {
   payload?: InternalPayload | SerializedInternalPayload | null;
 };
 
-export const INTERNAL_REQUEST_HEADER = "x-litz-request";
-export const LITZ_RESULT_ACCEPT = "application/vnd.litz.result+json, text/x-component";
+export const INTERNAL_REQUEST_HEADER = "x-litzjs-request";
+export const LITZ_RESULT_ACCEPT = "application/vnd.litzjs.result+json, text/x-component";
 
 export function createInternalActionRequestInit(
   metadata: InternalRequestMetadata,

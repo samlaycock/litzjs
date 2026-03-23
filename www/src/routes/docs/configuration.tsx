@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -24,7 +24,7 @@ function DocsConfigurationPage() {
         <CodeBlock
           language="ts"
           code={`import { defineConfig } from "vite";
-import { litz } from "litz/vite";
+import { litz } from "litzjs/vite";
 
 export default defineConfig({
   plugins: [litz()],
@@ -40,7 +40,7 @@ export default defineConfig({
         <CodeBlock
           language="ts"
           code={`import { defineConfig } from "vite";
-import { litz } from "litz/vite";
+import { litz } from "litzjs/vite";
 
 export default defineConfig({
   plugins: [
@@ -151,7 +151,7 @@ litz({
         <CodeBlock
           language="ts"
           code={`import { defineConfig } from "vite";
-import { litz } from "litz/vite";
+import { litz } from "litzjs/vite";
 
 export default defineConfig({
   plugins: [

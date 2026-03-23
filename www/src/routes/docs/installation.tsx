@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -72,7 +72,7 @@ pnpm add -D react react-dom typescript @vitejs/plugin-rsc`}
         <CodeBlock
           language="ts"
           code={`import { defineConfig } from "vite";
-import { litz } from "litz/vite";
+import { litz } from "litzjs/vite";
 
 export default defineConfig({
   plugins: [litz()],

@@ -8,7 +8,7 @@ import { createClientModuleProjection } from "../src/client-projection";
 describe("client projection", () => {
   test("strips shorthand middleware references from client output", () => {
     const source = `
-import { defineRoute, server } from "litz";
+import { defineRoute, server } from "litzjs";
 
 const auditMiddleware = [function requireSession() {
   return "server-secret";
@@ -39,7 +39,7 @@ function HomePage() {
 
   test("strips shorthand middleware properties as well", () => {
     const source = `
-import { defineRoute } from "litz";
+import { defineRoute } from "litzjs";
 
 const middleware = [function requireAuth() {
   return "never ship this";
@@ -71,7 +71,7 @@ function HomePage() {
       writeFileSync(
         layoutFile,
         `
-import { defineLayout } from "litz";
+import { defineLayout } from "litzjs";
 
 export const layout = defineLayout("/shell", {
   component: Shell,
@@ -86,7 +86,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       writeFileSync(
         routeFile,
         `
-import { defineRoute } from "litz";
+import { defineRoute } from "litzjs";
 import { layout } from "./layout";
 
 function Page() {

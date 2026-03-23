@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -21,7 +21,7 @@ function DocsDenoDeployPage() {
         <p className="text-neutral-400 mb-4">Create your server entry:</p>
         <CodeBlock
           language="ts"
-          code={`import { createServer } from "litz/server";
+          code={`import { createServer } from "litzjs/server";
 
 export default createServer({
   async createContext(request) {
@@ -61,7 +61,7 @@ Deno.serve(async (request) => {
     "build": "vite build"
   },
   "imports": {
-    "litz/": "npm:litz@latest/"
+    "litzjs/": "npm:litz@latest/"
   }
 }`}
         />
@@ -75,7 +75,7 @@ Deno.serve(async (request) => {
           <code className="text-sky-400">dist/client</code> folder as static files.
         </p>
         <p className="text-neutral-400 mb-4">
-          The Litz server handles <code className="text-sky-400">/_litz/*</code> routes and API
+          The Litz server handles <code className="text-sky-400">_litzjs/*</code> routes and API
           routes, while the platform serves the client bundle.
         </p>
       </section>

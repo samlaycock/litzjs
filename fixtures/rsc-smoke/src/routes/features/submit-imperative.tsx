@@ -1,4 +1,4 @@
-import { data, defineRoute, error, invalid, server } from "litz";
+import { data, defineRoute, error, invalid, server } from "litzjs";
 import * as React from "react";
 
 import { appendQuickProject, delay } from "../../data/state";

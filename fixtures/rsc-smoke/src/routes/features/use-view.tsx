@@ -1,4 +1,4 @@
-import { defineRoute, server, view } from "litz";
+import { defineRoute, server, view } from "litzjs";
 import * as React from "react";
 
 export const route = defineRoute("/features/use-view", {

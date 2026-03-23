@@ -1,4 +1,4 @@
-declare module "virtual:litz:route-manifest" {
+declare module "virtual:litzjs:route-manifest" {
   export const routeManifest: Array<{
     id: string;
     path: string;
@@ -18,7 +18,7 @@ declare module "virtual:litz:route-manifest" {
   }>;
 }
 
-declare module "virtual:litz:resource-manifest" {
+declare module "virtual:litzjs:resource-manifest" {
   export const resourceManifest: Array<{
     path: string;
     modulePath: string;

@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -29,7 +29,7 @@ function DocsDeploymentPage() {
         <p className="text-neutral-400 mb-4">Create a small server entry:</p>
         <CodeBlock
           language="ts"
-          code={`import { createServer } from "litz/server";
+          code={`import { createServer } from "litzjs/server";
 
 export default createServer({
   onError(error) {
@@ -53,7 +53,7 @@ export default {
   async fetch(request, env) {
     const pathname = new URL(request.url).pathname;
 
-    if (pathname.startsWith("/_litz/") || pathname.startsWith("/api/")) {
+    if (pathname.startsWith("_litzjs/") || pathname.startsWith("/api/")) {
       return app(request);
     }
 

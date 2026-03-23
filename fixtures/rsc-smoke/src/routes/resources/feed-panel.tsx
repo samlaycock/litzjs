@@ -1,4 +1,4 @@
-import { defineResource, server, view } from "litz";
+import { defineResource, server, view } from "litzjs";
 import * as React from "react";
 
 import { appendFeedItem, getFeedItems } from "../../data/state";

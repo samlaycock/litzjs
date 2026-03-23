@@ -1,4 +1,4 @@
-import { data, defineRoute, server } from "litz";
+import { data, defineRoute, server } from "litzjs";
 
 import { incrementRevalidateCount, revalidateCount } from "../../data/state";
 

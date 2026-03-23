@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -21,7 +21,7 @@ function DocsBunPage() {
         <p className="text-neutral-400 mb-4">Create your server entry with context:</p>
         <CodeBlock
           language="ts"
-          code={`import { createServer } from "litz/server";
+          code={`import { createServer } from "litzjs/server";
 
 export default createServer({
   async createContext(request) {
@@ -68,7 +68,7 @@ Bun.serve({
     const url = new URL(request.url);
     
     // Serve static assets from dist/client
-    if (!url.pathname.startsWith("/_litz/") && !url.pathname.startsWith("/api/")) {
+    if (!url.pathname.startsWith("_litzjs/") && !url.pathname.startsWith("/api/")) {
       const asset = Bun.file(\`./dist/client\${url.pathname}\`);
       if (asset.exists) {
         return new Response(asset);

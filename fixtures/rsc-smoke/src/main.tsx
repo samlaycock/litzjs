@@ -1,4 +1,4 @@
-import { mountApp } from "litz/client";
+import { mountApp } from "litzjs/client";
 
 import { AppShell } from "./components/app-shell";
 

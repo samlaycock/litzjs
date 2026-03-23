@@ -144,7 +144,7 @@ describe("resource runtime", () => {
 
     globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
-      const metadata = headers.get("x-litz-request");
+      const metadata = headers.get("x-litzjs-request");
 
       if (metadata) {
         actionCalls += 1;

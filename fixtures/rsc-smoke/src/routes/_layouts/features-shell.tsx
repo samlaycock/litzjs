@@ -1,4 +1,4 @@
-import { data, defineLayout, server } from "litz";
+import { data, defineLayout, server } from "litzjs";
 
 export const layout = defineLayout("/layouts/features", {
   component: FeaturesShell,

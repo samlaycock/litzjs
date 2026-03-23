@@ -1,4 +1,4 @@
-import { defineRoute } from "litz";
+import { defineRoute } from "litzjs";
 
 import { Button } from "../components/button";
 import { EnergyVisualization } from "../components/energy-visualization";

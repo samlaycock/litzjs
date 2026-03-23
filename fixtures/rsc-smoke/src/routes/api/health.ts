@@ -1,4 +1,4 @@
-import { defineApiRoute } from "litz";
+import { defineApiRoute } from "litzjs";
 
 export const api = defineApiRoute("/api/health", {
   GET() {

@@ -1,4 +1,4 @@
-import { defineRoute, server, view } from "litz";
+import { defineRoute, server, view } from "litzjs";
 import * as React from "react";
 
 import { ClientCounter } from "../../components/client-counter";

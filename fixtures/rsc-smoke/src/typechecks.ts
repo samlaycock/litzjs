@@ -1,4 +1,4 @@
-import { data, defineApiRoute, defineResource, defineRoute, server } from "litz";
+import { data, defineApiRoute, defineResource, defineRoute, server } from "litzjs";
 
 const clientOnlyRoute = defineRoute("/typechecks/client-only", {
   component: ClientOnlyRoute,

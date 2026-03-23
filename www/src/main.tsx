@@ -1,4 +1,4 @@
-import { mountApp } from "litz/client";
+import { mountApp } from "litzjs/client";
 
 import { layout } from "./routes/_layouts/root";
 import "./index.css";

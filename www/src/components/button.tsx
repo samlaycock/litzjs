@@ -1,4 +1,4 @@
-import { Link } from "litz/client";
+import { Link } from "litzjs/client";
 
 type ButtonVariant = "primary" | "secondary";
 

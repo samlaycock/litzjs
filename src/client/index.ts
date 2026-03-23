@@ -1,5 +1,5 @@
 import * as React from "react";
-import { routeManifest } from "virtual:litz:route-manifest";
+import { routeManifest } from "virtual:litzjs:route-manifest";
 
 import type { ActionHookResult, LayoutReference, LoaderHookResult, SubmitOptions } from "../index";
 import type { RouteRuntimeState } from "./runtime";

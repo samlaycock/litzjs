@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -22,13 +22,13 @@ function ServerConfiguration() {
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">createServer</h2>
         <p className="text-neutral-400 mb-4">
           Import <code className="text-sky-400">createServer</code> from{" "}
-          <code className="text-sky-400">"litz/server"</code>. It creates a WinterCG-compatible
+          <code className="text-sky-400">"litzjs/server"</code>. It creates a WinterCG-compatible
           request handler: <code className="text-sky-400">Request → Response</code>.
         </p>
         <p className="text-neutral-400 mb-4">The simplest usage requires no arguments at all:</p>
         <CodeBlock
           language="tsx"
-          code={`import { createServer } from "litz/server";
+          code={`import { createServer } from "litzjs/server";
 
 export default createServer();`}
         />
@@ -105,7 +105,7 @@ export default createServer();`}
         <CodeBlock
           language="tsx"
           code={`import { defineConfig } from "vite";
-import { litz } from "litz/vite";
+import { litz } from "litzjs/vite";
 
 export default defineConfig({
   plugins: [
@@ -127,7 +127,7 @@ export default defineConfig({
         </p>
         <p className="text-neutral-400 mb-4">
           Internal dispatch covers route loaders, route actions, resource requests, API routes, and
-          the client document. The <code className="text-sky-400">/_litz/*</code> transport is an
+          the client document. The <code className="text-sky-400">_litzjs/*</code> transport is an
           implementation detail — treat it as a server surface.
         </p>
       </section>

@@ -6,7 +6,7 @@ import {
   type Middleware,
   type ServerResult,
   withHeaders,
-} from "litz";
+} from "litzjs";
 
 type MiddlewareContext = {
   trace: string[];

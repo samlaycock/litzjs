@@ -1,4 +1,4 @@
-import { data, defineRoute, server } from "litz";
+import { data, defineRoute, server } from "litzjs";
 import { useFormStatus } from "react-dom";
 
 import { delay } from "../../data/state";

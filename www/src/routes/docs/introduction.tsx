@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -84,7 +84,7 @@ function DocsIntroductionPage() {
         </h2>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, server } from "litz";
+          code={`import { data, defineRoute, server } from "litzjs";
 
 export const route = defineRoute("/me", {
   component: ProfilePage,
@@ -119,7 +119,7 @@ function ProfilePage() {
           <li>resource loaders and actions</li>
           <li>API routes</li>
           <li>
-            the <code className="text-sky-400">/_litz/*</code> transport used internally by the
+            the <code className="text-sky-400">_litzjs/*</code> transport used internally by the
             runtime
           </li>
         </ul>

@@ -2,7 +2,7 @@ const INTERNAL_REQUEST_HEADER_NAMES = new Set([
   "content-length",
   "content-type",
   "transfer-encoding",
-  "x-litz-request",
+  "x-litzjs-request",
 ]);
 
 export function createInternalHandlerHeaders(headers: Headers): Headers {

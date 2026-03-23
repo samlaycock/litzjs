@@ -1,4 +1,4 @@
-import { defineRoute } from "litz";
+import { defineRoute } from "litzjs";
 
 import { resource as summaryCard } from "../resources/summary-card";
 

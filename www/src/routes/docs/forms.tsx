@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -30,7 +30,7 @@ function DocsFormsPage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, server } from "litz";
+          code={`import { data, defineRoute, server } from "litzjs";
 import { useFormStatus } from "react-dom";
 
 export const route = defineRoute("/contact", {
@@ -77,7 +77,7 @@ function ContactPage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, invalid, server } from "litz";
+          code={`import { data, defineRoute, invalid, server } from "litzjs";
 
 export const route = defineRoute("/register", {
   component: RegisterPage,

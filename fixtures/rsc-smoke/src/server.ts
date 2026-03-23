@@ -1,4 +1,4 @@
-import { createServer } from "litz/server";
+import { createServer } from "litzjs/server";
 
 export default createServer({
   onError(error) {

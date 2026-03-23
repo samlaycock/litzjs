@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -25,7 +25,7 @@ function DocsNavigationPage() {
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Link component</h2>
         <p className="text-neutral-400 mb-4">
           Import <code className="text-sky-400">Link</code> from{" "}
-          <code className="text-sky-400">"litz/client"</code>. It uses{" "}
+          <code className="text-sky-400">"litzjs/client"</code>. It uses{" "}
           <code className="text-sky-400">href</code> (not <code className="text-sky-400">to</code>)
           to match the native anchor API.
         </p>
@@ -37,7 +37,7 @@ function DocsNavigationPage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { Link } from "litz/client";
+          code={`import { Link } from "litzjs/client";
 
 function Nav() {
   return (
@@ -54,7 +54,7 @@ function Nav() {
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">useNavigate()</h2>
         <p className="text-neutral-400 mb-4">
-          Import from <code className="text-sky-400">"litz/client"</code>. Returns a function with
+          Import from <code className="text-sky-400">"litzjs/client"</code>. Returns a function with
           the signature{" "}
           <code className="text-sky-400">
             {"(href: string, options?: { replace?: boolean }) => void"}
@@ -64,7 +64,7 @@ function Nav() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { useNavigate } from "litz/client";
+          code={`import { useNavigate } from "litzjs/client";
 
 function LogoutButton() {
   const navigate = useNavigate();
@@ -87,7 +87,7 @@ function LogoutButton() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { useLocation } from "litz";
+          code={`import { useLocation } from "litzjs";
 
 function LocationDebug() {
   const location = useLocation();
@@ -109,7 +109,7 @@ function LocationDebug() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { usePathname } from "litz";
+          code={`import { usePathname } from "litzjs";
 
 function NavLink(props: { href: string; children: React.ReactNode }) {
   const pathname = usePathname();
@@ -134,8 +134,8 @@ function NavLink(props: { href: string; children: React.ReactNode }) {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { useMatches } from "litz";
-import { Link } from "litz/client";
+          code={`import { useMatches } from "litzjs";
+import { Link } from "litzjs/client";
 
 function Breadcrumbs() {
   const matches = useMatches();
@@ -170,7 +170,7 @@ function Breadcrumbs() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { defineRoute } from "litz";
+          code={`import { defineRoute } from "litzjs";
 
 export const route = defineRoute("/products", {
   component: ProductsPage,

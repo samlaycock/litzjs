@@ -21,7 +21,7 @@ describe("server security", () => {
                     cookie: request.headers.get("cookie"),
                     host: request.headers.get("host"),
                     origin: request.headers.get("origin"),
-                    internalHeader: request.headers.get("x-litz-request"),
+                    internalHeader: request.headers.get("x-litzjs-request"),
                     href: request.url,
                     pathname: new URL(request.url).pathname,
                   },
@@ -57,7 +57,7 @@ describe("server security", () => {
     headers.set("origin", "https://app.example.com");
 
     const response = await server.fetch(
-      new Request("https://app.example.com/_litz/action", {
+      new Request("https://app.example.com/_litzjs/action", {
         method: "POST",
         headers,
         body: actionRequest.body,
@@ -127,7 +127,7 @@ describe("server security", () => {
         name: "Litz",
       },
     );
-    const request = new Request("https://app.example.com/_litz/action", {
+    const request = new Request("https://app.example.com/_litzjs/action", {
       method: "POST",
       headers: actionRequest.headers,
       body: actionRequest.body,

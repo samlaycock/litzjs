@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -27,7 +27,7 @@ function DocsMiddlewarePage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, server } from "litz";
+          code={`import { data, defineRoute, server } from "litzjs";
 
 export const route = defineRoute("/dashboard", {
   component: Dashboard,
@@ -78,7 +78,7 @@ export const route = defineRoute("/dashboard", {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { error } from "litz";
+          code={`import { error } from "litzjs";
 
 // Route/resource middleware — returns ServerResult
 async ({ context, next }) => {
@@ -100,7 +100,7 @@ async ({ context, next }) => {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, error, redirect, server } from "litz";
+          code={`import { data, defineRoute, error, redirect, server } from "litzjs";
 
 const authMiddleware = async ({ context, next }) => {
   if (!context.userId) {
@@ -128,7 +128,7 @@ export const route = defineRoute("/account", {
         </p>
         <CodeBlock
           language="ts"
-          code={`import { defineApiRoute } from "litz";
+          code={`import { defineApiRoute } from "litzjs";
 
 const apiAuth = async ({ request, context, next }) => {
   const token = request.headers.get("Authorization");
@@ -158,7 +158,7 @@ export const api = defineApiRoute("/api/data", {
         <CodeBlock
           language="tsx"
           code={`// server.ts
-import { createServer } from "litz/server";
+import { createServer } from "litzjs/server";
 
 export default createServer({
   async createContext(request) {
@@ -168,7 +168,7 @@ export default createServer({
 });
 
 // routes/admin.tsx
-import { data, defineRoute, error, server } from "litz";
+import { data, defineRoute, error, server } from "litzjs";
 
 const requireAdmin = async ({ context, next }) => {
   if (!context.userId) {

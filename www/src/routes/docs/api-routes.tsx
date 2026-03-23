@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -24,7 +24,7 @@ function DocsApiRoutesPage() {
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Define an API route</h2>
         <CodeBlock
           language="ts"
-          code={`import { defineApiRoute } from "litz";
+          code={`import { defineApiRoute } from "litzjs";
 
 export const api = defineApiRoute("/api/health", {
   middleware: [],

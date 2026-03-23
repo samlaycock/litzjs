@@ -1,4 +1,4 @@
-import { useMatches } from "litz";
+import { useMatches } from "litzjs";
 import * as React from "react";
 
 import { resource as accountMenu } from "../routes/resources/account-menu";

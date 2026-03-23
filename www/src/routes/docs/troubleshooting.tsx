@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -164,7 +164,7 @@ function MyPage() {
         <CodeBlock
           language="ts"
           code={`// server.ts - ensure createContext is defined
-import { createServer } from "litz/server";
+import { createServer } from "litzjs/server";
 
 export default createServer({
   createContext(request) {

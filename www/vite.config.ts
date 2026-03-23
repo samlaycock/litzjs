@@ -43,19 +43,19 @@ export default defineConfig(() => ({
         replacement: path.resolve(docsNodeModules, "react-dom/client.js"),
       },
       {
-        find: /^litz\/client$/,
+        find: /^litzjs\/client$/,
         replacement: path.resolve(packageRoot, "src/client/index.ts"),
       },
       {
-        find: /^litz\/server$/,
+        find: /^litzjs\/server$/,
         replacement: path.resolve(packageRoot, "src/server/index.ts"),
       },
       {
-        find: /^litz\/vite$/,
+        find: /^litzjs\/vite$/,
         replacement: path.resolve(packageRoot, "src/vite.ts"),
       },
       {
-        find: /^litz$/,
+        find: /^litzjs$/,
         replacement: path.resolve(packageRoot, "src/index.ts"),
       },
     ],

@@ -112,11 +112,11 @@ export function createServer<TContext = unknown>(
     }
 
     try {
-      if (url.pathname === "/_litz/resource") {
+      if (url.pathname === "/_litzjs/resource") {
         return handleResourceRequest(request, manifest.resources ?? [], getContext);
       }
 
-      if (url.pathname === "/_litz/route" || url.pathname === "/_litz/action") {
+      if (url.pathname === "/_litzjs/route" || url.pathname === "/_litzjs/action") {
         return handleRouteRequest(request, manifest.routes ?? [], getContext);
       }
 
@@ -259,7 +259,7 @@ async function handleRouteRequest<TContext>(
   const routePath = body.path;
   const targetId = body.target;
   const operation =
-    body.operation ?? (new URL(request.url).pathname === "/_litz/action" ? "action" : "loader");
+    body.operation ?? (new URL(request.url).pathname === "/_litzjs/action" ? "action" : "loader");
   const entry = routes.find((route) => route.path === routePath);
 
   if (!routePath || !entry?.route) {
@@ -470,7 +470,7 @@ function findTargetRouteMatch(
 
 async function createServerResultResponse(
   result: unknown,
-  viewId = "litz#view",
+  viewId = "litzjs#view",
 ): Promise<Response> {
   if (!result || typeof result !== "object" || !("kind" in result)) {
     return createLitzJsonResponse(500, {
@@ -554,9 +554,9 @@ async function createServerResultResponse(
       );
     case "view": {
       headers.set("content-type", "text/x-component");
-      headers.set("x-litz-kind", "view");
-      headers.set("x-litz-status", String(serverResult.status ?? 200));
-      headers.set("x-litz-view-id", viewId);
+      headers.set("x-litzjs-kind", "view");
+      headers.set("x-litzjs-status", String(serverResult.status ?? 200));
+      headers.set("x-litzjs-view-id", viewId);
       const renderer = await loadRscRenderer();
       const stream = renderer.renderToReadableStream(serverResult.node);
       return new Response(stream, {
@@ -585,7 +585,7 @@ function createLitzJsonResponse(
   headers?: Headers,
 ): Response {
   const responseHeaders = new Headers(headers);
-  responseHeaders.set("content-type", "application/vnd.litz.result+json");
+  responseHeaders.set("content-type", "application/vnd.litzjs.result+json");
   return new Response(JSON.stringify(body), {
     status,
     headers: responseHeaders,
@@ -597,7 +597,7 @@ function applyRevalidateHeader(headers: Headers, revalidate?: string[]): void {
     return;
   }
 
-  headers.set("x-litz-revalidate", revalidate.join(","));
+  headers.set("x-litzjs-revalidate", revalidate.join(","));
 }
 
 function normalizeInternalRequest(
@@ -655,7 +655,7 @@ function interpolatePath(pathPattern: string, params: Record<string, string>): s
 }
 
 function shouldServeDocument(request: Request, pathname: string): boolean {
-  if (pathname.startsWith("/_litz/") || pathname.startsWith("/api/")) {
+  if (pathname.startsWith("/_litzjs/") || pathname.startsWith("/api/")) {
     return false;
   }
 

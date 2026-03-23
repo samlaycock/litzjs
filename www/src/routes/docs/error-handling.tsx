@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -26,7 +26,7 @@ function DocsErrorHandlingPage() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { data, defineRoute, error, server } from "litz";
+          code={`import { data, defineRoute, error, server } from "litzjs";
 
 export const route = defineRoute("/posts/:id", {
   component: PostPage,
@@ -82,7 +82,7 @@ export const route = defineRoute("/posts/:id", {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { defineRoute, server, error, data } from "litz";
+          code={`import { defineRoute, server, error, data } from "litzjs";
 
 function PostError({ error }: { error: RouteErrorLike }) {
   if (error.kind === "error" && error.status === 404) {

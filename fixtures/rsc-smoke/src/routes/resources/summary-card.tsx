@@ -1,4 +1,4 @@
-import { data, defineResource, server, type DataResult } from "litz";
+import { data, defineResource, server, type DataResult } from "litzjs";
 
 type SummaryCardData = {
   id: string;

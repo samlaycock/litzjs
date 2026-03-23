@@ -1,9 +1,9 @@
 const PUBLIC_RESULT_HEADER_NAMES = new Set([
   "content-type",
-  "x-litz-kind",
-  "x-litz-revalidate",
-  "x-litz-status",
-  "x-litz-view-id",
+  "x-litzjs-kind",
+  "x-litzjs-revalidate",
+  "x-litzjs-status",
+  "x-litzjs-view-id",
 ]);
 
 export function createPublicResultHeaders(headers: Headers): Headers {
@@ -14,7 +14,7 @@ export function createPublicResultHeaders(headers: Headers): Headers {
 
     if (
       PUBLIC_RESULT_HEADER_NAMES.has(normalizedKey) ||
-      normalizedKey.startsWith("x-litz-public-")
+      normalizedKey.startsWith("x-litzjs-public-")
     ) {
       publicHeaders.append(key, value);
     }

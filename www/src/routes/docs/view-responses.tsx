@@ -1,5 +1,5 @@
-import { defineRoute } from "litz";
-import { Link } from "litz/client";
+import { defineRoute } from "litzjs";
+import { Link } from "litzjs/client";
 
 import { CodeBlock } from "../../components/code-block";
 
@@ -28,7 +28,7 @@ function DocsViewResponsesPage() {
         <CodeBlock
           language="tsx"
           code={`import * as React from "react";
-import { defineRoute, server, view } from "litz";
+import { defineRoute, server, view } from "litzjs";
 
 export const route = defineRoute("/dashboard", {
   component: Dashboard,
@@ -169,7 +169,7 @@ function ReportsPage() {
         <CodeBlock
           language="tsx"
           code={`import * as React from "react";
-import { data, defineRoute, server, view } from "litz";
+import { data, defineRoute, server, view } from "litzjs";
 
 export const route = defineRoute("/posts/new", {
   component: NewPostPage,
@@ -217,7 +217,7 @@ function NewPostPage() {
         <CodeBlock
           language="tsx"
           code={`import * as React from "react";
-import { defineResource, server, view } from "litz";
+import { defineResource, server, view } from "litzjs";
 
 export const resource = defineResource("/resource/account/:id", {
   component: AccountMenu,
@@ -253,7 +253,7 @@ function AccountMenu() {
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { server, view, withHeaders } from "litz";
+          code={`import { server, view, withHeaders } from "litzjs";
 
 // Using the options argument directly
 const loader = server(async () => {

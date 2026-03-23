@@ -1,4 +1,4 @@
-import { defineRoute, redirect, server } from "litz";
+import { defineRoute, redirect, server } from "litzjs";
 
 export const route = defineRoute("/features/redirect-loader", {
   component: RedirectLoaderPage,

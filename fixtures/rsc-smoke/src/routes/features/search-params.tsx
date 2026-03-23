@@ -1,5 +1,5 @@
-import { data, defineRoute, server } from "litz";
-import { Link } from "litz/client";
+import { data, defineRoute, server } from "litzjs";
+import { Link } from "litzjs/client";
 
 export const route = defineRoute("/features/search-params", {
   component: SearchPage,
