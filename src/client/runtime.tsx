@@ -2,7 +2,6 @@ import * as React from "react";
 
 import type { ActionHookResult, LoaderHookResult, ResourceRequest } from "../index";
 
-import { matchPathname } from "../path-matching";
 import { createInternalActionRequestInit, LITZ_RESULT_ACCEPT } from "../internal-transport";
 import {
   isRedirectSignal,

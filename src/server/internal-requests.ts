@@ -1,4 +1,8 @@
-import { INTERNAL_REQUEST_HEADER, type InternalRequestBody, type InternalRequestMetadata } from "../internal-transport";
+import {
+  INTERNAL_REQUEST_HEADER,
+  type InternalRequestBody,
+  type InternalRequestMetadata,
+} from "../internal-transport";
 
 export type {
   InternalPayloadEntry,
