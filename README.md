@@ -726,13 +726,3 @@ bun run fixture:dev
 ```
 
 Then open [http://127.0.0.1:4173/](http://127.0.0.1:4173/).
-
-## What’s Next
-
-The main gaps still worth dedicated docs are:
-
-- caching and revalidation strategy
-- more advanced resource patterns
-- RSC guidance and constraints
-- production deployment
-- adapter support
