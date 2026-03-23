@@ -227,6 +227,7 @@ function collectReferencedNames(
 ): { locals: Set<string>; imports: Set<string> } {
   const locals = new Set<string>();
   const imports = new Set<string>();
+  const sourceFile = statement.getSourceFile();
 
   function visit(node: ts.Node): void {
     if (shouldSkipSubtree(node)) {
@@ -243,7 +244,25 @@ function collectReferencedNames(
       }
 
       const symbol = checker.getSymbolAtLocation(node);
-      const declaration = symbol?.declarations?.[0];
+      const declarations = symbol?.declarations ?? [];
+      const declaration = declarations[0];
+
+      if (importBindings.has(node.text)) {
+        if (!declaration) {
+          imports.add(node.text);
+          return;
+        }
+
+        if (isImportBindingDeclaration(declaration)) {
+          imports.add(node.text);
+          return;
+        }
+
+        if (declarations.every((candidate) => candidate.getSourceFile() !== sourceFile)) {
+          imports.add(node.text);
+          return;
+        }
+      }
 
       if (!declaration) {
         return;
