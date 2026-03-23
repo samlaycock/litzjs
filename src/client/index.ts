@@ -84,6 +84,8 @@ let matchesContext: React.Context<
 const routeCache = new Map<string, LoaderHookResult>();
 const routeModuleCache = new Map<string, LoadedRoute>();
 const routeModulePrefetchCache = new Map<string, Promise<void>>();
+const layoutChainCache = new WeakMap<LoadedLayout, LoadedLayout[]>();
+const pathParamNamesCache = new Map<string, string[]>();
 
 for (const entry of manifest) {
   if (entry.path.includes(":")) {
@@ -298,9 +300,7 @@ function RouteHost(props: {
         return;
       }
 
-      setPageState((current) =>
-        applyCachedLoaderStateToPageState(current, loaderMatches, displayedSearch, mode),
-      );
+      setPageState((current) => applyCachedLoaderStateToPageState(current, loaderMatches, mode));
 
       for (const entry of loaderMatches) {
         try {
@@ -537,7 +537,6 @@ function createBootstrapPageState(
 function applyCachedLoaderStateToPageState(
   current: PageState,
   matches: ActiveMatch[],
-  search: URLSearchParams,
   mode: "loading" | "revalidating",
 ): PageState {
   const matchStates = { ...current.matchStates };
@@ -615,12 +614,7 @@ async function reloadCurrentRoute(options: {
   }
 
   options.setPageState((current) =>
-    applyCachedLoaderStateToPageState(
-      current,
-      loaderMatches,
-      options.search,
-      options.mode ?? "loading",
-    ),
+    applyCachedLoaderStateToPageState(current, loaderMatches, options.mode ?? "loading"),
   );
 
   const baseRequest = {
@@ -906,10 +900,7 @@ function createMatchRuntime(
         }));
       }
 
-      if (
-        result &&
-        shouldRevalidateAfterSubmit(route, match, result.headers, options?.revalidate)
-      ) {
+      if (result && shouldRevalidateAfterSubmit(route, result.headers, options?.revalidate)) {
         await reloadImpl("revalidating");
       }
 
@@ -933,7 +924,15 @@ function getLayoutChain(layout: LoadedLayout | undefined): LoadedLayout[] {
     return [];
   }
 
-  return [...getLayoutChain(layout.options?.layout), layout];
+  const cached = layoutChainCache.get(layout);
+
+  if (cached) {
+    return cached;
+  }
+
+  const chain = [...getLayoutChain(layout.options?.layout), layout];
+  layoutChainCache.set(layout, chain);
+  return chain;
 }
 
 function buildActiveMatches(
@@ -943,6 +942,7 @@ function buildActiveMatches(
 ): ActiveMatch[] {
   const routeParams = extractRouteParams(route.path, pathname) ?? {};
   const layouts = getLayoutChain(route.options?.layout);
+  const sortedSearch = sortRecord(Object.fromEntries(search.entries()));
   const layoutMatches = layouts.map((layout) => {
     const params =
       extractRouteParams(layout.path, pathname) ?? filterParamsForPath(routeParams, layout.path);
@@ -950,7 +950,7 @@ function buildActiveMatches(
     return {
       id: layout.id,
       path: layout.path,
-      cacheKey: createRouteCacheKey(layout.path, params, search),
+      cacheKey: createRouteCacheKey(layout.path, params, sortedSearch),
       kind: "layout" as const,
       component: layout.component,
       options: layout.options,
@@ -964,7 +964,7 @@ function buildActiveMatches(
     {
       id: route.id,
       path: route.path,
-      cacheKey: createRouteCacheKey(route.path, routeParams, search),
+      cacheKey: createRouteCacheKey(route.path, routeParams, sortedSearch),
       kind: "route",
       component: route.component,
       options: route.options,
@@ -976,7 +976,6 @@ function buildActiveMatches(
 
 function shouldRevalidateAfterSubmit(
   route: LoadedRoute,
-  match: ActiveMatch,
   headers: Headers,
   revalidate: SubmitOptions["revalidate"],
 ): boolean {
@@ -1000,9 +999,7 @@ function shouldRevalidateAfterSubmit(
     return false;
   }
 
-  return buildActiveMatches(route, window.location.pathname, match.search).some((entry) =>
-    targets.has(entry.path),
-  );
+  return getActiveMatchPaths(route).some((path) => targets.has(path));
 }
 
 function extractRouteParams(pathPattern: string, pathname: string): Record<string, string> | null {
@@ -1013,9 +1010,7 @@ function filterParamsForPath(
   params: Record<string, string>,
   pathPattern: string,
 ): Record<string, string> {
-  const names = Array.from(pathPattern.matchAll(/:([A-Za-z0-9_]+)/g), (match) => match[1]).filter(
-    (name): name is string => Boolean(name),
-  );
+  const names = getPathParamNames(pathPattern);
 
   return Object.fromEntries(
     names.map((name) => [name, params[name]]).filter((entry) => entry[1] !== undefined),
@@ -1025,13 +1020,31 @@ function filterParamsForPath(
 function createRouteCacheKey(
   path: string,
   params: Record<string, string>,
-  search: URLSearchParams,
+  sortedSearch: Record<string, string>,
 ): string {
   return JSON.stringify({
     path,
     params: sortRecord(params),
-    search: sortRecord(Object.fromEntries(search.entries())),
+    search: sortedSearch,
   });
+}
+
+function getActiveMatchPaths(route: LoadedRoute): string[] {
+  return [...getLayoutChain(route.options?.layout).map((layout) => layout.path), route.path];
+}
+
+function getPathParamNames(pathPattern: string): string[] {
+  const cached = pathParamNamesCache.get(pathPattern);
+
+  if (cached) {
+    return cached;
+  }
+
+  const names = Array.from(pathPattern.matchAll(/:([A-Za-z0-9_]+)/g), (match) => match[1]).filter(
+    (name): name is string => Boolean(name),
+  );
+  pathParamNamesCache.set(pathPattern, names);
+  return names;
 }
 
 function sortRecord(record: Record<string, string>): Record<string, string> {

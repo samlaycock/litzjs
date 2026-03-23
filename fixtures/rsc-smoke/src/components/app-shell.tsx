@@ -3,13 +3,13 @@ import { useMatches } from "volt";
 
 import { resource as accountMenu } from "../resources/account-menu";
 
-export function Layout({ children }: { children: React.ReactNode }) {
+export function AppShell({ children }: { children: React.ReactNode }) {
   const matches = useMatches();
 
   return (
     <div>
       <h1>Volt RSC Smoke</h1>
-      <p>This is the shared layout for all routes.</p>
+      <p>This is the shared app shell for all routes.</p>
       <nav aria-label="Breadcrumbs">
         <ol>
           {matches.map((match) => (

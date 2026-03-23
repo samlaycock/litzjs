@@ -1,6 +1,6 @@
 import { data, defineRoute, server, useMatches } from "volt";
 
-import { layout as layoutDemoShell } from "../layouts/layout-demo-shell";
+import { layout as layoutDemoShell } from "../_layouts/layout-demo-shell";
 
 export const route = defineRoute("/features/layouts", {
   component: LayoutsFeaturePage,
