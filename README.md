@@ -151,15 +151,66 @@ export const route = defineRoute("/me", {
 });
 
 function ProfilePage() {
-  const result = route.useLoaderResult();
+  const profile = route.useLoaderData();
 
-  if (result.kind !== "data") {
+  if (!profile) {
     return null;
   }
 
-  return <p>{result.data.user.name}</p>;
+  return <p>{profile.user.name}</p>;
 }
 ```
+
+Routes and layouts can also define:
+
+- `pendingComponent` for the first unresolved loader pass
+- `errorComponent` for `error(...)` results and unhandled route faults
+- `middleware` for per-definition request handling
+
+## Layouts
+
+Layouts are explicit too. A route opts into a layout by importing it and passing `layout`.
+
+```tsx
+import type { ReactNode } from "react";
+import { defineLayout, defineRoute } from "volt";
+
+export const dashboardLayout = defineLayout("/dashboard", {
+  component: DashboardShell,
+});
+
+export const route = defineRoute("/dashboard/settings", {
+  component: SettingsPage,
+  layout: dashboardLayout,
+});
+
+function DashboardShell(props: { children: ReactNode }) {
+  return (
+    <div>
+      <aside>Dashboard nav</aside>
+      <section>{props.children}</section>
+    </div>
+  );
+}
+
+function SettingsPage() {
+  return <h1>Settings</h1>;
+}
+```
+
+Layouts can declare loaders and use the same route-state hooks:
+
+- `layout.useLoaderResult()`
+- `layout.useLoaderData()`
+- `layout.useLoaderView()`
+- `layout.useData()`
+- `layout.useView()`
+- `layout.useParams()`
+- `layout.useSearch()`
+- `layout.useStatus()`
+- `layout.usePending()`
+- `layout.useReload()`
+- `layout.useRetry()`
 
 ## `view(...)`
 
@@ -177,9 +228,13 @@ export const route = defineRoute("/reports", {
 });
 
 function ReportsPage() {
-  const result = route.useLoaderResult();
+  const view = route.useLoaderView();
 
-  return <React.Suspense fallback={<p>Loading reports...</p>}>{result.render()}</React.Suspense>;
+  if (!view) {
+    return <p>Loading reports...</p>;
+  }
+
+  return <React.Suspense fallback={<p>Loading reports...</p>}>{view}</React.Suspense>;
 }
 
 function ReportsPanel() {
@@ -187,12 +242,71 @@ function ReportsPanel() {
 }
 ```
 
+Result hooks are layered:
+
+- `useLoaderResult()` and `useActionResult()` expose the raw normalized result branches
+- `useLoaderData()` / `useLoaderView()` and `useActionData()` / `useActionView()` / `useActionError()` expose branch-specific values
+- `useData()` / `useView()` / `useError()` expose the latest settled value from either the loader or action
+- unresolved values are `null`
+
+## Route State Hooks
+
+Routes expose state and control hooks beyond the result helpers:
+
+```tsx
+function SaveToolbar() {
+  const status = route.useStatus();
+  const pending = route.usePending();
+  const reload = route.useReload();
+  const retry = route.useRetry();
+  const submit = route.useSubmit({
+    onSuccess(result) {
+      console.log("saved", result.kind);
+    },
+  });
+
+  return (
+    <div>
+      <p>Status: {status}</p>
+      <button onClick={() => reload()} disabled={pending}>
+        Reload
+      </button>
+      <button onClick={() => retry()} disabled={pending}>
+        Retry
+      </button>
+      <button
+        onClick={() => submit({ name: "Ada" })}
+        disabled={pending}
+      >
+        Save
+      </button>
+    </div>
+  );
+}
+```
+
+`useStatus()` returns one of:
+
+- `idle`
+- `loading`
+- `submitting`
+- `revalidating`
+- `offline-stale`
+- `error`
+
+Use the more specific hooks when you know which source you want:
+
+- `useLoaderData()` if you only care about loader `data(...)`
+- `useActionError()` if you only care about explicit action `error(...)`
+- `useView()` if you want the latest settled `view(...)` from either side
+
 ## Actions
 
 Actions handle writes. They can return `data(...)`, `invalid(...)`, `redirect(...)`,
 `error(...)`, or `view(...)`.
 
 ```tsx
+import { useFormStatus } from "react-dom";
 import { data, defineRoute, invalid, server } from "volt";
 
 export const route = defineRoute("/projects/new", {
@@ -212,17 +326,34 @@ export const route = defineRoute("/projects/new", {
 });
 
 function NewProjectPage() {
-  const action = route.useActionResult();
+  const invalidResult = route.useInvalid();
+  const created = route.useActionData();
 
   return (
     <route.Form>
       <input name="name" />
-      {action?.kind === "invalid" ? <p>{action.fields?.name}</p> : null}
-      <button type="submit">Create</button>
+      {invalidResult ? <p>{invalidResult.fields?.name}</p> : null}
+      {created ? <p>Created {created.name}</p> : null}
+      <SubmitButton />
     </route.Form>
   );
 }
+
+function SubmitButton() {
+  const status = useFormStatus();
+
+  return (
+    <button type="submit" disabled={status.pending}>
+      {status.pending ? "Creating..." : "Create"}
+    </button>
+  );
+}
 ```
+
+`route.Form` uses React 19 form actions under the hood, so nested components can use
+`useFormStatus()` without extra framework wrappers.
+
+If you need imperative writes instead of a form, use `route.useSubmit()`.
 
 ## Navigation
 
@@ -250,6 +381,55 @@ function Nav() {
 - modifier clicks, external links, and downloads fall back to the browser
 
 Plain `<a href>` elements stay native and perform normal browser navigations.
+
+You can also inspect the active route chain:
+
+```tsx
+import { useMatches } from "volt";
+
+function Breadcrumbs() {
+  const matches = useMatches();
+
+  return (
+    <ol>
+      {matches.map((match) => (
+        <li key={match.id}>{match.path}</li>
+      ))}
+    </ol>
+  );
+}
+```
+
+## Search Params
+
+Search params are part of the route runtime:
+
+```tsx
+function ReportsFilters() {
+  const [searchParams, setSearch] = route.useSearch();
+  const tab = searchParams.get("tab") ?? "all";
+
+  return (
+    <>
+      <p>Current tab: {tab}</p>
+      <button onClick={() => setSearch({ tab: "open", tag: ["bug", "urgent"] })}>
+        Show open bugs
+      </button>
+      <button onClick={() => setSearch({ tag: null }, { replace: true })}>Clear tags</button>
+    </>
+  );
+}
+```
+
+`setSearch(...)` merges by default:
+
+- `string` sets a single value
+- `string[]` writes repeated keys
+- `null` or `undefined` deletes a key
+- unchanged updates are ignored
+- updates go through the normal client navigation and revalidation path
+
+Layouts expose the same `[searchParams, setSearch]` tuple.
 
 ## Resources
 
@@ -288,6 +468,58 @@ Resources can also expose an optional packaged component:
 <resource.Component params={{ id: "u_123" }} />
 ```
 
+Resources can also define actions for imperative writes:
+
+```tsx
+import * as React from "react";
+import { defineResource, server, view } from "volt";
+
+export const resource = defineResource("/resource/feed/:id", {
+  component: FeedPanel,
+  loader: server(async ({ params }) => {
+    return view(<ul><li>Feed {params.id}</li></ul>);
+  }),
+  action: server(async ({ params, request }) => {
+    const formData = await request.formData();
+    const message = String(formData.get("message") ?? "");
+
+    return view(
+      <ul>
+        <li>{params.id}</li>
+        <li>{message}</li>
+      </ul>,
+    );
+  }),
+});
+
+function FeedPanel(props: React.ComponentProps<typeof resource.Component>) {
+  const loader = resource.useLoader(props);
+  const action = resource.useAction(props);
+  const [message, setMessage] = React.useState("");
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void action.submit({ message }, props);
+      }}
+    >
+      <input value={message} onChange={(event) => setMessage(event.target.value)} />
+      <button type="submit">Send</button>
+      <React.Suspense fallback={<p>Loading...</p>}>{loader.render()}</React.Suspense>
+    </form>
+  );
+}
+```
+
+Resource loaders expose:
+
+- `kind` as `undefined`, `data`, or `view`
+- `load(...)` to refetch imperatively
+- `render()` to render the current `view(...)` branch when present
+
+Resource actions are imperative. They expose `submit(...)`, not action-result hooks.
+
 ## API Routes
 
 API routes expose raw HTTP handlers and come with a thin client helper.
@@ -324,11 +556,133 @@ Supported method keys:
 
 `ALL` acts as a fallback when there is no method-specific handler.
 
+`api.fetch(...)` accepts route params, search params, headers, and the HTTP method when needed.
+
+## Server Runtime
+
+Volt ships a default WinterCG-style server runtime:
+
+```ts
+import { createServer } from "volt/server";
+
+export default createServer({
+  createContext(request) {
+    return {
+      requestId: request.headers.get("x-request-id"),
+    };
+  },
+  onError(error, context) {
+    console.error("Volt server error", { error, context });
+  },
+});
+```
+
+In simple apps, `createServer()` with no arguments is enough:
+
+```ts
+import { createServer } from "volt/server";
+
+export default createServer();
+```
+
+The Vite plugin injects the discovered server manifest automatically into that entry.
+
+## Result Helpers
+
+Server handlers can return these helpers:
+
+- `data(value, options?)`
+- `view(node, options?)`
+- `invalid({ ... })`
+- `redirect(location, options?)`
+- `error(status, message, options?)`
+- `withHeaders(result, headers)`
+
+```tsx
+import { data, defineRoute, error, redirect, server, withHeaders } from "volt";
+
+export const route = defineRoute("/projects/:id", {
+  component: ProjectPage,
+  loader: server(async ({ params }) => {
+    if (params.id === "new") {
+      return redirect("/projects/create");
+    }
+
+    return withHeaders(
+      data({ id: params.id }, { revalidate: ["/projects/:id"] }),
+      { "cache-control": "private, max-age=60" },
+    );
+  }),
+  action: server(async ({ request }) => {
+    const formData = await request.formData();
+
+    if (!formData.get("name")) {
+      return error(422, "Missing project name", {
+        code: "missing_name",
+        data: { field: "name" },
+      });
+    }
+
+    return data({ ok: true });
+  }),
+});
+```
+
+Behavior summary:
+
+- `data(...)` populates loader/action data hooks
+- `view(...)` populates loader/action view hooks
+- `invalid(...)` populates `useInvalid()`
+- `redirect(...)` navigates instead of producing hook state
+- explicit action `error(...)` is available through `useActionError()` and `useError()`
+- route faults and loader failures go through route error boundaries
+
 ## Middleware
 
 Routes, resources, and API routes can declare a `middleware` array. Middleware runs in order and can continue with `next()`, short-circuit with a result, or explicitly replace `context` with `next({ context })`.
 
-The API shape is present now. The execution pipeline is still being wired up.
+```tsx
+import { data, defineApiRoute, defineRoute, error, server } from "volt";
+
+export const route = defineRoute("/dashboard", {
+  component: DashboardPage,
+  middleware: [
+    async ({ context, next }) => {
+      if (!context.userId) {
+        return error(401, "Unauthorized");
+      }
+
+      return next();
+    },
+  ],
+  loader: server(async ({ context }) => {
+    return data({ userId: context.userId });
+  }),
+});
+
+export const api = defineApiRoute("/api/dashboard", {
+  middleware: [
+    async ({ context, next }) => {
+      if (!context.userId) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      return next();
+    },
+  ],
+  GET({ context }) {
+    return Response.json({ userId: context.userId });
+  },
+});
+```
+
+Middleware receives:
+
+- `request`
+- `params`
+- `context`
+- `signal`
+- `next(...)`
 
 ## Core Ideas
 
@@ -350,11 +704,10 @@ Then open [http://127.0.0.1:4173/](http://127.0.0.1:4173/).
 
 ## What’s Next
 
-This README is intentionally short. A dedicated docs site can cover:
+The main gaps still worth dedicated docs are:
 
-- server runtime setup
-- caching and revalidation
-- resource patterns
-- RSC guidance
+- caching and revalidation strategy
+- more advanced resource patterns
+- RSC guidance and constraints
 - production deployment
 - adapter support
