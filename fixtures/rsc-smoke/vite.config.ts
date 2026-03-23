@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineConfig } from "vite";
 
-import litz from "../../src/vite";
+import { litz } from "../../src/vite";
 
 const rootDir = __dirname;
 const packageRoot = path.resolve(__dirname, "../..");

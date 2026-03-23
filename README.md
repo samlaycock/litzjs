@@ -38,7 +38,7 @@ Add the Litz Vite plugin. By default, Litz discovers:
 
 ```ts
 import { defineConfig } from "vite";
-import litz from "litz/vite";
+import { litz } from "litz/vite";
 
 export default defineConfig({
   plugins: [litz()],

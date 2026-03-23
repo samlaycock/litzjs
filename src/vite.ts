@@ -62,7 +62,7 @@ const LITZ_RSC_RENDERER_ID = "virtual:litz:rsc-renderer";
 const RESOLVED_LITZ_RSC_RENDERER_ID = "\0virtual:litz:rsc-renderer";
 let hasScheduledServerCleanup = false;
 
-export default function litz(options: LitzPluginOptions = {}): Plugin[] {
+export function litz(options: LitzPluginOptions = {}): Plugin[] {
   let root = process.cwd();
   let browserEntryPath = "src/main.tsx";
   let serverEntryPath: string | null = null;
