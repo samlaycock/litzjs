@@ -12,7 +12,7 @@ import type {
 } from "../index";
 
 import { createFormDataPayload } from "../form-data";
-import { createInternalActionRequestInit, LITZ_RESULT_ACCEPT } from "../server/internal-requests";
+import { createInternalActionRequestInit, LITZ_RESULT_ACCEPT } from "../internal-transport";
 import { applySearchParams } from "./navigation";
 import {
   isRedirectSignal,

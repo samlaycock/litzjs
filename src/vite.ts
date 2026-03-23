@@ -644,7 +644,7 @@ function createClientProjectedFileSet(
 ): Set<string> {
   return new Set(
     [...routes, ...layouts, ...resources, ...apiRoutes].map((entry) =>
-      path.resolve(root, "modulePath" in entry ? entry.modulePath : ""),
+      path.resolve(root, entry.modulePath),
     ),
   );
 }
