@@ -25,6 +25,13 @@ const route: any = defineRoute("/projects", {
   action: server(async () => data({ saved: true })),
 });
 
+const nextRoute: any = defineRoute("/projects/next", {
+  component() {
+    return null;
+  },
+  loader: server(async () => data({ label: "next" })),
+});
+
 function installRuntimeBindings(): void {
   installClientBindings({
     useRequiredRouteLocation,
@@ -98,6 +105,34 @@ function HookProbe(): React.ReactElement {
         {mergedView}
       </div>
       <div id="merged-error" data-value={mergedError?.message ?? "null"} />
+    </main>
+  );
+}
+
+function NextRouteHookProbe(): React.ReactElement {
+  const loaderResult = nextRoute.useLoaderResult();
+  const loaderData = nextRoute.useLoaderData();
+  const actionResult = nextRoute.useActionResult?.();
+  const mergedData = nextRoute.useData();
+  const mergedView = nextRoute.useView();
+  const mergedError = nextRoute.useError?.();
+
+  return (
+    <main>
+      <div id="next-loader-result-kind" data-value={loaderResult?.kind ?? "null"} />
+      <div
+        id="next-loader-data"
+        data-value={String(loaderData ? JSON.stringify(loaderData) : "null")}
+      />
+      <div id="next-action-result-kind" data-value={actionResult?.kind ?? "null"} />
+      <div
+        id="next-merged-data"
+        data-value={String(mergedData ? JSON.stringify(mergedData) : "null")}
+      />
+      <div id="next-merged-view" data-value={mergedView ? "present" : "null"}>
+        {mergedView}
+      </div>
+      <div id="next-merged-error" data-value={mergedError?.message ?? "null"} />
     </main>
   );
 }
@@ -239,6 +274,51 @@ describe("route result hooks", () => {
     expect(document.getElementById("action-node")?.textContent).toBe("Action view");
   });
 
+  test("prefers newer action data over loader data in merged useData()", async () => {
+    await act(async () => {
+      root?.render(
+        <RouteRuntimeProvider
+          value={createRuntimeState({
+            loaderResult: {
+              kind: "data",
+              status: 200,
+              headers: new Headers(),
+              stale: false,
+              data: {
+                count: 11,
+              },
+              render() {
+                return null;
+              },
+            },
+            actionResult: data({
+              saved: true,
+            }) as RouteRuntimeState["actionResult"],
+            data: {
+              saved: true,
+            },
+          })}
+        >
+          <HookProbe />
+        </RouteRuntimeProvider>,
+      );
+      await flushDom();
+    });
+
+    expect(document.getElementById("loader-data")?.getAttribute("data-value")).toContain(
+      '"count":11',
+    );
+    expect(document.getElementById("action-data")?.getAttribute("data-value")).toContain(
+      '"saved":true',
+    );
+    expect(document.getElementById("merged-data")?.getAttribute("data-value")).toContain(
+      '"saved":true',
+    );
+    expect(document.getElementById("merged-data")?.getAttribute("data-value")).not.toContain(
+      '"count":11',
+    );
+  });
+
   test("surfaces explicit action errors through useActionError() and useError()", async () => {
     await act(async () => {
       root?.render(
@@ -262,5 +342,87 @@ describe("route result hooks", () => {
     expect(document.getElementById("merged-error")?.getAttribute("data-value")).toBe(
       "Project name is invalid",
     );
+  });
+
+  test("clears prior action-derived merged state when navigating to a different route", async () => {
+    await act(async () => {
+      root?.render(
+        <RouteRuntimeProvider
+          value={createRuntimeState({
+            actionResult: data({
+              saved: true,
+            }) as RouteRuntimeState["actionResult"],
+            data: {
+              saved: true,
+            },
+            view: <span id="stale-action-view">Stale action view</span>,
+          })}
+        >
+          <HookProbe />
+        </RouteRuntimeProvider>,
+      );
+      await flushDom();
+    });
+
+    expect(document.getElementById("merged-data")?.getAttribute("data-value")).toContain(
+      '"saved":true',
+    );
+
+    await act(async () => {
+      root?.render(
+        <RouteRuntimeProvider
+          value={{
+            id: "/projects/next",
+            params: {},
+            search: new URLSearchParams(),
+            setSearch() {},
+            status: "idle",
+            pending: false,
+            loaderResult: {
+              kind: "data",
+              status: 200,
+              headers: new Headers(),
+              stale: false,
+              data: {
+                label: "next",
+              },
+              render() {
+                return null;
+              },
+            },
+            actionResult: null,
+            data: {
+              label: "next",
+            },
+            view: null,
+            async submit() {},
+            reload() {},
+            retry() {},
+          }}
+        >
+          <NextRouteHookProbe />
+        </RouteRuntimeProvider>,
+      );
+      await flushDom();
+    });
+
+    expect(document.getElementById("next-loader-result-kind")?.getAttribute("data-value")).toBe(
+      "data",
+    );
+    expect(document.getElementById("next-loader-data")?.getAttribute("data-value")).toContain(
+      '"label":"next"',
+    );
+    expect(document.getElementById("next-action-result-kind")?.getAttribute("data-value")).toBe(
+      "null",
+    );
+    expect(document.getElementById("next-merged-data")?.getAttribute("data-value")).toContain(
+      '"label":"next"',
+    );
+    expect(document.getElementById("next-merged-data")?.getAttribute("data-value")).not.toContain(
+      '"saved":true',
+    );
+    expect(document.getElementById("next-merged-view")?.getAttribute("data-value")).toBe("null");
+    expect(document.getElementById("next-merged-error")?.getAttribute("data-value")).toBe("null");
+    expect(document.getElementById("stale-action-view")).toBeNull();
   });
 });
