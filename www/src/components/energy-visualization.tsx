@@ -13,6 +13,8 @@ export function EnergyVisualization() {
     const width = container.clientWidth;
     const height = container.clientHeight;
 
+    if (width === 0 || height === 0) return;
+
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
 
@@ -211,13 +213,16 @@ export function EnergyVisualization() {
       camera.position.y = Math.cos(t * 0.2) * intensity * 15;
       camera.lookAt(0, 0, 0);
 
-      effect.render(scene, camera);
+      if (container.clientWidth > 0 && container.clientHeight > 0) {
+        effect.render(scene, camera);
+      }
       animationId = requestAnimationFrame(animate);
     }
 
     const handleResize = () => {
       const w = container.clientWidth;
       const h = container.clientHeight;
+      if (w === 0 || h === 0) return;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
