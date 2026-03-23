@@ -1,7 +1,7 @@
 import * as React from "react";
 import { defineResource, server, view } from "volt";
 
-import { ClientCounter } from "../components/client-counter";
+import { ClientCounter } from "../../components/client-counter";
 
 export const resource = defineResource("/resource/account/:id", {
   component: function AccountMenuResource(props) {

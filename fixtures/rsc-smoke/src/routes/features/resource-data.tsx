@@ -1,6 +1,6 @@
 import { defineRoute } from "volt";
 
-import { resource as summaryCard } from "../../resources/summary-card";
+import { resource as summaryCard } from "../resources/summary-card";
 
 export const route = defineRoute("/features/resource-data", {
   component: ResourceDataPage,

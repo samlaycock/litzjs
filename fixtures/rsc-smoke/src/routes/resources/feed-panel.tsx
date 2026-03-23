@@ -1,7 +1,7 @@
 import * as React from "react";
 import { defineResource, server, view } from "volt";
 
-import { appendFeedItem, getFeedItems } from "../data/state";
+import { appendFeedItem, getFeedItems } from "../../data/state";
 
 export const resource = defineResource("/resource/feed/:id", {
   component: function FeedPanelResource(props) {

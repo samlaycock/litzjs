@@ -75,9 +75,13 @@ export default function volt(options: VoltPluginOptions = {}): Plugin[] {
   let resourceManifest: DiscoveredResource[] = [];
   let apiManifest: DiscoveredApiRoute[] = [];
   let clientProjectedFiles = new Set<string>();
-  const routePatterns = options.routes ?? ["src/routes/**/*.{ts,tsx}"];
-  const resourcePatterns = options.resources ?? ["src/resources/**/*.{ts,tsx}"];
-  const apiPatterns = options.api ?? ["src/api/**/*.{ts,tsx}"];
+  const routePatterns = options.routes ?? [
+    "src/routes/**/*.{ts,tsx}",
+    "!src/routes/api/**/*.{ts,tsx}",
+    "!src/routes/resources/**/*.{ts,tsx}",
+  ];
+  const resourcePatterns = options.resources ?? ["src/routes/resources/**/*.{ts,tsx}"];
+  const apiPatterns = options.api ?? ["src/routes/api/**/*.{ts,tsx}"];
   const rscPlugins = vitePluginRsc({
     entries: {
       client: VOLT_BROWSER_ENTRY_ID,

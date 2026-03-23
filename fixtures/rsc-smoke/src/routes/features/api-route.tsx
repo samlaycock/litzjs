@@ -1,7 +1,7 @@
 import * as React from "react";
 import { defineRoute } from "volt";
 
-import { api as healthApi } from "../../api/health";
+import { api as healthApi } from "../api/health";
 
 export const route = defineRoute("/features/api-route", {
   component: ApiDemoPage,

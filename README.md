@@ -28,7 +28,11 @@ bun add volt react react-dom
 
 ## Quick Start
 
-Add the Volt Vite plugin and tell it where to discover your modules.
+Add the Volt Vite plugin. By default, Volt discovers:
+
+- routes from `src/routes/**/*.{ts,tsx}`
+- API routes from `src/routes/api/**/*.{ts,tsx}`
+- resources from `src/routes/resources/**/*.{ts,tsx}`
 
 `vite.config.ts`
 
@@ -37,11 +41,19 @@ import { defineConfig } from "vite";
 import volt from "volt/vite";
 
 export default defineConfig({
+  plugins: [volt()],
+});
+```
+
+You can still override discovery explicitly when you need a different project layout:
+
+```ts
+export default defineConfig({
   plugins: [
     volt({
-      routes: ["src/routes/**/*.tsx"],
-      resources: ["src/resources/**/*.tsx"],
-      api: ["src/api/**/*.ts"],
+      routes: ["app/pages/**/*.{ts,tsx}"],
+      resources: ["app/resources/**/*.{ts,tsx}"],
+      api: ["app/api/**/*.{ts,tsx}"],
     }),
   ],
 });
@@ -323,7 +335,7 @@ The API shape is present now. The execution pipeline is still being wired up.
 - Volt is SPA-first. The browser owns the document.
 - Server logic only exists at explicit framework boundaries.
 - `view(...)` uses RSC as a transport, not as the whole app architecture.
-- Routes, resources, and API routes are discovered from configured globs.
+- Routes, resources, and API routes are discovered from top-level glob options.
 - Paths are explicit and absolute.
 
 ## Try The Fixture

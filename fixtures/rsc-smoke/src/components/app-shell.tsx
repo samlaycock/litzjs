@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useMatches } from "volt";
 
-import { resource as accountMenu } from "../resources/account-menu";
+import { resource as accountMenu } from "../routes/resources/account-menu";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const matches = useMatches();
