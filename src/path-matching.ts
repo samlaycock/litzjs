@@ -10,7 +10,7 @@ export function trimPathSegments(value: string): string[] {
 }
 
 function isWildcardSegment(segment: string): boolean {
-  return segment === "*" || segment.startsWith("*");
+  return segment.startsWith("*");
 }
 
 function getWildcardParamName(segment: string): string | null {
@@ -137,7 +137,20 @@ export function extractRouteLikeParams(
   pathPattern: string,
   pathname: string,
 ): Record<string, string> | null {
-  return matchPrefixPathname(pathPattern, pathname) ?? matchPathname(pathPattern, pathname);
+  const prefixMatch = matchPrefixPathname(pathPattern, pathname);
+
+  if (prefixMatch) {
+    return prefixMatch;
+  }
+
+  const routeSegments = trimPathSegments(pathPattern);
+  const lastSegment = routeSegments[routeSegments.length - 1];
+
+  if (lastSegment && isWildcardSegment(lastSegment)) {
+    return null;
+  }
+
+  return matchPathname(pathPattern, pathname);
 }
 
 function segmentRank(segment: string): number {
