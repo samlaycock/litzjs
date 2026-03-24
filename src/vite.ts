@@ -14,6 +14,7 @@ import vitePluginRsc from "@vitejs/plugin-rsc";
 import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import picomatch from "picomatch";
 import { glob } from "tinyglobby";
 import ts from "typescript";
 
@@ -310,46 +311,192 @@ export async function renderView(node, metadata = {}) {
     // when the manifests actually differ (JSON comparison). Registers middleware
     // in order: resources → routes → API → document.
     configureServer(server) {
-      const refreshManifests = async (changedFile?: string) => {
-        if (changedFile && !/\.(ts|tsx)$/.test(changedFile)) {
+      const allPatterns = [...routePatterns, ...resourcePatterns, ...apiPatterns];
+      const isManifestCandidate = picomatch(allPatterns, { cwd: root });
+      const isRouteCandidate = picomatch(routePatterns, { cwd: root });
+      const isResourceCandidate = picomatch(resourcePatterns, { cwd: root });
+      const isApiCandidate = picomatch(apiPatterns, { cwd: root });
+
+      let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+      let pendingFullDiscovery = false;
+
+      const flushManifestRefresh = async () => {
+        if (pendingFullDiscovery) {
+          pendingFullDiscovery = false;
+
+          const next = await discoverAllManifests(
+            root,
+            routePatterns,
+            resourcePatterns,
+            apiPatterns,
+          );
+          const changed =
+            JSON.stringify(routeManifest) !== JSON.stringify(next.routeManifest) ||
+            JSON.stringify(layoutManifest) !== JSON.stringify(next.layoutManifest) ||
+            JSON.stringify(resourceManifest) !== JSON.stringify(next.resourceManifest) ||
+            JSON.stringify(apiManifest) !== JSON.stringify(next.apiManifest);
+
+          routeManifest = next.routeManifest;
+          layoutManifest = next.layoutManifest;
+          resourceManifest = next.resourceManifest;
+          apiManifest = next.apiManifest;
+          clientProjectedFiles = createClientProjectedFileSet(
+            root,
+            routeManifest,
+            layoutManifest,
+            resourceManifest,
+            apiManifest,
+          );
+
+          if (changed) {
+            invalidateVirtualModule(server, RESOLVED_ROUTE_MANIFEST_ID);
+            invalidateVirtualModule(server, RESOLVED_RESOURCE_MANIFEST_ID);
+            server.ws.send({ type: "full-reload" });
+          }
+        }
+      };
+
+      const scheduleRefresh = () => {
+        if (debounceTimer !== null) {
+          clearTimeout(debounceTimer);
+        }
+
+        debounceTimer = setTimeout(() => {
+          debounceTimer = null;
+          void flushManifestRefresh();
+        }, 50);
+      };
+
+      const refreshSingleFile = async (file: string) => {
+        const relativePath = path.relative(root, file);
+        let changed = false;
+
+        if (isRouteCandidate(relativePath)) {
+          const entry = await discoverRouteFromFile(root, file);
+          const idx = routeManifest.findIndex(
+            (r) => r.modulePath === normalizeRelativePath(root, file),
+          );
+
+          if (entry && idx >= 0) {
+            if (JSON.stringify(routeManifest[idx]) !== JSON.stringify(entry)) {
+              routeManifest[idx] = entry;
+              routeManifest = sortByPathSpecificity(routeManifest);
+              changed = true;
+            }
+          } else if (entry && idx < 0) {
+            routeManifest = sortByPathSpecificity([...routeManifest, entry]);
+            changed = true;
+          } else if (!entry && idx >= 0) {
+            routeManifest = routeManifest.filter((_, i) => i !== idx);
+            changed = true;
+          }
+
+          const layoutEntry = await discoverLayoutFromFile(root, file);
+          const layoutIdx = layoutManifest.findIndex(
+            (l) => l.modulePath === normalizeRelativePath(root, file),
+          );
+
+          if (layoutEntry && layoutIdx >= 0) {
+            if (JSON.stringify(layoutManifest[layoutIdx]) !== JSON.stringify(layoutEntry)) {
+              layoutManifest[layoutIdx] = layoutEntry;
+              changed = true;
+            }
+          } else if (layoutEntry && layoutIdx < 0) {
+            layoutManifest = [...layoutManifest, layoutEntry];
+            changed = true;
+          } else if (!layoutEntry && layoutIdx >= 0) {
+            layoutManifest = layoutManifest.filter((_, i) => i !== layoutIdx);
+            changed = true;
+          }
+        }
+
+        if (isResourceCandidate(relativePath)) {
+          const entry = await discoverResourceFromFile(root, file);
+          const idx = resourceManifest.findIndex(
+            (r) => r.modulePath === normalizeRelativePath(root, file),
+          );
+
+          if (entry && idx >= 0) {
+            if (JSON.stringify(resourceManifest[idx]) !== JSON.stringify(entry)) {
+              resourceManifest[idx] = entry;
+              changed = true;
+            }
+          } else if (entry && idx < 0) {
+            resourceManifest = [...resourceManifest, entry];
+            changed = true;
+          } else if (!entry && idx >= 0) {
+            resourceManifest = resourceManifest.filter((_, i) => i !== idx);
+            changed = true;
+          }
+        }
+
+        if (isApiCandidate(relativePath)) {
+          const entry = await discoverApiRouteFromFile(root, file);
+          const idx = apiManifest.findIndex(
+            (r) => r.modulePath === normalizeRelativePath(root, file),
+          );
+
+          if (entry && idx >= 0) {
+            if (JSON.stringify(apiManifest[idx]) !== JSON.stringify(entry)) {
+              apiManifest[idx] = entry;
+              apiManifest = sortByPathSpecificity(apiManifest);
+              changed = true;
+            }
+          } else if (entry && idx < 0) {
+            apiManifest = sortByPathSpecificity([...apiManifest, entry]);
+            changed = true;
+          } else if (!entry && idx >= 0) {
+            apiManifest = apiManifest.filter((_, i) => i !== idx);
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          clientProjectedFiles = createClientProjectedFileSet(
+            root,
+            routeManifest,
+            layoutManifest,
+            resourceManifest,
+            apiManifest,
+          );
+          invalidateVirtualModule(server, RESOLVED_ROUTE_MANIFEST_ID);
+          invalidateVirtualModule(server, RESOLVED_RESOURCE_MANIFEST_ID);
+          server.ws.send({ type: "full-reload" });
+        }
+      };
+
+      const onFileAddOrUnlink = (file: string) => {
+        if (!/\.(ts|tsx)$/.test(file)) {
           return;
         }
 
-        const next = await discoverAllManifests(root, routePatterns, resourcePatterns, apiPatterns);
-        const changed =
-          JSON.stringify(routeManifest) !== JSON.stringify(next.routeManifest) ||
-          JSON.stringify(layoutManifest) !== JSON.stringify(next.layoutManifest) ||
-          JSON.stringify(resourceManifest) !== JSON.stringify(next.resourceManifest) ||
-          JSON.stringify(apiManifest) !== JSON.stringify(next.apiManifest);
+        const relativePath = path.relative(root, file);
 
-        routeManifest = next.routeManifest;
-        layoutManifest = next.layoutManifest;
-        resourceManifest = next.resourceManifest;
-        apiManifest = next.apiManifest;
-        clientProjectedFiles = createClientProjectedFileSet(
-          root,
-          routeManifest,
-          layoutManifest,
-          resourceManifest,
-          apiManifest,
-        );
-
-        if (!changed) {
+        if (!isManifestCandidate(relativePath)) {
           return;
         }
 
-        invalidateVirtualModule(server, RESOLVED_ROUTE_MANIFEST_ID);
-        invalidateVirtualModule(server, RESOLVED_RESOURCE_MANIFEST_ID);
-        server.ws.send({ type: "full-reload" });
+        pendingFullDiscovery = true;
+        scheduleRefresh();
       };
 
-      const onFsChange = (file: string) => {
-        void refreshManifests(file);
+      const onFileChange = (file: string) => {
+        if (!/\.(ts|tsx)$/.test(file)) {
+          return;
+        }
+
+        const relativePath = path.relative(root, file);
+
+        if (!isManifestCandidate(relativePath)) {
+          return;
+        }
+
+        void refreshSingleFile(file);
       };
 
-      server.watcher.on("add", onFsChange);
-      server.watcher.on("change", onFsChange);
-      server.watcher.on("unlink", onFsChange);
+      server.watcher.on("add", onFileAddOrUnlink);
+      server.watcher.on("change", onFileChange);
+      server.watcher.on("unlink", onFileAddOrUnlink);
 
       server.middlewares.use((request, response, next) => {
         void handleLitzResourceRequest(server, resourceManifest, request, response, next);
@@ -485,7 +632,7 @@ export async function renderView(node, metadata = {}) {
 // patterns. Each `discover*FromFile` helper extracts metadata (path, defineRoute
 // call, etc.) from individual files using regex.
 
-async function discoverAllManifests(
+export async function discoverAllManifests(
   root: string,
   routePatterns: string[],
   resourcePatterns: string[],
@@ -575,7 +722,10 @@ async function discoverLayouts(root: string, patterns: string[]): Promise<Discov
   return discovered.filter((entry): entry is DiscoveredLayout => entry !== null);
 }
 
-async function discoverRouteFromFile(root: string, file: string): Promise<DiscoveredRoute | null> {
+export async function discoverRouteFromFile(
+  root: string,
+  file: string,
+): Promise<DiscoveredRoute | null> {
   const source = await readFile(file, "utf8");
   const match = source.match(
     /export\s+const\s+route\s*=\s*defineRoute(?:<[\s\S]*?>)?\(\s*["'`]([^"'`]+)["'`]/,
@@ -600,7 +750,7 @@ async function discoverRouteFromFile(root: string, file: string): Promise<Discov
   };
 }
 
-async function discoverLayoutFromFile(
+export async function discoverLayoutFromFile(
   root: string,
   file: string,
 ): Promise<DiscoveredLayout | null> {
@@ -639,7 +789,7 @@ async function discoverResources(root: string, patterns: string[]): Promise<Disc
   return discovered.filter((entry): entry is DiscoveredResource => entry !== null);
 }
 
-async function discoverResourceFromFile(
+export async function discoverResourceFromFile(
   root: string,
   file: string,
 ): Promise<DiscoveredResource | null> {
@@ -680,7 +830,7 @@ async function discoverApiRoutes(root: string, patterns: string[]): Promise<Disc
   return discovered.filter((entry): entry is DiscoveredApiRoute => entry !== null);
 }
 
-async function discoverApiRouteFromFile(
+export async function discoverApiRouteFromFile(
   root: string,
   file: string,
 ): Promise<DiscoveredApiRoute | null> {
