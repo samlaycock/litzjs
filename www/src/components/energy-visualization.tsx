@@ -64,7 +64,7 @@ export function EnergyVisualization() {
       wires.push(path);
 
       const tubeGeometry = new THREE.TubeGeometry(path, 200, 3 + i * 0.5, 8, false);
-      const originalPos = new Float32Array(tubeGeometry.attributes.position.array);
+      const originalPos = new Float32Array(tubeGeometry.attributes.position!.array);
       originalPositions.push(originalPos);
 
       const wireMaterial = new THREE.MeshBasicMaterial({
@@ -84,7 +84,7 @@ export function EnergyVisualization() {
     for (let i = 0; i < particleCount; i++) {
       const wireIdx = Math.floor(Math.random() * wires.length);
       const t = Math.random();
-      const point = wires[wireIdx].getPoint(t);
+      const point = wires[wireIdx]!.getPoint(t);
       positions[i * 3] = point.x;
       positions[i * 3 + 1] = point.y + (Math.random() - 0.5) * 20;
       positions[i * 3 + 2] = point.z + (Math.random() - 0.5) * 10;
@@ -161,18 +161,18 @@ export function EnergyVisualization() {
       const t = elapsed;
       const intensity = intensityRef.current;
 
-      particleMaterial.uniforms.uTime.value = t;
-      particleMaterial.uniforms.uIntensity.value = intensity;
+      particleMaterial.uniforms.uTime!.value = t;
+      particleMaterial.uniforms.uIntensity!.value = intensity;
 
       wireMeshes.forEach((wire, idx) => {
-        const positions = wire.geometry.attributes.position;
+        const positions = wire.geometry.attributes.position!;
         const array = positions.array as Float32Array;
-        const original = originalPositions[idx];
+        const original = originalPositions[idx]!;
 
         for (let j = 0; j < array.length; j += 3) {
-          const x = original[j];
-          const baseY = original[j + 1];
-          const baseZ = original[j + 2];
+          const x = original[j]!;
+          const baseY = original[j + 1]!;
+          const baseZ = original[j + 2]!;
 
           const wave = Math.sin(x * 0.02 + t * (2 + intensity * 8)) * intensity * 20;
           array[j + 1] = baseY + wave;

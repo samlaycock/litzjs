@@ -1,4 +1,5 @@
 import { mountApp } from "litzjs/client";
+import { registerSW } from "virtual:pwa-register";
 
 import { layout } from "./routes/_layouts/root";
 import "./index.css";
@@ -10,3 +11,4 @@ if (!root) {
 }
 
 mountApp(root, { layout });
+registerSW();

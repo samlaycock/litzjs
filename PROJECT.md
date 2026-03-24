@@ -69,7 +69,7 @@ Never inside arbitrary components.
 
 Security note:
 Those framework boundaries are not private network boundaries. Route loaders/actions, resource
-handlers, API routes, and the `/_litz/*` transport must all be treated as normal server request
+handlers, API routes, and the `/_litzjs/*` transport must all be treated as normal server request
 surfaces by app authors.
 
 ### 3. RSC is a transport, not a framework
@@ -97,7 +97,7 @@ npm install litz
 
 ```ts
 // vite.config.ts
-import { litz } from "litz/vite";
+import { litz } from "litzjs/vite";
 
 export default {
   plugins: [
@@ -960,7 +960,7 @@ For example:
 The browser entry can stay thin:
 
 ```ts
-import { mountApp } from "litz/client";
+import { mountApp } from "litzjs/client";
 
 mountApp(document.getElementById("app")!);
 ```
@@ -979,7 +979,7 @@ mountApp(document.getElementById("app")!, StrictMode);
 
 It should not require the user to pass discovered routes manually.
 
-Instead, the Vite plugin provides generated route/runtime modules through Litz virtual modules, and the `litz/client` entry consumes those automatically.
+Instead, the Vite plugin provides generated route/runtime modules through Litz virtual modules, and the `litzjs/client` entry consumes those automatically.
 
 ### Client bootstrap contract
 
@@ -1008,7 +1008,7 @@ export default function handle(request: Request): Response | Promise<Response>;
 The server entry can also stay thin:
 
 ```ts
-import { createServer } from "litz/server";
+import { createServer } from "litzjs/server";
 
 export default createServer({
   createContext(request) {
@@ -1255,10 +1255,10 @@ This lets Litz preserve a clean RSC body while still exposing status and revalid
 ### Dev Endpoints
 
 ```
-/_litz/route/*
-/_litz/action/*
-/_litz/api/*
-/_litz/resource/*
+/_litzjs/route/*
+/_litzjs/action/*
+/_litzjs/api/*
+/_litzjs/resource/*
 ```
 
 ---

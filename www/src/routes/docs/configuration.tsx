@@ -127,7 +127,7 @@ litz({
         <p className="text-neutral-400 mb-4">
           Path to a custom server entry file. This file should export a handler created with{" "}
           <code className="text-sky-400">createServer()</code> from{" "}
-          <code className="text-sky-400">litz/server</code>.
+          <code className="text-sky-400">litzjs/server</code>.
         </p>
         <p className="text-neutral-400 mb-4">
           <strong>Default:</strong> <code className="text-sky-400">"src/server.ts"</code> or{" "}
@@ -178,13 +178,13 @@ export default defineConfig({
     litz({
       // Route files (pages)
       routes: ["src/routes/**/*.{ts,tsx}", "!src/routes/api/**", "!src/routes/resources/**"],
-      
+
       // API route files
       api: ["src/routes/api/**/*.{ts,tsx}"],
-      
+
       // Resource files (reusable server-backed UI)
       resources: ["src/routes/resources/**/*.{ts,tsx}"],
-      
+
       // Custom server entry (optional)
       server: "src/server.ts",
 

@@ -12,7 +12,7 @@ function ApiReference() {
 
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">API Reference</h1>
       <p className="text-xl text-neutral-300 mb-8">
-        Complete reference for all exports from litz, litz/client, litz/server, and litz/vite.
+        Complete reference for all exports from litz, litzjs/client, litzjs/server, and litzjs/vite.
       </p>
 
       <section className="mb-12">
@@ -119,7 +119,7 @@ function ApiReference() {
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">litz/client</h2>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">litzjs/client</h2>
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">mountApp</h3>
         <p className="text-neutral-400 mb-4">
@@ -142,7 +142,7 @@ function ApiReference() {
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">litz/server</h2>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">litzjs/server</h2>
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">createServer</h3>
         <p className="text-neutral-400 mb-4">
@@ -152,7 +152,7 @@ function ApiReference() {
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">litz/vite</h2>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">litzjs/vite</h2>
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">litz (plugin)</h3>
         <p className="text-neutral-400 mb-4">

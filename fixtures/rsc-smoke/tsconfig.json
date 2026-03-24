@@ -2,11 +2,12 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "paths": {
-      "litz": ["../../src/index.ts"],
-      "litz/client": ["../../src/client/index.ts"],
-      "litz/server": ["../../src/server/index.ts"],
-      "litz/vite": ["../../src/vite.ts"]
+      "litzjs": ["../../src/index.ts"],
+      "litzjs/client": ["../../src/client/index.ts"],
+      "litzjs/server": ["../../src/server/index.ts"],
+      "litzjs/vite": ["../../src/vite.ts"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "../../src/virtual-modules.d.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["dist", "node_modules"]
 }
