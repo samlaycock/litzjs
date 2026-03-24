@@ -46,7 +46,7 @@ export function processLoaderResults(
     onRouteError: (matchId: string, error: unknown) => void;
   },
 ): void {
-  for (const result of settled) {
+  for (const [index, result] of settled.entries()) {
     if (callbacks.isCancelled?.()) {
       return;
     }
@@ -60,9 +60,7 @@ export function processLoaderResults(
       }
 
       if (isRouteLikeError(error)) {
-        const failedIndex = settled.indexOf(result);
-
-        callbacks.onRouteError(matches[failedIndex]!.id, error);
+        callbacks.onRouteError(matches[index]!.id, error);
         return;
       }
 
