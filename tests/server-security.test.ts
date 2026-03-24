@@ -144,7 +144,7 @@ describe("server security", () => {
     expect(body.data.sameSignal).toBe(true);
   });
 
-  test("does not expose unhandled server error messages", async () => {
+  test("does not expose unhandled server error messages from api routes", async () => {
     const server = createServer({
       manifest: {
         apiRoutes: [
@@ -168,5 +168,87 @@ describe("server security", () => {
     expect(response.status).toBe(500);
     expect(body).toBe("Litz server error.");
     expect(body).not.toContain("postgres://user:secret@example.com/db");
+  });
+
+  test("does not expose unhandled server error messages from route loaders", async () => {
+    const server = createServer({
+      manifest: {
+        routes: [
+          {
+            id: "secrets.show",
+            path: "/secrets/:id",
+            route: {
+              loader() {
+                throw new Error("SELECT * FROM credentials WHERE token='abc123'");
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const routeRequest = createInternalActionRequestInit(
+      {
+        path: "/secrets/:id",
+        target: "secrets.show",
+        operation: "loader",
+        request: {
+          params: { id: "1" },
+        },
+      },
+      { name: "Litz" },
+    );
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/route", {
+        method: "POST",
+        headers: routeRequest.headers,
+        body: routeRequest.body,
+      }),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(body).toBe("Litz server error.");
+    expect(body).not.toContain("SELECT");
+    expect(body).not.toContain("abc123");
+  });
+
+  test("does not expose unhandled server error messages from resource loaders", async () => {
+    const server = createServer({
+      manifest: {
+        resources: [
+          {
+            path: "/resources/config",
+            resource: {
+              loader() {
+                throw new Error("ENOENT: /etc/shadow");
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const resourceRequest = createInternalActionRequestInit(
+      {
+        path: "/resources/config",
+        operation: "loader",
+        request: {},
+      },
+      { name: "Litz" },
+    );
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/resource", {
+        method: "POST",
+        headers: resourceRequest.headers,
+        body: resourceRequest.body,
+      }),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(body).toBe("Litz server error.");
+    expect(body).not.toContain("ENOENT");
+    expect(body).not.toContain("/etc/shadow");
   });
 });
