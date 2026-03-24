@@ -1,6 +1,7 @@
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { defineConfig } from "vite";
+import { VitePWA as pwa } from "vite-plugin-pwa";
 
 import { litz } from "../src/vite";
 
@@ -9,7 +10,7 @@ const packageRoot = path.resolve(__dirname, "..");
 
 export default defineConfig(() => ({
   root: rootDir,
-  plugins: [tailwindcss(), litz()],
+  plugins: [tailwindcss(), litz(), pwa({ registerType: "autoUpdate", outDir: "dist/client" })],
   resolve: {
     alias: [
       {
