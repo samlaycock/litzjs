@@ -113,11 +113,11 @@ export function createServer<TContext = unknown>(
 
     try {
       if (url.pathname === "/_litzjs/resource") {
-        return handleResourceRequest(request, manifest.resources ?? [], getContext);
+        return await handleResourceRequest(request, manifest.resources ?? [], getContext);
       }
 
       if (url.pathname === "/_litzjs/route" || url.pathname === "/_litzjs/action") {
-        return handleRouteRequest(request, manifest.routes ?? [], getContext);
+        return await handleRouteRequest(request, manifest.routes ?? [], getContext);
       }
 
       const apiResponse = await handleApiRequest(request, manifest.apiRoutes ?? [], getContext);

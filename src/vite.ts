@@ -961,9 +961,10 @@ async function handleLitzResourceRequest(
     await sendServerResult(server, response, result, `${entry.path}#${operation}`);
   } catch (error) {
     server.ssrFixStacktrace(error as Error);
+    console.error(error);
     sendLitzJson(response, 500, {
       kind: "fault",
-      message: error instanceof Error ? error.message : "Resource request failed.",
+      message: "Resource request failed.",
     });
   }
 }
@@ -1113,9 +1114,10 @@ async function handleLitzRouteRequest(
     await sendServerResult(server, response, result, `${target.id}#${operation}`);
   } catch (error) {
     server.ssrFixStacktrace(error as Error);
+    console.error(error);
     sendLitzJson(response, 500, {
       kind: "fault",
-      message: error instanceof Error ? error.message : "Route request failed.",
+      message: "Route request failed.",
     });
   }
 }
@@ -1237,8 +1239,9 @@ async function handleLitzApiRequest(
     await writeFetchResponseToNode(response, apiResponse);
   } catch (error) {
     server.ssrFixStacktrace(error as Error);
+    console.error(error);
     response.statusCode = 500;
-    response.end(error instanceof Error ? error.message : "API route failed.");
+    response.end("API route failed.");
   }
 }
 
