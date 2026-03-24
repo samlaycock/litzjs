@@ -144,7 +144,7 @@ export async function createViewResult(
 
   return {
     kind: "view",
-    status: Number(response.headers.get("x-litz-status") ?? response.status),
+    status: Number(response.headers.get("x-litzjs-status") ?? response.status),
     headers: publicHeaders,
     stale: false,
     node: node as import("react").ReactNode,
@@ -187,7 +187,7 @@ export function isRedirectSignal(value: unknown): value is {
 }
 
 export function getRevalidateTargets(headers: Headers): string[] {
-  const value = headers.get("x-litz-revalidate");
+  const value = headers.get("x-litzjs-revalidate");
 
   if (!value) {
     return [];
