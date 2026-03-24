@@ -941,7 +941,9 @@ export async function handleLitzResourceRequest(
       body.request,
       body.payload,
     );
-    const signal = new AbortController().signal;
+    const controller = new AbortController();
+    request.once("close", () => controller.abort());
+    const signal = controller.signal;
     const result = await runDevMiddlewareChain({
       middleware: resource.middleware ?? [],
       request: normalizedRequest.request,
@@ -1083,7 +1085,9 @@ export async function handleLitzRouteRequest(
       body.request,
       body.payload,
     );
-    const signal = new AbortController().signal;
+    const controller = new AbortController();
+    request.once("close", () => controller.abort());
+    const signal = controller.signal;
     const result = await runDevMiddlewareChain({
       middleware: chain.slice(0, targetIndex + 1).flatMap((candidate) => candidate.middleware),
       request: normalizedRequest.request,
@@ -1219,7 +1223,9 @@ export async function handleLitzApiRequest(
 
     const apiRequest = await createNodeRequest(request, requestUrl);
 
-    const signal = new AbortController().signal;
+    const controller = new AbortController();
+    request.once("close", () => controller.abort());
+    const signal = controller.signal;
     const apiResponse = await runDevMiddlewareChain({
       middleware: api?.middleware ?? [],
       request: apiRequest,

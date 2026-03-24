@@ -132,6 +132,11 @@ function createMockResponse(): ServerResponse & { getBody(): string } {
     setHeader(key: string, value: string) {
       headers[key] = value;
     },
+    write(data?: string | Buffer) {
+      if (data) {
+        body += typeof data === "string" ? data : data.toString();
+      }
+    },
     end(data?: string) {
       if (data) {
         body += data;
@@ -142,6 +147,132 @@ function createMockResponse(): ServerResponse & { getBody(): string } {
     },
   } as unknown as ServerResponse & { getBody(): string };
 }
+
+describe("dev server abort signal lifecycle", () => {
+  test("resource handler signal aborts when client disconnects", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const server = createMockViteDevServer(async () => ({
+      resource: {
+        async loader({ signal }: { signal: AbortSignal }) {
+          capturedSignal = signal;
+          return { data: "ok" };
+        },
+      },
+    }));
+    const internalMetadata = JSON.stringify({
+      path: "/resources/config",
+      operation: "loader",
+      request: {},
+    });
+    const request = createMockRequest({
+      url: "/_litzjs/resource",
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: internalMetadata,
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzResourceRequest(
+      server,
+      [
+        {
+          path: "/resources/config",
+          modulePath: "src/resources/config.ts",
+          hasLoader: true,
+          hasAction: false,
+          hasComponent: false,
+        },
+      ],
+      request,
+      response,
+      next,
+    );
+
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal!.aborted).toBe(false);
+
+    (request as unknown as PassThrough).emit("close");
+
+    expect(capturedSignal!.aborted).toBe(true);
+  });
+
+  test("route handler signal aborts when client disconnects", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const server = createMockViteDevServer(async () => ({
+      route: {
+        async loader({ signal }: { signal: AbortSignal }) {
+          capturedSignal = signal;
+          return { data: "ok" };
+        },
+      },
+    }));
+    const internalMetadata = JSON.stringify({
+      path: "/secrets/:id",
+      target: "secrets.show",
+      operation: "loader",
+      request: { params: { id: "1" } },
+    });
+    const request = createMockRequest({
+      url: "/_litzjs/route",
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: internalMetadata,
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzRouteRequest(
+      server,
+      [{ id: "secrets.show", path: "/secrets/:id", modulePath: "src/routes/secrets.ts" }],
+      request,
+      response,
+      next,
+    );
+
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal!.aborted).toBe(false);
+
+    (request as unknown as PassThrough).emit("close");
+
+    expect(capturedSignal!.aborted).toBe(true);
+  });
+
+  test("API handler signal aborts when client disconnects", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const server = createMockViteDevServer(async () => ({
+      api: {
+        methods: {
+          GET: async ({ signal }: { signal: AbortSignal }) => {
+            capturedSignal = signal;
+            return new Response("ok");
+          },
+        },
+      },
+    }));
+    const request = createMockRequest({
+      url: "/api/test",
+      method: "GET",
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzApiRequest(
+      server,
+      [{ path: "/api/test", modulePath: "src/api/test.ts" }],
+      request,
+      response,
+      next,
+    );
+
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal!.aborted).toBe(false);
+
+    (request as unknown as PassThrough).emit("close");
+
+    expect(capturedSignal!.aborted).toBe(true);
+  });
+});
 
 describe("dev server error masking", () => {
   test("does not expose raw error messages from resource handlers", async () => {
