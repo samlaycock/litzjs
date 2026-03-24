@@ -1,0 +1,74 @@
+import type { LoaderHookResult } from "../index";
+
+import { fetchRouteLoader, isRedirectSignal, isRouteLikeError } from "./runtime";
+
+interface LoaderMatch {
+  readonly id: string;
+  readonly cacheKey: string;
+}
+
+interface LoaderFetchContext {
+  readonly routePath: string;
+  readonly baseRequest: {
+    readonly params: Record<string, string>;
+    readonly search: URLSearchParams;
+  };
+}
+
+interface LoaderSettledEntry {
+  readonly match: LoaderMatch;
+  readonly loaderResult: LoaderHookResult;
+}
+
+export type LoaderSettledResult = PromiseSettledResult<LoaderSettledEntry>;
+
+export async function fetchRouteLoadersInParallel(
+  matches: readonly LoaderMatch[],
+  context: LoaderFetchContext,
+): Promise<readonly LoaderSettledResult[]> {
+  return Promise.allSettled(
+    matches.map((match) =>
+      fetchRouteLoader(context.routePath, context.baseRequest, match.id).then((loaderResult) => ({
+        match,
+        loaderResult,
+      })),
+    ),
+  );
+}
+
+export function processLoaderResults(
+  settled: readonly LoaderSettledResult[],
+  matches: readonly LoaderMatch[],
+  callbacks: {
+    isCancelled?: () => boolean;
+    onResult: (match: LoaderMatch, loaderResult: LoaderHookResult) => void;
+    onRedirect: (location: string) => void;
+    onRouteError: (matchId: string, error: unknown) => void;
+  },
+): void {
+  for (const result of settled) {
+    if (callbacks.isCancelled?.()) {
+      return;
+    }
+
+    if (result.status === "rejected") {
+      const error: unknown = result.reason;
+
+      if (isRedirectSignal(error)) {
+        callbacks.onRedirect(error.location);
+        return;
+      }
+
+      if (isRouteLikeError(error)) {
+        const failedIndex = settled.indexOf(result);
+
+        callbacks.onRouteError(matches[failedIndex]!.id, error);
+        return;
+      }
+
+      throw error;
+    }
+
+    callbacks.onResult(result.value.match, result.value.loaderResult);
+  }
+}

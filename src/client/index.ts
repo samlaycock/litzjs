@@ -8,6 +8,7 @@ import { createFormDataPayload } from "../form-data";
 import { extractRouteLikeParams, matchPathname, sortByPathSpecificity } from "../path-matching";
 import { installClientBindings } from "./bindings";
 import { createLinkComponent } from "./link";
+import { fetchRouteLoadersInParallel, processLoaderResults } from "./loader-fetch";
 import { applySearchParams, shouldPrefetchLink } from "./navigation";
 import {
   createResourceComponent,
@@ -22,9 +23,6 @@ import {
   RouteRuntimeProvider,
   createRouteFormComponent,
   fetchRouteAction,
-  fetchRouteLoader,
-  isRedirectSignal,
-  isRouteLikeError,
   useRequiredRouteActions,
   useRequiredRouteData,
   useRequiredRouteLocation,
@@ -418,50 +416,40 @@ function RouteHost(props: {
 
       setPageState((current) => applyCachedLoaderStateToPageState(current, loaderMatches, mode));
 
-      for (const entry of loaderMatches) {
-        try {
-          const loaderResult = await fetchRouteLoader(renderedRoute.path, baseRequest, entry.id);
+      const settled = await fetchRouteLoadersInParallel(loaderMatches, {
+        routePath: renderedRoute.path,
+        baseRequest,
+      });
 
-          if (cancelled) {
-            return;
-          }
-
-          setCachedLoaderResult(entry.cacheKey, withLoaderStaleState(loaderResult, false));
+      processLoaderResults(settled, loaderMatches, {
+        isCancelled: () => cancelled,
+        onResult(match, loaderResult) {
+          setCachedLoaderResult(match.cacheKey, withLoaderStaleState(loaderResult, false));
 
           setPageState((current) =>
             withMatchLoaderResult(
               current,
-              entry.id,
+              match.id,
               renderedRoute.id,
               loaderResult,
-              entry.id === finalLoaderMatchId ? "idle" : current.status,
-              entry.id === finalLoaderMatchId ? false : current.pending,
+              match.id === finalLoaderMatchId ? "idle" : current.status,
+              match.id === finalLoaderMatchId ? false : current.pending,
             ),
           );
-        } catch (error) {
-          if (cancelled) {
-            return;
-          }
-
-          if (isRedirectSignal(error)) {
-            navigate(error.location, true);
-            return;
-          }
-
-          if (isRouteLikeError(error)) {
-            setPageState((current) => ({
-              ...current,
-              status: "error",
-              pending: false,
-              errorInfo: error,
-              errorTargetId: entry.id,
-            }));
-            return;
-          }
-
-          throw error;
-        }
-      }
+        },
+        onRedirect(location) {
+          navigate(location, true);
+        },
+        onRouteError(matchId, error) {
+          setPageState((current) => ({
+            ...current,
+            status: "error",
+            pending: false,
+            errorInfo: error as MatchErrorInfo,
+            errorTargetId: matchId,
+          }));
+        },
+      });
     };
 
     void reload();
@@ -815,40 +803,40 @@ async function reloadCurrentRoute(options: {
     search: options.search,
   };
 
-  for (const entry of loaderMatches) {
-    try {
-      const loaderResult = await fetchRouteLoader(options.route.path, baseRequest, entry.id);
-      setCachedLoaderResult(entry.cacheKey, withLoaderStaleState(loaderResult, false));
+  const finalLoaderMatch = loaderMatches[loaderMatches.length - 1];
+
+  const settled = await fetchRouteLoadersInParallel(loaderMatches, {
+    routePath: options.route.path,
+    baseRequest,
+  });
+
+  processLoaderResults(settled, loaderMatches, {
+    onResult(match, loaderResult) {
+      setCachedLoaderResult(match.cacheKey, withLoaderStaleState(loaderResult, false));
       options.setPageState((current) =>
         withMatchLoaderResult(
           current,
-          entry.id,
+          match.id,
           options.route.id,
           loaderResult,
-          entry === loaderMatches[loaderMatches.length - 1] ? "idle" : current.status,
-          entry === loaderMatches[loaderMatches.length - 1] ? false : current.pending,
+          match === finalLoaderMatch ? "idle" : current.status,
+          match === finalLoaderMatch ? false : current.pending,
         ),
       );
-    } catch (error) {
-      if (isRedirectSignal(error)) {
-        options.navigate(error.location, true);
-        return;
-      }
-
-      if (isRouteLikeError(error)) {
-        options.setPageState((current) => ({
-          ...current,
-          status: "error",
-          pending: false,
-          errorInfo: error,
-          errorTargetId: entry.id,
-        }));
-        return;
-      }
-
-      throw error;
-    }
-  }
+    },
+    onRedirect(location) {
+      options.navigate(location, true);
+    },
+    onRouteError(matchId, error) {
+      options.setPageState((current) => ({
+        ...current,
+        status: "error",
+        pending: false,
+        errorInfo: error as MatchErrorInfo,
+        errorTargetId: matchId,
+      }));
+    },
+  });
 }
 
 function renderMatchChain(
