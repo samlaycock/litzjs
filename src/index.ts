@@ -206,6 +206,12 @@ type ExtractPathParamRest<TSegment extends string> = TSegment extends `${string}
   ? TRest
   : never;
 
+type ExtractWildcardParamName<TPath extends string> = TPath extends `${string}/*${infer TName}`
+  ? TName extends ""
+    ? never
+    : TName
+  : never;
+
 type ExtractPathParamNames<TPath extends string> = string extends TPath
   ? string
   : TPath extends `${string}:${infer TSegment}`
@@ -214,7 +220,8 @@ type ExtractPathParamNames<TPath extends string> = string extends TPath
         | (ExtractPathParamRest<TSegment> extends never
             ? never
             : ExtractPathParamNames<ExtractPathParamRest<TSegment>>)
-    : never;
+        | ExtractWildcardParamName<TPath>
+    : ExtractWildcardParamName<TPath>;
 
 export type PathParams<TPath extends string> = string extends TPath
   ? Record<string, string>

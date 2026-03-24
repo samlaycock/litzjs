@@ -9,9 +9,63 @@ export function trimPathSegments(value: string): string[] {
     .filter(Boolean);
 }
 
+function isWildcardSegment(segment: string): boolean {
+  return segment === "*" || segment.startsWith("*");
+}
+
+function getWildcardParamName(segment: string): string | null {
+  if (segment === "*") {
+    return null;
+  }
+
+  if (segment.startsWith("*")) {
+    return segment.slice(1);
+  }
+
+  return null;
+}
+
 export function matchPathname(routePath: string, pathname: string): Record<string, string> | null {
   const routeSegments = trimPathSegments(routePath);
   const pathSegments = trimPathSegments(pathname);
+  const lastRouteSegment = routeSegments[routeSegments.length - 1];
+
+  if (lastRouteSegment && isWildcardSegment(lastRouteSegment)) {
+    const staticSegments = routeSegments.slice(0, -1);
+
+    if (pathSegments.length < staticSegments.length) {
+      return null;
+    }
+
+    const params: Record<string, string> = {};
+
+    for (let index = 0; index < staticSegments.length; index += 1) {
+      const routeSegment = staticSegments[index];
+      const pathSegment = pathSegments[index];
+
+      if (!routeSegment || pathSegment === undefined) {
+        return null;
+      }
+
+      if (routeSegment.startsWith(":")) {
+        params[routeSegment.slice(1)] = decodeURIComponent(pathSegment);
+        continue;
+      }
+
+      if (routeSegment !== pathSegment) {
+        return null;
+      }
+    }
+
+    const remaining = pathSegments.slice(staticSegments.length).map(decodeURIComponent).join("/");
+    const paramName = getWildcardParamName(lastRouteSegment);
+
+    if (paramName) {
+      params[paramName] = remaining;
+    }
+
+    return params;
+  }
 
   if (routeSegments.length !== pathSegments.length) {
     return null;
@@ -46,6 +100,11 @@ export function matchPrefixPathname(
 ): Record<string, string> | null {
   const routeSegments = trimPathSegments(routePath);
   const pathSegments = trimPathSegments(pathname);
+  const lastRouteSegment = routeSegments[routeSegments.length - 1];
+
+  if (lastRouteSegment && isWildcardSegment(lastRouteSegment)) {
+    return matchPathname(routePath, pathname);
+  }
 
   if (routeSegments.length > pathSegments.length) {
     return null;
@@ -81,9 +140,29 @@ export function extractRouteLikeParams(
   return matchPrefixPathname(pathPattern, pathname) ?? matchPathname(pathPattern, pathname);
 }
 
+function segmentRank(segment: string): number {
+  if (isWildcardSegment(segment)) {
+    return -1;
+  }
+
+  if (segment.startsWith(":")) {
+    return 0;
+  }
+
+  return 1;
+}
+
 export function comparePathSpecificity(left: string, right: string): number {
   const leftSegments = trimPathSegments(left);
   const rightSegments = trimPathSegments(right);
+  const leftHasWildcard =
+    leftSegments.length > 0 && isWildcardSegment(leftSegments[leftSegments.length - 1] ?? "");
+  const rightHasWildcard =
+    rightSegments.length > 0 && isWildcardSegment(rightSegments[rightSegments.length - 1] ?? "");
+
+  if (leftHasWildcard !== rightHasWildcard) {
+    return leftHasWildcard ? 1 : -1;
+  }
 
   if (leftSegments.length !== rightSegments.length) {
     return rightSegments.length - leftSegments.length;
@@ -92,8 +171,8 @@ export function comparePathSpecificity(left: string, right: string): number {
   for (let index = 0; index < leftSegments.length; index += 1) {
     const leftSegment = leftSegments[index] ?? "";
     const rightSegment = rightSegments[index] ?? "";
-    const leftRank = leftSegment.startsWith(":") ? 0 : 1;
-    const rightRank = rightSegment.startsWith(":") ? 0 : 1;
+    const leftRank = segmentRank(leftSegment);
+    const rightRank = segmentRank(rightSegment);
 
     if (leftRank !== rightRank) {
       return rightRank - leftRank;
