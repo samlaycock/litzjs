@@ -871,7 +871,7 @@ type DevMiddlewareHandler<TContext = unknown, TResult = unknown> = (
   next: DevMiddlewareNext<TContext, TResult>,
 ) => Promise<TResult> | TResult;
 
-async function handleLitzResourceRequest(
+export async function handleLitzResourceRequest(
   server: ViteDevServer,
   manifest: DiscoveredResource[],
   request: IncomingMessage,
@@ -969,7 +969,7 @@ async function handleLitzResourceRequest(
   }
 }
 
-async function handleLitzRouteRequest(
+export async function handleLitzRouteRequest(
   server: ViteDevServer,
   manifest: DiscoveredRoute[],
   request: IncomingMessage,
@@ -1165,7 +1165,7 @@ async function handleLitzDocumentRequest(
   }
 }
 
-async function handleLitzApiRequest(
+export async function handleLitzApiRequest(
   server: ViteDevServer,
   manifest: DiscoveredApiRoute[],
   request: IncomingMessage,
