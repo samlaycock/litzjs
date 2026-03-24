@@ -149,9 +149,8 @@ litz({
         </p>
         <p className="text-neutral-400 mb-4">
           When enabled, the production build inlines the document HTML and all client assets as
-          strings into the server bundle. The handler serves{" "}
-          <code className="text-sky-400">/</code> and{" "}
-          <code className="text-sky-400">/assets/*</code> directly, removing the need for a
+          strings into the server bundle. The handler serves <code className="text-sky-400">/</code>{" "}
+          and <code className="text-sky-400">/assets/*</code> directly, removing the need for a
           separate static file server or CDN.
         </p>
         <p className="text-neutral-400 mb-4">

@@ -777,7 +777,7 @@ through `express.static`, a CDN, or a platform asset binding).
 If you want a self-contained single-file deployment, enable `embedAssets`:
 
 ```ts
-litz({ embedAssets: true })
+litz({ embedAssets: true });
 ```
 
 This inlines the built document HTML and all client asset contents into the server bundle, so the

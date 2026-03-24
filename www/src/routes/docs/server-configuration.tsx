@@ -86,9 +86,9 @@ export default createServer();`}
         <p className="text-neutral-400 mb-4">
           Litz emits <code className="text-sky-400">dist/server/index.js</code> with the discovered
           server manifest injected into <code className="text-sky-400">createServer()</code>. Your
-          platform is responsible for serving{" "}
-          <code className="text-sky-400">dist/client</code> as static files (via CDN,{" "}
-          <code className="text-sky-400">express.static</code>, platform asset binding, etc.).
+          platform is responsible for serving <code className="text-sky-400">dist/client</code> as
+          static files (via CDN, <code className="text-sky-400">express.static</code>, platform
+          asset binding, etc.).
         </p>
         <h3 className="text-xl font-medium text-neutral-100 mb-3">Embedded assets</h3>
         <p className="text-neutral-400 mb-4">
