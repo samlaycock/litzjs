@@ -1932,6 +1932,11 @@ function finalizeServerArtifacts(
     /^export default\s+/,
     "const assetsManifest = ",
   );
+
+  if (manifestBindingSource === rscAssetsManifestSource) {
+    return false;
+  }
+
   const inlinedServerSource = rscEntrySource.replace(
     'import assetsManifest from "./__vite_rsc_assets_manifest.js";',
     manifestBindingSource,
