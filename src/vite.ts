@@ -1,3 +1,10 @@
+/**
+ * Litz Vite plugin.
+ *
+ * Orchestrates a multi-environment build (RSC → client → SSR), registers dev
+ * server middleware for route/resource/API handling, and finalizes production
+ * artifacts into a single-file server bundle.
+ */
 import type { RscPluginOptions } from "@vitejs/plugin-rsc";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { TLSSocket } from "node:tls";
@@ -51,6 +58,9 @@ type DiscoveredApiRoute = {
   modulePath: string;
 };
 
+// Virtual module IDs. Each pair has a bare ID (used in import statements) and a
+// resolved ID prefixed with `\0` — the Vite convention that marks a module as
+// virtual so it is never resolved from disk.
 const ROUTE_MANIFEST_ID = "virtual:litzjs:route-manifest";
 const RESOLVED_ROUTE_MANIFEST_ID = "\0virtual:litzjs:route-manifest";
 const RESOURCE_MANIFEST_ID = "virtual:litzjs:resource-manifest";
@@ -64,6 +74,11 @@ const RESOLVED_LITZ_BROWSER_ENTRY_ID = "\0virtual:litzjs:browser-entry";
 const LITZ_RSC_RENDERER_ID = "virtual:litzjs:rsc-renderer";
 const RESOLVED_LITZ_RSC_RENDERER_ID = "\0virtual:litzjs:rsc-renderer";
 
+/**
+ * Creates the Litz Vite plugin array. Returns the `@vitejs/plugin-rsc` plugins
+ * plus the core Litz plugin. The mutable state variables below are populated
+ * during `configResolved` and kept in sync during dev via file watching.
+ */
 export function litz(options: LitzPluginOptions = {}): Plugin[] {
   let root = process.cwd();
   let browserEntryPath = "src/main.tsx";
@@ -98,6 +113,10 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
   const litzPlugin: Plugin = {
     name: "litzjs/vite",
 
+    // Configure three Vite environments:
+    //  - client: SPA output (dist/client)
+    //  - rsc: React Server Components, single-file output via codeSplitting: false (dist/server)
+    //  - ssr: shares the server output dir; emptyOutDir: false to avoid clobbering RSC output
     config(userConfig) {
       const baseOutDir = userConfig.build?.outDir ?? "dist";
 
@@ -147,12 +166,15 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
       // code-splitting is enabled the finalization step will produce a broken
       // bundle, so we catch the misconfiguration early.
       const rscOutput = config.environments.rsc?.build.rollupOptions?.output;
-      if (rscOutput && !Array.isArray(rscOutput) && rscOutput.codeSplitting !== false) {
-        throw new Error(
-          "litz: the RSC environment must have codeSplitting disabled " +
-            "(rollupOptions.output.codeSplitting: false). " +
-            "The server build pipeline requires a single entry file.",
-        );
+      const rscOutputs = Array.isArray(rscOutput) ? rscOutput : rscOutput ? [rscOutput] : [];
+      for (const output of rscOutputs) {
+        if (output.codeSplitting !== false) {
+          throw new Error(
+            "litz: the RSC environment must have codeSplitting disabled " +
+              "(rollupOptions.output.codeSplitting: false). " +
+              "The server build pipeline requires a single entry file.",
+          );
+        }
       }
 
       browserEntryPath = await discoverBrowserEntry(root);
@@ -169,6 +191,8 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
       );
     },
 
+    // Map virtual module IDs to their resolved counterparts so Vite knows
+    // these are generated in-memory by the `load` hook below.
     resolveId(id) {
       if (id === ROUTE_MANIFEST_ID) {
         return RESOLVED_ROUTE_MANIFEST_ID;
@@ -197,6 +221,9 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
       return null;
     },
 
+    // Return generated code for each virtual module. The route/resource
+    // manifests are built from the discovered filesystem entries; the RSC and
+    // browser entries wire up the framework's server and client entry points.
     load(id) {
       if (id === RESOLVED_ROUTE_MANIFEST_ID) {
         return createRouteManifestModule(routeManifest, root, this.environment.name === "client");
@@ -255,6 +282,10 @@ export async function renderView(node, metadata = {}) {
       return null;
     },
 
+    // Dev server setup. Watches the filesystem for route/layout/resource/API
+    // changes, re-discovers manifests on change, and triggers a full reload only
+    // when the manifests actually differ (JSON comparison). Registers middleware
+    // in order: resources → routes → API → document.
     configureServer(server) {
       const refreshManifests = async (changedFile?: string) => {
         if (changedFile && !/\.(ts|tsx)$/.test(changedFile)) {
@@ -359,6 +390,12 @@ export async function renderView(node, metadata = {}) {
       };
     },
 
+    // Vite's multi-environment build runs RSC → client → SSR sequentially, and
+    // `closeBundle` fires after each environment. The RSC plugin writes its
+    // assets manifest only after ALL environments complete, so finalization may
+    // not succeed on the first call. We attempt it eagerly, and register a
+    // `process.once("exit")` fallback to catch the case where the manifest
+    // wasn't ready during earlier calls. Guard flags prevent duplicate work.
     async closeBundle() {
       await Promise.all([
         writeProductionIndexHtml(root, clientOutDir),
@@ -394,6 +431,11 @@ export async function renderView(node, metadata = {}) {
 
   return [...rscPlugins, litzPlugin];
 }
+
+// ── Filesystem Discovery ─────────────────────────────────────────────────────
+// Scans the project for routes, layouts, resources, and API routes using glob
+// patterns. Each `discover*FromFile` helper extracts metadata (path, defineRoute
+// call, etc.) from individual files using regex.
 
 async function discoverAllManifests(
   root: string,
@@ -615,6 +657,10 @@ async function discoverApiRouteFromFile(
   };
 }
 
+// ── Virtual Module Generation ────────────────────────────────────────────────
+// These functions produce the source code for virtual modules (route manifest,
+// resource manifest, server manifest, etc.) that are returned by the `load` hook.
+
 function createRouteManifestModule(
   manifest: DiscoveredRoute[],
   root: string,
@@ -669,6 +715,13 @@ function createClientProjectedFileSet(
   );
 }
 
+/**
+ * Build-time transform that injects the server manifest into the user's server
+ * entry. Uses the TypeScript compiler API to find all `createServer()` calls
+ * (imported from `litzjs/server`) and wraps their options argument with a
+ * helper that merges in the route/resource/API manifest. Returns `null` if no
+ * `createServer` import is found.
+ */
 function injectServerManifestIntoServerEntry(filePath: string, source: string): string | null {
   const scriptKind = filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const sourceFile = ts.createSourceFile(
@@ -876,6 +929,12 @@ function toImportSpecifier(root: string, relativeModulePath: string): string {
 function toProjectImportSpecifier(relativeModulePath: string): string {
   return `/${relativeModulePath}`;
 }
+
+// ── Dev Server Request Handlers ──────────────────────────────────────────────
+// Middleware functions that handle incoming requests during development. Each
+// handler converts Node.js IncomingMessage/ServerResponse to Fetch API Request/
+// Response, loads the relevant module from the RSC environment, and executes
+// the route/resource/API/document handler.
 
 type DevMiddlewareContext<TContext = unknown> = {
   request: Request;
@@ -1273,6 +1332,10 @@ export async function handleLitzApiRequest(
   }
 }
 
+// ── Request / Response Utilities ──────────────────────────────────────────────
+// Helpers for converting between Node.js IncomingMessage/ServerResponse and the
+// Fetch API Request/Response types used by route handlers.
+
 async function readRequestBuffer(request: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
 
@@ -1503,6 +1566,8 @@ function getRscEnvironment(server: ViteDevServer): {
   };
 }
 
+// ── HTTP Response Helpers ────────────────────────────────────────────────────
+
 function sendLitzJson(
   response: ServerResponse,
   status: number,
@@ -1562,6 +1627,10 @@ async function writeFetchResponseToNode(
 
   response.end();
 }
+
+// ── Path & Route Matching ────────────────────────────────────────────────────
+// Helpers for matching incoming request paths against route patterns, building
+// layout chains, and extracting route parameters during development.
 
 function interpolatePath(pathPattern: string, params: Record<string, string>): string {
   return pathPattern.replace(/:([A-Za-z0-9_]+)/g, (_, key: string) => {
@@ -1681,6 +1750,13 @@ function findDevTargetRouteMatch<TEntry extends { id: string }>(
   return chain.find((entry) => entry.id === targetId);
 }
 
+/**
+ * Koa-style middleware dispatch. Recursively walks through `middleware` handlers
+ * — each receives the current context and a `next()` function. Calling `next()`
+ * invokes the next handler in the chain; the final handler calls `execute()`.
+ * A guard prevents `next()` from being called more than once per handler.
+ * Handlers can override the context for downstream middleware via `next({ context })`.
+ */
 async function runDevMiddlewareChain<TContext, TResult>(options: {
   middleware: DevMiddlewareHandler<TContext, TResult>[];
   request: Request;
@@ -1722,6 +1798,11 @@ async function runDevMiddlewareChain<TContext, TResult>(options: {
 
   return dispatch(0, options.context);
 }
+
+// ── Production Build & Finalization ──────────────────────────────────────────
+// Post-build steps: generate the production index.html with hashed asset paths,
+// finalize the RSC server bundle into a single deployable index.js, and clean
+// up intermediate artifacts produced by the RSC plugin.
 
 type BuildManifestEntry = {
   file: string;
@@ -1782,6 +1863,17 @@ async function removeLegacyBuildArtifacts(outputRootDir: string): Promise<void> 
   await rm(path.join(outputRootDir, "index.html"), { force: true });
 }
 
+/**
+ * Post-build finalization pipeline:
+ * 1. Read the single-file RSC bundle (`index.js`) and assets manifest
+ * 2. Inline the manifest by replacing its import with the manifest source
+ * 3. Wrap in a server module (or an inline-asset wrapper if `embedAssets`)
+ * 4. Write the final `index.js` and clean up RSC plugin artifacts
+ *
+ * Returns `false` if the manifest import replacement doesn't match — this
+ * signals that the RSC plugin hasn't written its artifacts yet, and the
+ * caller should retry (see the `closeBundle` hook).
+ */
 function finalizeServerArtifacts(
   serverOutDir: string,
   clientOutDir: string,
@@ -1842,6 +1934,19 @@ function createServerModuleWrapper(serverModuleSource: string): string {
   return [source, "", `export default ${handlerName};`, ""].join("\n");
 }
 
+/**
+ * Strips the default export from the bundled RSC server module and rebinds it
+ * to `__litzjsServerHandler` so the wrapper can re-export it. Uses the
+ * TypeScript compiler API to handle four export patterns:
+ *
+ * 1. Named export lists — `export { handler as default }` → extract the binding
+ * 2. Export assignments — `export default expr` → `const __litzjsServerHandler = expr`
+ * 3. Default function declarations — strip modifiers, keep name, set binding
+ * 4. Default class declarations — same treatment as functions
+ *
+ * If no handler was directly declared (pattern 1), a final `const` binding is
+ * appended from the recorded default expression.
+ */
 export function transformServerModuleSource(serverModuleSource: string): {
   source: string;
   handlerName: string;
@@ -2047,6 +2152,13 @@ export function transformServerModuleSource(serverModuleSource: string): {
   };
 }
 
+/**
+ * Generates a self-contained server module for edge runtimes. Embeds all client
+ * assets (JS, CSS, images, fonts) and the document HTML as data literals. The
+ * generated `handle(request)` function serves static assets directly, returns
+ * `index.html` for document requests, and delegates everything else to the RSC
+ * server handler.
+ */
 function createInlineAssetServerWrapper(
   serverModuleSource: string,
   documentHtml: string,
@@ -2129,6 +2241,11 @@ function createInlineAssetServerWrapper(
     "",
   ].join("\n");
 }
+
+// ── Asset Embedding ──────────────────────────────────────────────────────────
+// When `embedAssets` is enabled, these helpers collect all client build artifacts
+// (JS, CSS, images, fonts) and encode them into the server bundle so that it can
+// serve static assets without a separate file server — useful for edge runtimes.
 
 type EmbeddedClientAsset = {
   path: string;
