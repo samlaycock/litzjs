@@ -176,26 +176,27 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
         config.environments.rsc?.build.outDir || path.join("dist", "server"),
       );
 
-      // The server build pipeline requires a single-file RSC output. If
-      // code-splitting is enabled the finalization step will produce a broken
-      // bundle, so we catch the misconfiguration early.
-      const rscOutput = config.environments.rsc?.build.rollupOptions?.output;
-      const rscOutputs = Array.isArray(rscOutput) ? rscOutput : rscOutput ? [rscOutput] : [];
+      // Only validate the RSC output config during production builds — these
+      // rollupOptions are irrelevant in dev mode where no bundling occurs.
+      if (config.command === "build") {
+        const rscOutput = config.environments.rsc?.build.rollupOptions?.output;
+        const rscOutputs = Array.isArray(rscOutput) ? rscOutput : rscOutput ? [rscOutput] : [];
 
-      if (rscOutputs.length === 0) {
-        throw new Error(
-          "litz: could not find a rollupOptions.output entry for the RSC environment. " +
-            "This is an internal configuration error.",
-        );
-      }
-
-      for (const output of rscOutputs) {
-        if (output.codeSplitting !== false) {
+        if (rscOutputs.length === 0) {
           throw new Error(
-            "litz: the RSC environment must have codeSplitting disabled " +
-              "(rollupOptions.output.codeSplitting: false). " +
-              "The server build pipeline requires a single entry file.",
+            "litz: could not find a rollupOptions.output entry for the RSC environment. " +
+              "This is an internal configuration error.",
           );
+        }
+
+        for (const output of rscOutputs) {
+          if (output.codeSplitting !== false) {
+            throw new Error(
+              "litz: the RSC environment must have codeSplitting disabled " +
+                "(rollupOptions.output.codeSplitting: false). " +
+                "The server build pipeline requires a single entry file.",
+            );
+          }
         }
       }
 
@@ -1964,9 +1965,15 @@ function finalizeServerArtifacts(
     return false;
   }
 
-  const wrapperSource = inlineClientAssets
-    ? createInlineAssetServerWrapper(inlinedServerSource, documentHtml, clientAssets)
-    : createServerModuleWrapper(inlinedServerSource);
+  let wrapperSource: string;
+
+  try {
+    wrapperSource = inlineClientAssets
+      ? createInlineAssetServerWrapper(inlinedServerSource, documentHtml, clientAssets)
+      : createServerModuleWrapper(inlinedServerSource);
+  } catch {
+    return false;
+  }
 
   writeFileSync(path.join(serverOutDir, "index.js"), wrapperSource, "utf8");
   cleanupRscPluginArtifacts(serverOutDir);
