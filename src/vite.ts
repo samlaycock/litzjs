@@ -319,11 +319,14 @@ export async function renderView(node, metadata = {}) {
 
       let debounceTimer: ReturnType<typeof setTimeout> | null = null;
       let pendingFullDiscovery = false;
+      let manifestGeneration = 0;
+      const pendingRetry = new Set<string>();
       const inFlightSingleFile = new Set<string>();
 
       const flushManifestRefresh = async () => {
         if (pendingFullDiscovery) {
           pendingFullDiscovery = false;
+          manifestGeneration++;
 
           const next = await discoverAllManifests(
             root,
@@ -364,96 +367,91 @@ export async function renderView(node, metadata = {}) {
 
         debounceTimer = setTimeout(() => {
           debounceTimer = null;
-          void flushManifestRefresh();
+          void flushManifestRefresh().catch((err) => {
+            console.error("[litzjs] error during manifest discovery:", err);
+          });
         }, 50);
       };
 
-      const refreshSingleFile = async (file: string) => {
-        if (pendingFullDiscovery) {
-          return;
+      const updateManifestEntry = <T extends { modulePath: string }>(
+        manifest: T[],
+        entry: T | null,
+        file: string,
+        sort?: (items: T[]) => T[],
+      ): { manifest: T[]; changed: boolean } => {
+        const modulePath = normalizeRelativePath(root, file);
+        const idx = manifest.findIndex((r) => r.modulePath === modulePath);
+
+        if (entry && idx >= 0) {
+          if (JSON.stringify(manifest[idx]) !== JSON.stringify(entry)) {
+            manifest[idx] = entry;
+
+            return { manifest: sort ? sort(manifest) : manifest, changed: true };
+          }
+        } else if (entry && idx < 0) {
+          const next = [...manifest, entry];
+
+          return { manifest: sort ? sort(next) : next, changed: true };
+        } else if (!entry && idx >= 0) {
+          return { manifest: manifest.filter((_, i) => i !== idx), changed: true };
         }
 
+        return { manifest, changed: false };
+      };
+
+      const refreshSingleFile = async (file: string) => {
+        const generation = manifestGeneration;
         const relativePath = path.relative(root, file);
         let changed = false;
 
         if (isRouteCandidate(relativePath)) {
           const entry = await discoverRouteFromFile(root, file);
-          const idx = routeManifest.findIndex(
-            (r) => r.modulePath === normalizeRelativePath(root, file),
-          );
 
-          if (entry && idx >= 0) {
-            if (JSON.stringify(routeManifest[idx]) !== JSON.stringify(entry)) {
-              routeManifest[idx] = entry;
-              routeManifest = sortByPathSpecificity(routeManifest);
-              changed = true;
-            }
-          } else if (entry && idx < 0) {
-            routeManifest = sortByPathSpecificity([...routeManifest, entry]);
-            changed = true;
-          } else if (!entry && idx >= 0) {
-            routeManifest = routeManifest.filter((_, i) => i !== idx);
-            changed = true;
+          if (manifestGeneration !== generation) {
+            return;
           }
+
+          const result = updateManifestEntry(routeManifest, entry, file, sortByPathSpecificity);
+
+          routeManifest = result.manifest;
+          changed = changed || result.changed;
 
           const layoutEntry = await discoverLayoutFromFile(root, file);
-          const layoutIdx = layoutManifest.findIndex(
-            (l) => l.modulePath === normalizeRelativePath(root, file),
-          );
 
-          if (layoutEntry && layoutIdx >= 0) {
-            if (JSON.stringify(layoutManifest[layoutIdx]) !== JSON.stringify(layoutEntry)) {
-              layoutManifest[layoutIdx] = layoutEntry;
-              changed = true;
-            }
-          } else if (layoutEntry && layoutIdx < 0) {
-            layoutManifest = [...layoutManifest, layoutEntry];
-            changed = true;
-          } else if (!layoutEntry && layoutIdx >= 0) {
-            layoutManifest = layoutManifest.filter((_, i) => i !== layoutIdx);
-            changed = true;
+          if (manifestGeneration !== generation) {
+            return;
           }
+
+          const layoutResult = updateManifestEntry(layoutManifest, layoutEntry, file);
+
+          layoutManifest = layoutResult.manifest;
+          changed = changed || layoutResult.changed;
         }
 
         if (isResourceCandidate(relativePath)) {
           const entry = await discoverResourceFromFile(root, file);
-          const idx = resourceManifest.findIndex(
-            (r) => r.modulePath === normalizeRelativePath(root, file),
-          );
 
-          if (entry && idx >= 0) {
-            if (JSON.stringify(resourceManifest[idx]) !== JSON.stringify(entry)) {
-              resourceManifest[idx] = entry;
-              changed = true;
-            }
-          } else if (entry && idx < 0) {
-            resourceManifest = [...resourceManifest, entry];
-            changed = true;
-          } else if (!entry && idx >= 0) {
-            resourceManifest = resourceManifest.filter((_, i) => i !== idx);
-            changed = true;
+          if (manifestGeneration !== generation) {
+            return;
           }
+
+          const result = updateManifestEntry(resourceManifest, entry, file);
+
+          resourceManifest = result.manifest;
+          changed = changed || result.changed;
         }
 
         if (isApiCandidate(relativePath)) {
           const entry = await discoverApiRouteFromFile(root, file);
-          const idx = apiManifest.findIndex(
-            (r) => r.modulePath === normalizeRelativePath(root, file),
-          );
 
-          if (entry && idx >= 0) {
-            if (JSON.stringify(apiManifest[idx]) !== JSON.stringify(entry)) {
-              apiManifest[idx] = entry;
-              apiManifest = sortByPathSpecificity(apiManifest);
-              changed = true;
-            }
-          } else if (entry && idx < 0) {
-            apiManifest = sortByPathSpecificity([...apiManifest, entry]);
-            changed = true;
-          } else if (!entry && idx >= 0) {
-            apiManifest = apiManifest.filter((_, i) => i !== idx);
-            changed = true;
+          if (manifestGeneration !== generation) {
+            return;
           }
+
+          const result = updateManifestEntry(apiManifest, entry, file, sortByPathSpecificity);
+
+          apiManifest = result.manifest;
+          changed = changed || result.changed;
         }
 
         if (changed) {
@@ -468,6 +466,24 @@ export async function renderView(node, metadata = {}) {
           invalidateVirtualModule(server, RESOLVED_RESOURCE_MANIFEST_ID);
           server.ws.send({ type: "full-reload" });
         }
+      };
+
+      const runSingleFileRefresh = (file: string) => {
+        inFlightSingleFile.add(file);
+        void refreshSingleFile(file)
+          .catch((err: NodeJS.ErrnoException) => {
+            if (err?.code !== "ENOENT") {
+              console.error("[litzjs] error refreshing file manifest:", err);
+            }
+          })
+          .finally(() => {
+            inFlightSingleFile.delete(file);
+
+            if (pendingRetry.has(file)) {
+              pendingRetry.delete(file);
+              runSingleFileRefresh(file);
+            }
+          });
       };
 
       const onFileAddOrUnlink = (file: string) => {
@@ -497,17 +513,12 @@ export async function renderView(node, metadata = {}) {
         }
 
         if (inFlightSingleFile.has(file)) {
+          pendingRetry.add(file);
+
           return;
         }
 
-        inFlightSingleFile.add(file);
-        void refreshSingleFile(file)
-          .catch((err: NodeJS.ErrnoException) => {
-            if (err?.code !== "ENOENT") {
-              console.error("[litzjs] error refreshing file manifest:", err);
-            }
-          })
-          .finally(() => inFlightSingleFile.delete(file));
+        runSingleFileRefresh(file);
       };
 
       server.watcher.on("add", onFileAddOrUnlink);
