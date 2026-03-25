@@ -92,6 +92,7 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
   let resourceManifest: DiscoveredResource[] = [];
   let apiManifest: DiscoveredApiRoute[] = [];
   let clientProjectedFiles = new Set<string>();
+  let hasWrittenProductionHtml = false;
   let hasFinalizedServerArtifacts = false;
   let hasRegisteredExitFinalizer = false;
   const routePatterns = options.routes ?? [
@@ -405,10 +406,13 @@ export async function renderView(node, metadata = {}) {
     // `process.once("exit")` fallback to catch the case where the manifest
     // wasn't ready during earlier calls. Guard flags prevent duplicate work.
     async closeBundle() {
-      await Promise.all([
-        writeProductionIndexHtml(root, clientOutDir),
-        removeLegacyBuildArtifacts(outputRootDir),
-      ]);
+      if (!hasWrittenProductionHtml) {
+        hasWrittenProductionHtml = true;
+        await Promise.all([
+          writeProductionIndexHtml(root, clientOutDir),
+          removeLegacyBuildArtifacts(outputRootDir),
+        ]);
+      }
 
       if (hasFinalizedServerArtifacts) {
         return;
@@ -426,6 +430,14 @@ export async function renderView(node, metadata = {}) {
             clientOutDir,
             options.embedAssets ?? false,
           );
+
+          if (!hasFinalizedServerArtifacts) {
+            console.error(
+              "litz: failed to finalize server artifacts. " +
+                "The assets manifest import could not be inlined — " +
+                "the production server bundle may be broken.",
+            );
+          }
         });
       }
 
