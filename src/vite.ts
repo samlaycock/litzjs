@@ -115,10 +115,14 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
 
     // Reset finalization state at the start of each build cycle so that
     // watch-mode rebuilds (`vite build --watch`) re-run finalization.
-    // buildStart fires per-environment, but that's harmless — closeBundle
-    // still guards against duplicate finalization within a single cycle.
+    // Scoped to the RSC environment (always first in the RSC → client → SSR
+    // build order) to avoid resetting mid-cycle — a later reset would cause
+    // re-finalization on an already-transformed index.js, which would fail
+    // and incorrectly signal a broken build.
     buildStart() {
-      hasFinalizedServerArtifacts = false;
+      if (this.environment?.name === "rsc") {
+        hasFinalizedServerArtifacts = false;
+      }
     },
 
     // Configure three Vite environments:
