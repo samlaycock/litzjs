@@ -1832,7 +1832,18 @@ function finalizeServerArtifacts(
 
   mkdirSync(serverOutDir, { recursive: true });
   writeFileSync(path.join(serverOutDir, "index.js"), bundledWrapperSource, "utf8");
+  cleanupOrphanedServerArtifacts(serverOutDir);
   return true;
+}
+
+export function cleanupOrphanedServerArtifacts(serverOutDir: string): void {
+  rmSync(path.join(serverOutDir, "assets"), { force: true, recursive: true });
+
+  for (const entry of readdirSync(serverOutDir)) {
+    if (entry.startsWith("__vite_rsc_")) {
+      rmSync(path.join(serverOutDir, entry), { force: true });
+    }
+  }
 }
 
 function createServerModuleWrapper(serverModuleSource: string): string {
