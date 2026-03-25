@@ -1,10 +1,10 @@
+import type { RscPluginOptions } from "@vitejs/plugin-rsc";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { TLSSocket } from "node:tls";
 import type { Connect, Plugin, ViteDevServer } from "vite";
 
 import vitePluginRsc from "@vitejs/plugin-rsc";
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { glob } from "tinyglobby";
@@ -23,6 +23,7 @@ export type LitzPluginOptions = {
   resources?: string[];
   server?: string;
   embedAssets?: boolean;
+  rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
 };
 
 type DiscoveredRoute = {
@@ -86,6 +87,7 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
   const resourcePatterns = options.resources ?? ["src/routes/resources/**/*.{ts,tsx}"];
   const apiPatterns = options.api ?? ["src/routes/api/**/*.{ts,tsx}"];
   const rscPlugins = vitePluginRsc({
+    ...options.rsc,
     entries: {
       client: LITZ_BROWSER_ENTRY_ID,
       rsc: LITZ_RSC_ENTRY_ID,
@@ -110,6 +112,13 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
           rsc: {
             build: {
               outDir: path.join(baseOutDir, "server"),
+              rollupOptions: {
+                output: {
+                  entryFileNames: "index.js",
+                  format: "es",
+                  codeSplitting: false,
+                },
+              },
             },
           },
           ssr: {
@@ -1765,18 +1774,17 @@ function finalizeServerArtifacts(
   clientOutDir: string,
   inlineClientAssets: boolean,
 ): boolean {
-  const rscIndexPath = path.join(serverOutDir, "index.js");
-  const rscAssetsManifestPath = path.join(serverOutDir, "__vite_rsc_assets_manifest.js");
   let rscEntrySource: string;
   let rscAssetsManifestSource: string;
   let documentHtml = "";
   let clientAssets: EmbeddedClientAsset[] = [];
 
   try {
-    [rscEntrySource, rscAssetsManifestSource] = [
-      readFileSync(rscIndexPath, "utf8"),
-      readFileSync(rscAssetsManifestPath, "utf8"),
-    ];
+    rscEntrySource = readFileSync(path.join(serverOutDir, "index.js"), "utf8");
+    rscAssetsManifestSource = readFileSync(
+      path.join(serverOutDir, "__vite_rsc_assets_manifest.js"),
+      "utf8",
+    );
 
     if (inlineClientAssets) {
       documentHtml = readFileSync(path.join(clientOutDir, "index.html"), "utf8");
@@ -1790,57 +1798,20 @@ function finalizeServerArtifacts(
     /^export default\s+/,
     "const assetsManifest = ",
   );
-  const asyncLocalStorageShimSource = [
-    "class __LitzAsyncLocalStorage {",
-    "  run(store, callback, ...args) {",
-    "    const previousStore = this.store;",
-    "    this.store = store;",
-    "    try {",
-    "      return callback(...args);",
-    "    } finally {",
-    "      this.store = previousStore;",
-    "    }",
-    "  }",
-    "",
-    "  getStore() {",
-    "    return this.store;",
-    "  }",
-    "",
-    "  enterWith(store) {",
-    "    this.store = store;",
-    "  }",
-    "}",
-    "",
-    "globalThis.AsyncLocalStorage ??= __LitzAsyncLocalStorage;",
-  ].join("\n");
-  const inlinedServerSource = rscEntrySource
-    .replace('import assetsManifest from "./__vite_rsc_assets_manifest.js";', manifestBindingSource)
-    .replace(/import \* as __viteRscAsyncHooks from "node:async_hooks";\s*/g, "")
-    .replace(/const __viteRscAsyncHooks = require\("node:async_hooks"\);\s*/g, "")
-    .replace(
-      /globalThis\.AsyncLocalStorage = __viteRscAsyncHooks\.AsyncLocalStorage;/g,
-      asyncLocalStorageShimSource,
-    );
+  const inlinedServerSource = rscEntrySource.replace(
+    'import assetsManifest from "./__vite_rsc_assets_manifest.js";',
+    manifestBindingSource,
+  );
   const wrapperSource = inlineClientAssets
     ? createInlineAssetServerWrapper(inlinedServerSource, documentHtml, clientAssets)
     : createServerModuleWrapper(inlinedServerSource);
-  const bundledWrapperSource = bundleServerWrapper(serverOutDir, wrapperSource);
 
-  if (!bundledWrapperSource) {
-    return false;
-  }
-
-  mkdirSync(serverOutDir, { recursive: true });
-  writeFileSync(path.join(serverOutDir, "index.js"), bundledWrapperSource, "utf8");
-  cleanupOrphanedServerArtifacts(serverOutDir);
+  writeFileSync(path.join(serverOutDir, "index.js"), wrapperSource, "utf8");
+  cleanupRscPluginArtifacts(serverOutDir);
   return true;
 }
 
-export function cleanupOrphanedServerArtifacts(serverOutDir: string): void {
-  rmSync(path.join(serverOutDir, "assets"), { force: true, recursive: true });
-
-  if (!existsSync(serverOutDir)) return;
-
+function cleanupRscPluginArtifacts(serverOutDir: string): void {
   for (const entry of readdirSync(serverOutDir)) {
     if (entry.startsWith("__vite_rsc_")) {
       rmSync(path.join(serverOutDir, entry), { force: true, recursive: true });
@@ -2139,78 +2110,6 @@ function createInlineAssetServerWrapper(
     "export default { fetch: handle };",
     "",
   ].join("\n");
-}
-
-function bundleServerWrapper(serverOutDir: string, wrapperSource: string): string | null {
-  const wrapperEntryPath = path.join(serverOutDir, "__litzjs_wrapped_server_entry.mjs");
-  const bundleOutDir = path.join(serverOutDir, "__litzjs_bundle_out");
-  const bundleScript = `
-const entryPath = process.env.LITZ_SERVER_ENTRY_PATH;
-const outDir = process.env.LITZ_SERVER_OUT_DIR;
-
-if (!entryPath || !outDir) {
-  throw new Error("Missing Litz server bundle paths.");
-}
-
-(async () => {
-  const { build } = await import("vite");
-
-  await build({
-    appType: "custom",
-    configFile: false,
-    publicDir: false,
-    logLevel: "silent",
-    build: {
-      ssr: entryPath,
-      copyPublicDir: false,
-      emptyOutDir: false,
-      minify: false,
-      outDir,
-      target: "esnext",
-      write: true,
-      rollupOptions: {
-        output: {
-          entryFileNames: "index.js",
-          format: "es",
-          inlineDynamicImports: true,
-        },
-      },
-    },
-  });
-})().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
-`;
-
-  writeFileSync(wrapperEntryPath, wrapperSource, "utf8");
-  rmSync(bundleOutDir, { force: true, recursive: true });
-  mkdirSync(bundleOutDir, { recursive: true });
-
-  const result = spawnSync(process.execPath, ["-e", bundleScript], {
-    cwd: serverOutDir,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      LITZ_SERVER_ENTRY_PATH: wrapperEntryPath,
-      LITZ_SERVER_OUT_DIR: bundleOutDir,
-    },
-  });
-
-  try {
-    if (result.status !== 0) {
-      const stderr = result.stderr.trim();
-      const stdout = result.stdout.trim();
-      const failureMessage = stderr || stdout || "Failed to bundle the production Litz server.";
-
-      throw new Error(failureMessage);
-    }
-
-    return readFileSync(path.join(bundleOutDir, "index.js"), "utf8");
-  } finally {
-    rmSync(wrapperEntryPath, { force: true });
-    rmSync(bundleOutDir, { force: true, recursive: true });
-  }
 }
 
 type EmbeddedClientAsset = {

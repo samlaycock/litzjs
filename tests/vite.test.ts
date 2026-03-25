@@ -2,13 +2,12 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ViteDevServer } from "vite";
 
 import { describe, expect, mock, test } from "bun:test";
-import { existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 
 import {
-  cleanupOrphanedServerArtifacts,
   discoverServerEntry,
   handleLitzApiRequest,
   handleLitzResourceRequest,
@@ -67,54 +66,6 @@ export default createServer({ helper });
     expect(transformed.source).toContain("const __litzjsServerHandler = createServer({ helper });");
     expect(transformed.source).not.toContain("export default createServer");
     expect(transformed.handlerName).toBe("__litzjsServerHandler");
-  });
-
-  test("removes orphaned RSC build artifacts from the server output directory", () => {
-    const serverOutDir = mkdtempSync(path.join(tmpdir(), "litz-server-cleanup-"));
-
-    try {
-      writeFileSync(path.join(serverOutDir, "index.js"), "export default handler;\n", "utf8");
-      mkdirSync(path.join(serverOutDir, "assets"), { recursive: true });
-      writeFileSync(path.join(serverOutDir, "assets", "rsc-abc123.js"), "// rsc chunk\n", "utf8");
-      writeFileSync(
-        path.join(serverOutDir, "assets", "browser-def456.js"),
-        "// browser chunk\n",
-        "utf8",
-      );
-      writeFileSync(
-        path.join(serverOutDir, "assets", "shared-ghi789.js"),
-        "// shared chunk\n",
-        "utf8",
-      );
-      writeFileSync(
-        path.join(serverOutDir, "__vite_rsc_assets_manifest.js"),
-        "export default {};\n",
-        "utf8",
-      );
-      writeFileSync(
-        path.join(serverOutDir, "__vite_rsc_encryption_key.js"),
-        "export default '';\n",
-        "utf8",
-      );
-      writeFileSync(
-        path.join(serverOutDir, "__vite_rsc_env_imports_entry_fallback.js"),
-        "// fallback\n",
-        "utf8",
-      );
-
-      cleanupOrphanedServerArtifacts(serverOutDir);
-
-      const remaining = readdirSync(serverOutDir).sort();
-      expect(remaining).toEqual(["index.js"]);
-      expect(existsSync(path.join(serverOutDir, "assets"))).toBe(false);
-      expect(existsSync(path.join(serverOutDir, "__vite_rsc_assets_manifest.js"))).toBe(false);
-      expect(existsSync(path.join(serverOutDir, "__vite_rsc_encryption_key.js"))).toBe(false);
-      expect(existsSync(path.join(serverOutDir, "__vite_rsc_env_imports_entry_fallback.js"))).toBe(
-        false,
-      );
-    } finally {
-      rmSync(serverOutDir, { force: true, recursive: true });
-    }
   });
 });
 
