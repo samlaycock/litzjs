@@ -167,6 +167,14 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
       // bundle, so we catch the misconfiguration early.
       const rscOutput = config.environments.rsc?.build.rollupOptions?.output;
       const rscOutputs = Array.isArray(rscOutput) ? rscOutput : rscOutput ? [rscOutput] : [];
+
+      if (rscOutputs.length === 0) {
+        throw new Error(
+          "litz: could not find a rollupOptions.output entry for the RSC environment. " +
+            "This is an internal configuration error.",
+        );
+      }
+
       for (const output of rscOutputs) {
         if (output.codeSplitting !== false) {
           throw new Error(
