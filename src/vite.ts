@@ -369,6 +369,10 @@ export async function renderView(node, metadata = {}) {
       };
 
       const refreshSingleFile = async (file: string) => {
+        if (pendingFullDiscovery) {
+          return;
+        }
+
         const relativePath = path.relative(root, file);
         let changed = false;
 
@@ -497,7 +501,13 @@ export async function renderView(node, metadata = {}) {
         }
 
         inFlightSingleFile.add(file);
-        void refreshSingleFile(file).finally(() => inFlightSingleFile.delete(file));
+        void refreshSingleFile(file)
+          .catch((err: NodeJS.ErrnoException) => {
+            if (err?.code !== "ENOENT") {
+              console.error("[litzjs] error refreshing file manifest:", err);
+            }
+          })
+          .finally(() => inFlightSingleFile.delete(file));
       };
 
       server.watcher.on("add", onFileAddOrUnlink);
