@@ -92,6 +92,7 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
   let resourceManifest: DiscoveredResource[] = [];
   let apiManifest: DiscoveredApiRoute[] = [];
   let clientProjectedFiles = new Set<string>();
+  let closeBundlePassCount = 0;
   let hasFinalizedServerArtifacts = false;
   let hasRegisteredExitFinalizer = false;
   const routePatterns = options.routes ?? [
@@ -121,6 +122,7 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
     // and incorrectly signal a broken build.
     buildStart() {
       if (this.environment?.name === "rsc") {
+        closeBundlePassCount = 0;
         hasFinalizedServerArtifacts = false;
       }
     },
@@ -417,6 +419,8 @@ export async function renderView(node, metadata = {}) {
     // `process.once("exit")` fallback to catch the case where the manifest
     // wasn't ready during earlier calls. Guard flags prevent duplicate work.
     async closeBundle() {
+      closeBundlePassCount++;
+
       // These are intentionally called on every environment pass. We don't know
       // which pass has the client output ready (build order is RSC → client →
       // SSR), and both functions are designed to be idempotent — they return
@@ -454,10 +458,20 @@ export async function renderView(node, metadata = {}) {
         });
       }
 
+      // When embedAssets is enabled, skip finalization on the first pass (RSC
+      // environment) because the client hasn't rebuilt yet — embedding at this
+      // point would capture stale assets from the previous build cycle. The
+      // client and SSR passes (or the exit handler) will finalize with fresh
+      // client output.
+      const inlineClientAssets = options.embedAssets ?? false;
+      if (inlineClientAssets && closeBundlePassCount <= 1) {
+        return;
+      }
+
       hasFinalizedServerArtifacts = finalizeServerArtifacts(
         serverOutDir,
         clientOutDir,
-        options.embedAssets ?? false,
+        inlineClientAssets,
       );
     },
   };
