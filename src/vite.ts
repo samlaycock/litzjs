@@ -440,6 +440,7 @@ export async function renderView(node, metadata = {}) {
           );
 
           if (!hasFinalizedServerArtifacts) {
+            process.exitCode = 1;
             console.error(
               "litz: failed to finalize server artifacts. " +
                 "The assets manifest import could not be inlined — " +
