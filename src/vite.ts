@@ -113,6 +113,14 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
   const litzPlugin: Plugin = {
     name: "litzjs/vite",
 
+    // Reset finalization state at the start of each build cycle so that
+    // watch-mode rebuilds (`vite build --watch`) re-run finalization.
+    // buildStart fires per-environment, but that's harmless — closeBundle
+    // still guards against duplicate finalization within a single cycle.
+    buildStart() {
+      hasFinalizedServerArtifacts = false;
+    },
+
     // Configure three Vite environments:
     //  - client: SPA output (dist/client)
     //  - rsc: React Server Components, single-file output via codeSplitting: false (dist/server)
