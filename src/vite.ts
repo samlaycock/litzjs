@@ -1802,6 +1802,11 @@ function finalizeServerArtifacts(
     'import assetsManifest from "./__vite_rsc_assets_manifest.js";',
     manifestBindingSource,
   );
+
+  if (inlinedServerSource === rscEntrySource) {
+    return false;
+  }
+
   const wrapperSource = inlineClientAssets
     ? createInlineAssetServerWrapper(inlinedServerSource, documentHtml, clientAssets)
     : createServerModuleWrapper(inlinedServerSource);
@@ -1811,7 +1816,7 @@ function finalizeServerArtifacts(
   return true;
 }
 
-function cleanupRscPluginArtifacts(serverOutDir: string): void {
+export function cleanupRscPluginArtifacts(serverOutDir: string): void {
   for (const entry of readdirSync(serverOutDir)) {
     if (entry.startsWith("__vite_rsc_")) {
       rmSync(path.join(serverOutDir, entry), { force: true, recursive: true });

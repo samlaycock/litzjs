@@ -2,12 +2,13 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ViteDevServer } from "vite";
 
 import { describe, expect, mock, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 
 import {
+  cleanupRscPluginArtifacts,
   discoverServerEntry,
   handleLitzApiRequest,
   handleLitzResourceRequest,
@@ -66,6 +67,38 @@ export default createServer({ helper });
     expect(transformed.source).toContain("const __litzjsServerHandler = createServer({ helper });");
     expect(transformed.source).not.toContain("export default createServer");
     expect(transformed.handlerName).toBe("__litzjsServerHandler");
+  });
+
+  test("removes __vite_rsc_ files but preserves other entries", () => {
+    const serverOutDir = mkdtempSync(path.join(tmpdir(), "litz-server-cleanup-"));
+
+    try {
+      writeFileSync(path.join(serverOutDir, "index.js"), "export default handler;\n", "utf8");
+      writeFileSync(
+        path.join(serverOutDir, "__vite_rsc_assets_manifest.js"),
+        "export default {};\n",
+        "utf8",
+      );
+      writeFileSync(
+        path.join(serverOutDir, "__vite_rsc_encryption_key.js"),
+        "export default '';\n",
+        "utf8",
+      );
+      writeFileSync(
+        path.join(serverOutDir, "__vite_rsc_env_imports_entry_fallback.js"),
+        "// fallback\n",
+        "utf8",
+      );
+
+      cleanupRscPluginArtifacts(serverOutDir);
+
+      const remaining = readdirSync(serverOutDir).sort();
+      expect(remaining).toEqual(["index.js"]);
+      expect(existsSync(path.join(serverOutDir, "__vite_rsc_assets_manifest.js"))).toBe(false);
+      expect(existsSync(path.join(serverOutDir, "__vite_rsc_encryption_key.js"))).toBe(false);
+    } finally {
+      rmSync(serverOutDir, { force: true, recursive: true });
+    }
   });
 });
 
