@@ -311,14 +311,15 @@ export async function renderView(node, metadata = {}) {
     // when the manifests actually differ (JSON comparison). Registers middleware
     // in order: resources → routes → API → document.
     configureServer(server) {
-      const allPatterns = [...routePatterns, ...resourcePatterns, ...apiPatterns];
-      const isManifestCandidate = picomatch(allPatterns, { cwd: root });
-      const isRouteCandidate = picomatch(routePatterns, { cwd: root });
-      const isResourceCandidate = picomatch(resourcePatterns, { cwd: root });
-      const isApiCandidate = picomatch(apiPatterns, { cwd: root });
+      const isRouteCandidate = picomatch(routePatterns);
+      const isResourceCandidate = picomatch(resourcePatterns);
+      const isApiCandidate = picomatch(apiPatterns);
+      const isManifestCandidate = (p: string) =>
+        isRouteCandidate(p) || isResourceCandidate(p) || isApiCandidate(p);
 
       let debounceTimer: ReturnType<typeof setTimeout> | null = null;
       let pendingFullDiscovery = false;
+      const inFlightSingleFile = new Set<string>();
 
       const flushManifestRefresh = async () => {
         if (pendingFullDiscovery) {
@@ -491,7 +492,12 @@ export async function renderView(node, metadata = {}) {
           return;
         }
 
-        void refreshSingleFile(file);
+        if (inFlightSingleFile.has(file)) {
+          return;
+        }
+
+        inFlightSingleFile.add(file);
+        void refreshSingleFile(file).finally(() => inFlightSingleFile.delete(file));
       };
 
       server.watcher.on("add", onFileAddOrUnlink);
