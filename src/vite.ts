@@ -142,6 +142,19 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
         root,
         config.environments.rsc?.build.outDir || path.join("dist", "server"),
       );
+
+      // The server build pipeline requires a single-file RSC output. If
+      // code-splitting is enabled the finalization step will produce a broken
+      // bundle, so we catch the misconfiguration early.
+      const rscOutput = config.environments.rsc?.build.rollupOptions?.output;
+      if (rscOutput && !Array.isArray(rscOutput) && rscOutput.codeSplitting !== false) {
+        throw new Error(
+          "litz: the RSC environment must have codeSplitting disabled " +
+            "(rollupOptions.output.codeSplitting: false). " +
+            "The server build pipeline requires a single entry file.",
+        );
+      }
+
       browserEntryPath = await discoverBrowserEntry(root);
       serverEntryPath = await discoverServerEntry(root, options.server);
       serverEntryFilePath = serverEntryPath ? path.resolve(root, serverEntryPath) : null;
