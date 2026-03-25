@@ -104,7 +104,7 @@ export default createServer({ helper });
 
       cleanupOrphanedServerArtifacts(serverOutDir);
 
-      const remaining = readdirSync(serverOutDir);
+      const remaining = readdirSync(serverOutDir).sort();
       expect(remaining).toEqual(["index.js"]);
       expect(existsSync(path.join(serverOutDir, "assets"))).toBe(false);
       expect(existsSync(path.join(serverOutDir, "__vite_rsc_assets_manifest.js"))).toBe(false);

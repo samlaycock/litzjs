@@ -1841,7 +1841,7 @@ export function cleanupOrphanedServerArtifacts(serverOutDir: string): void {
 
   for (const entry of readdirSync(serverOutDir)) {
     if (entry.startsWith("__vite_rsc_")) {
-      rmSync(path.join(serverOutDir, entry), { force: true });
+      rmSync(path.join(serverOutDir, entry), { force: true, recursive: true });
     }
   }
 }
