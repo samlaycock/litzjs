@@ -92,7 +92,6 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
   let resourceManifest: DiscoveredResource[] = [];
   let apiManifest: DiscoveredApiRoute[] = [];
   let clientProjectedFiles = new Set<string>();
-  let hasWrittenProductionHtml = false;
   let hasFinalizedServerArtifacts = false;
   let hasRegisteredExitFinalizer = false;
   const routePatterns = options.routes ?? [
@@ -406,13 +405,14 @@ export async function renderView(node, metadata = {}) {
     // `process.once("exit")` fallback to catch the case where the manifest
     // wasn't ready during earlier calls. Guard flags prevent duplicate work.
     async closeBundle() {
-      if (!hasWrittenProductionHtml) {
-        hasWrittenProductionHtml = true;
-        await Promise.all([
-          writeProductionIndexHtml(root, clientOutDir),
-          removeLegacyBuildArtifacts(outputRootDir),
-        ]);
-      }
+      // These are intentionally called on every environment pass. We don't know
+      // which pass has the client output ready (build order is RSC → client →
+      // SSR), and both functions are designed to be idempotent — they return
+      // early when their inputs (manifest, index.html) don't exist yet.
+      await Promise.all([
+        writeProductionIndexHtml(root, clientOutDir),
+        removeLegacyBuildArtifacts(outputRootDir),
+      ]);
 
       if (hasFinalizedServerArtifacts) {
         return;
