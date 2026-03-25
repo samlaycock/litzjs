@@ -4,7 +4,7 @@ import type { Connect, Plugin, ViteDevServer } from "vite";
 
 import vitePluginRsc from "@vitejs/plugin-rsc";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { glob } from "tinyglobby";
@@ -1838,6 +1838,8 @@ function finalizeServerArtifacts(
 
 export function cleanupOrphanedServerArtifacts(serverOutDir: string): void {
   rmSync(path.join(serverOutDir, "assets"), { force: true, recursive: true });
+
+  if (!existsSync(serverOutDir)) return;
 
   for (const entry of readdirSync(serverOutDir)) {
     if (entry.startsWith("__vite_rsc_")) {
