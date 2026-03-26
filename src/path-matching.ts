@@ -13,6 +13,12 @@ function isWildcardSegment(segment: string): boolean {
   return segment.startsWith("*");
 }
 
+export function hasPatternSegments(path: string): boolean {
+  return trimPathSegments(path).some(
+    (segment) => segment.startsWith(":") || isWildcardSegment(segment),
+  );
+}
+
 function getWildcardParamName(segment: string): string | null {
   if (segment === "*") {
     return null;

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   extractRouteLikeParams,
+  hasPatternSegments,
   matchPathname,
   matchPrefixPathname,
   sortByPathSpecificity,
@@ -17,6 +18,12 @@ describe("path matching", () => {
     expect(extractRouteLikeParams("/teams/:teamId", "/teams/core/settings")).toEqual({
       teamId: "core",
     });
+  });
+
+  test("detects parameterized and wildcard path patterns", () => {
+    expect(hasPatternSegments("/users/:id")).toBe(true);
+    expect(hasPatternSegments("/docs/*slug")).toBe(true);
+    expect(hasPatternSegments("/docs/getting-started")).toBe(false);
   });
 
   test("sorts static routes ahead of dynamic routes", () => {
