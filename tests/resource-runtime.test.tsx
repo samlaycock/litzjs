@@ -58,6 +58,44 @@ const accountResource = defineResource("/resource/account/:id", {
   action: server(async ({ params }) => data({ id: params.id, count: 2 })),
 });
 
+const overlapResource = defineResource("/resource/overlap/:id", {
+  component: function OverlapResource() {
+    const details = overlapResource.useData() as { id: string; count: number } | null;
+    const pending = overlapResource.usePending();
+    const reload = overlapResource.useReload();
+    const submit = overlapResource.useSubmit();
+    const actionResult = overlapResource.useActionResult();
+    const [submitState, setSubmitState] = React.useState("idle");
+
+    return (
+      <section>
+        <div className="overlap-count" data-value={details?.count ?? -1} />
+        <div className="overlap-pending" data-value={pending ? "yes" : "no"} />
+        <div className="overlap-submit-state" data-value={submitState} />
+        <div className="overlap-action-kind" data-value={actionResult?.kind ?? "(none)"} />
+        <button type="button" className="overlap-reload" onClick={() => reload()}>
+          Reload
+        </button>
+        <button
+          type="button"
+          className="overlap-submit"
+          onClick={() => {
+            setSubmitState("pending");
+            void submit({ increment: "1" }).then(
+              () => setSubmitState("resolved"),
+              () => setSubmitState("rejected"),
+            );
+          }}
+        >
+          Submit
+        </button>
+      </section>
+    );
+  },
+  loader: server(async ({ params }) => data({ id: params.id, count: 1 })),
+  action: server(async ({ params }) => data({ id: params.id, count: 2 })),
+});
+
 function ResourceStatusFields(): React.ReactElement {
   const status = useFormStatus();
   const increment = status.data?.get("increment");
@@ -299,5 +337,105 @@ describe("resource runtime", () => {
       { tag: ["framework", "bun"] },
       { tag: "bun" },
     ]);
+  });
+
+  test("keeps action submits distinct from a pending loader refresh for the same resource", async () => {
+    const loaderRefreshDeferred = createDeferred<Response>();
+    const actionDeferred = createDeferred<Response>();
+    let loaderCalls = 0;
+    let actionCalls = 0;
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      const metadata = headers.get("x-litzjs-request");
+
+      if (metadata) {
+        actionCalls += 1;
+        return actionDeferred.promise;
+      }
+
+      loaderCalls += 1;
+
+      if (loaderCalls === 1) {
+        return Response.json({
+          kind: "data",
+          data: { id: "user-004", count: 1 },
+        });
+      }
+
+      return loaderRefreshDeferred.promise;
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<overlapResource.Component params={{ id: "user-004" }} />);
+      await flushDom();
+    });
+
+    const reloadButton = document.querySelector(".overlap-reload");
+    const submitButton = document.querySelector(".overlap-submit");
+
+    expect(loaderCalls).toBe(1);
+    expect(actionCalls).toBe(0);
+    expect(document.querySelector(".overlap-count")?.getAttribute("data-value")).toBe("1");
+
+    act(() => {
+      (reloadButton as HTMLButtonElement).click();
+    });
+    await flushDom();
+
+    expect(loaderCalls).toBe(2);
+    expect(document.querySelector(".overlap-pending")?.getAttribute("data-value")).toBe("yes");
+    expect(document.querySelector(".overlap-submit-state")?.getAttribute("data-value")).toBe(
+      "idle",
+    );
+
+    act(() => {
+      (submitButton as HTMLButtonElement).click();
+    });
+    await flushDom();
+
+    expect(actionCalls).toBe(1);
+    expect(document.querySelector(".overlap-pending")?.getAttribute("data-value")).toBe("yes");
+    expect(document.querySelector(".overlap-submit-state")?.getAttribute("data-value")).toBe(
+      "pending",
+    );
+
+    loaderRefreshDeferred.resolve(
+      Response.json({
+        kind: "data",
+        data: { id: "user-004", count: 3 },
+      }),
+    );
+
+    await act(async () => {
+      await flushDom();
+    });
+
+    expect(document.querySelector(".overlap-count")?.getAttribute("data-value")).toBe("3");
+    expect(document.querySelector(".overlap-pending")?.getAttribute("data-value")).toBe("yes");
+    expect(document.querySelector(".overlap-submit-state")?.getAttribute("data-value")).toBe(
+      "pending",
+    );
+    expect(document.querySelector(".overlap-action-kind")?.getAttribute("data-value")).toBe(
+      "(none)",
+    );
+
+    actionDeferred.resolve(
+      Response.json({
+        kind: "data",
+        data: { id: "user-004", count: 4 },
+      }),
+    );
+
+    await act(async () => {
+      await flushDom();
+    });
+
+    expect(document.querySelector(".overlap-count")?.getAttribute("data-value")).toBe("4");
+    expect(document.querySelector(".overlap-pending")?.getAttribute("data-value")).toBe("no");
+    expect(document.querySelector(".overlap-submit-state")?.getAttribute("data-value")).toBe(
+      "resolved",
+    );
+    expect(document.querySelector(".overlap-action-kind")?.getAttribute("data-value")).toBe("data");
   });
 });

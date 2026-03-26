@@ -81,7 +81,9 @@ type ResourceSnapshot = {
 type ResourceStoreEntry = {
   snapshot: ResourceSnapshot;
   listeners: Set<() => void>;
-  inFlight?: Promise<NonNullable<ActionHookResult> | LoaderHookResult | void>;
+  loaderInFlight?: Promise<LoaderHookResult | void>;
+  loaderMode?: "loading" | "revalidating";
+  actionInFlightCount: number;
 };
 
 type NormalizedResourceRequest = {
@@ -454,19 +456,17 @@ async function performPreparedResourceRequest(
   const { key, normalizedRequest } = preparedRequest;
   const entry = getEntry(key);
 
-  if (entry.inFlight) {
-    return entry.inFlight;
+  if (operation === "loader" && entry.loaderInFlight) {
+    return entry.loaderInFlight;
   }
 
-  entry.snapshot = {
-    ...entry.snapshot,
-    status: mode,
-    pending: true,
-    failure: undefined,
-  };
-  notify(entry);
+  if (operation === "loader") {
+    entry.loaderMode = mode === "revalidating" ? "revalidating" : "loading";
+  } else {
+    entry.actionInFlightCount += 1;
+  }
 
-  entry.inFlight = (async () => {
+  const request = (async () => {
     try {
       const response =
         operation === "action"
@@ -508,7 +508,6 @@ async function performPreparedResourceRequest(
           data: loaderResult.kind === "data" ? loaderResult.data : null,
           view: loaderResult.kind === "view" ? loaderResult.node : null,
           status: "idle",
-          pending: false,
           failure: undefined,
         };
         return loaderResult;
@@ -521,7 +520,6 @@ async function performPreparedResourceRequest(
           ...entry.snapshot,
           actionResult,
           status: "idle",
-          pending: false,
           failure: undefined,
         };
         performClientRedirect(actionResult.location, actionResult.replace);
@@ -533,7 +531,6 @@ async function performPreparedResourceRequest(
           ...entry.snapshot,
           actionResult,
           status: "error",
-          pending: false,
           failure: actionResult,
         };
         throw actionResult;
@@ -545,7 +542,6 @@ async function performPreparedResourceRequest(
         data: actionResult.kind === "data" ? actionResult.data : null,
         view: actionResult.kind === "view" ? actionResult.node : null,
         status: actionResult.kind === "error" ? "error" : "idle",
-        pending: false,
         failure: undefined,
       };
       return actionResult;
@@ -555,7 +551,6 @@ async function performPreparedResourceRequest(
         entry.snapshot = {
           ...entry.snapshot,
           status: "idle",
-          pending: false,
           failure: undefined,
         };
         return;
@@ -564,18 +559,35 @@ async function performPreparedResourceRequest(
       entry.snapshot = {
         ...entry.snapshot,
         status: isRouteLikeError(error) ? "error" : "error",
-        pending: false,
         failure: error,
       };
       throw error;
     } finally {
-      entry.inFlight = undefined;
+      if (operation === "loader") {
+        entry.loaderInFlight = undefined;
+        entry.loaderMode = undefined;
+      } else {
+        entry.actionInFlightCount -= 1;
+      }
+
+      syncEntryPendingState(entry);
       notify(entry);
       cleanupResourceEntry(key, entry);
     }
   })();
 
-  return entry.inFlight;
+  if (operation === "loader") {
+    entry.loaderInFlight = request as Promise<LoaderHookResult | void>;
+  }
+
+  entry.snapshot = {
+    ...entry.snapshot,
+    failure: undefined,
+  };
+  syncEntryPendingState(entry);
+  notify(entry);
+
+  return request;
 }
 
 function normalizeResourceRequest(request?: ResourceRequest): NormalizedResourceRequest {
@@ -639,6 +651,7 @@ function getEntry(key: string): ResourceStoreEntry {
     entry = {
       snapshot: getInitialSnapshot(),
       listeners: new Set(),
+      actionInFlightCount: 0,
     };
     resourceStore.set(key, entry);
     pruneResourceStore();
@@ -653,8 +666,34 @@ function notify(entry: ResourceStoreEntry): void {
   }
 }
 
+function getActiveEntryStatus(entry: ResourceStoreEntry): RouteStatus | null {
+  if (entry.actionInFlightCount > 0) {
+    return "submitting";
+  }
+
+  if (entry.loaderInFlight) {
+    return entry.loaderMode ?? "loading";
+  }
+
+  return null;
+}
+
+function hasActiveEntryRequests(entry: ResourceStoreEntry): boolean {
+  return getActiveEntryStatus(entry) !== null;
+}
+
+function syncEntryPendingState(entry: ResourceStoreEntry): void {
+  const activeStatus = getActiveEntryStatus(entry);
+
+  entry.snapshot = {
+    ...entry.snapshot,
+    status: activeStatus ?? entry.snapshot.status,
+    pending: activeStatus !== null,
+  };
+}
+
 function cleanupResourceEntry(key: string, entry: ResourceStoreEntry): void {
-  if (entry.listeners.size > 0 || entry.inFlight || entry.snapshot.pending) {
+  if (entry.listeners.size > 0 || hasActiveEntryRequests(entry) || entry.snapshot.pending) {
     return;
   }
 
@@ -662,12 +701,12 @@ function cleanupResourceEntry(key: string, entry: ResourceStoreEntry): void {
 }
 
 function deferredCleanupResourceEntry(key: string, entry: ResourceStoreEntry): void {
-  if (entry.listeners.size > 0 || entry.inFlight || entry.snapshot.pending) {
+  if (entry.listeners.size > 0 || hasActiveEntryRequests(entry) || entry.snapshot.pending) {
     return;
   }
 
   queueMicrotask(() => {
-    if (entry.listeners.size > 0 || entry.inFlight || entry.snapshot.pending) {
+    if (entry.listeners.size > 0 || hasActiveEntryRequests(entry) || entry.snapshot.pending) {
       return;
     }
 
