@@ -1,6 +1,11 @@
 import type { ApiRouteMethod } from "../index";
 
-import { extractRouteLikeParams, matchPathname, trimPathSegments } from "../path-matching";
+import {
+  extractRouteLikeParams,
+  interpolatePath,
+  matchPathname,
+  trimPathSegments,
+} from "../path-matching";
 import { parseInternalRequestBody, type InternalRequestBody } from "./internal-requests";
 import { createInternalHandlerHeaders } from "./request-headers";
 
@@ -640,18 +645,6 @@ function normalizeInternalRequest(
     }),
     params,
   };
-}
-
-function interpolatePath(pathPattern: string, params: Record<string, string>): string {
-  return pathPattern.replace(/:([A-Za-z0-9_]+)/g, (_, key: string) => {
-    const value = params[key];
-
-    if (value === undefined) {
-      throw new Error(`Missing required path param "${key}" for path "${pathPattern}".`);
-    }
-
-    return encodeURIComponent(value);
-  });
 }
 
 function shouldServeDocument(request: Request, pathname: string): boolean {

@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { getClientBindings } from "./client/bindings";
+import { interpolatePath } from "./path-matching";
 
 export type MiddlewareOverrides<TContext = unknown> = {
   context?: TContext;
@@ -1448,15 +1449,7 @@ function buildApiHref(
   params?: Record<string, string>,
   search?: URLSearchParams | Record<string, string>,
 ): string {
-  const pathname = pathPattern.replace(/:([A-Za-z0-9_]+)/g, (_, key: string) => {
-    const value = params?.[key];
-
-    if (value === undefined) {
-      throw new Error(`Missing required API param "${key}" for path "${pathPattern}".`);
-    }
-
-    return encodeURIComponent(value);
-  });
+  const pathname = interpolatePath(pathPattern, params ?? {}, "API");
 
   const searchParams =
     search instanceof URLSearchParams

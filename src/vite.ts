@@ -21,7 +21,12 @@ import ts from "typescript";
 import type { ApiRouteMethod } from "./index";
 
 import { createClientModuleProjection } from "./client-projection";
-import { extractRouteLikeParams, matchPathname, sortByPathSpecificity } from "./path-matching";
+import {
+  extractRouteLikeParams,
+  interpolatePath,
+  matchPathname,
+  sortByPathSpecificity,
+} from "./path-matching";
 import { parseInternalRequestBody, type InternalRequestBody } from "./server/internal-requests";
 import { createInternalHandlerHeaders } from "./server/request-headers";
 
@@ -1653,7 +1658,7 @@ function normalizeInternalResourceRequest(
   const params = requestData?.params ?? {};
   const search = new URLSearchParams(requestData?.search ?? {});
   const url = new URL(originalRequest.url);
-  url.pathname = interpolatePath(resourcePath, params);
+  url.pathname = interpolatePath(resourcePath, params, "resource");
   url.search = search.toString();
   url.hash = "";
 
@@ -1869,18 +1874,6 @@ async function writeFetchResponseToNode(
 // ── Path & Route Matching ────────────────────────────────────────────────────
 // Helpers for matching incoming request paths against route patterns, building
 // layout chains, and extracting route parameters during development.
-
-function interpolatePath(pathPattern: string, params: Record<string, string>): string {
-  return pathPattern.replace(/:([A-Za-z0-9_]+)/g, (_, key: string) => {
-    const value = params[key];
-
-    if (value === undefined) {
-      throw new Error(`Missing required resource param "${key}" for path "${pathPattern}".`);
-    }
-
-    return encodeURIComponent(value);
-  });
-}
 
 function matchPathPattern(pathPattern: string, pathname: string): boolean {
   return matchPathname(pathPattern, pathname) !== null;
