@@ -13,6 +13,14 @@ function isWildcardSegment(segment: string): boolean {
   return segment.startsWith("*");
 }
 
+function getPathParam(params: Record<string, string>, key: string): string | undefined {
+  if (!Object.hasOwn(params, key)) {
+    return undefined;
+  }
+
+  return params[key];
+}
+
 export function hasPatternSegments(path: string): boolean {
   return trimPathSegments(path).some(
     (segment) => segment.startsWith(":") || isWildcardSegment(segment),
@@ -155,7 +163,7 @@ export function interpolatePath(
   for (const segment of patternSegments) {
     if (segment.startsWith(":")) {
       const key = segment.slice(1);
-      const value = params[key];
+      const value = getPathParam(params, key);
 
       if (value === undefined) {
         throw new Error(`Missing required ${paramLabel} param "${key}" for path "${pathPattern}".`);
@@ -167,13 +175,18 @@ export function interpolatePath(
 
     if (isWildcardSegment(segment)) {
       const key = getWildcardParamName(segment);
-      const value = key ? params[key] : "";
 
-      if (key && value === undefined) {
+      if (!key) {
+        continue;
+      }
+
+      const value = getPathParam(params, key);
+
+      if (value === undefined) {
         throw new Error(`Missing required ${paramLabel} param "${key}" for path "${pathPattern}".`);
       }
 
-      pathnameSegments.push(...trimPathSegments(value ?? "").map(encodeURIComponent));
+      pathnameSegments.push(...trimPathSegments(value).map(encodeURIComponent));
       continue;
     }
 
