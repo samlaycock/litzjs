@@ -327,6 +327,7 @@ export async function renderView(node, metadata = {}) {
         if (pendingFullDiscovery) {
           pendingFullDiscovery = false;
           manifestGeneration++;
+          const generation = manifestGeneration;
 
           const next = await discoverAllManifests(
             root,
@@ -334,6 +335,11 @@ export async function renderView(node, metadata = {}) {
             resourcePatterns,
             apiPatterns,
           );
+
+          if (manifestGeneration !== generation) {
+            return;
+          }
+
           const changed =
             JSON.stringify(routeManifest) !== JSON.stringify(next.routeManifest) ||
             JSON.stringify(layoutManifest) !== JSON.stringify(next.layoutManifest) ||
@@ -384,9 +390,9 @@ export async function renderView(node, metadata = {}) {
 
         if (entry && idx >= 0) {
           if (JSON.stringify(manifest[idx]) !== JSON.stringify(entry)) {
-            manifest[idx] = entry;
+            const next = manifest.map((item, i) => (i === idx ? entry : item));
 
-            return { manifest: sort ? sort(manifest) : manifest, changed: true };
+            return { manifest: sort ? sort(next) : next, changed: true };
           }
         } else if (entry && idx < 0) {
           const next = [...manifest, entry];
@@ -400,6 +406,10 @@ export async function renderView(node, metadata = {}) {
       };
 
       const refreshSingleFile = async (file: string) => {
+        if (pendingFullDiscovery) {
+          return;
+        }
+
         const generation = manifestGeneration;
         const relativePath = path.relative(root, file);
         let changed = false;
