@@ -13,6 +13,11 @@ import type {
 
 import { createFormDataPayload } from "../form-data";
 import { createInternalActionRequestInit, LITZ_RESULT_ACCEPT } from "../internal-transport";
+import {
+  createSearchParamRecord,
+  createSearchParams,
+  type SearchParamRecord,
+} from "../search-params";
 import { applySearchParams } from "./navigation";
 import { sortRecord } from "./sort-record";
 import {
@@ -81,7 +86,7 @@ type ResourceStoreEntry = {
 
 type NormalizedResourceRequest = {
   params: Record<string, string>;
-  search: Record<string, string>;
+  search: SearchParamRecord;
 };
 
 type PreparedResourceRequest = {
@@ -307,16 +312,14 @@ export function createResourceComponent<
 function useResourceRuntime(resourcePath: string, request?: ResourceRequest): ResourceRuntimeState {
   const params = React.useMemo(() => request?.params ?? {}, [request?.params]);
   const incomingSearchKey = React.useMemo(
-    () => createUrlSearchParams(request?.search).toString(),
+    () => createSearchParams(request?.search).toString(),
     [request?.search],
   );
-  const [searchState, setSearchState] = React.useState(() =>
-    createUrlSearchParams(request?.search),
-  );
+  const [searchState, setSearchState] = React.useState(() => createSearchParams(request?.search));
 
   React.useEffect(() => {
     setSearchState((current) =>
-      current.toString() === incomingSearchKey ? current : createUrlSearchParams(request?.search),
+      current.toString() === incomingSearchKey ? current : createSearchParams(request?.search),
     );
   }, [incomingSearchKey, request?.search]);
 
@@ -575,21 +578,9 @@ async function performPreparedResourceRequest(
   return entry.inFlight;
 }
 
-function createUrlSearchParams(search?: ResourceRequest["search"]): URLSearchParams {
-  if (!search) {
-    return new URLSearchParams();
-  }
-
-  if (search instanceof URLSearchParams) {
-    return new URLSearchParams(search);
-  }
-
-  return new URLSearchParams(search);
-}
-
 function normalizeResourceRequest(request?: ResourceRequest): NormalizedResourceRequest {
   const params = request?.params ?? {};
-  const search = Object.fromEntries(createUrlSearchParams(request?.search).entries());
+  const search = createSearchParamRecord(createSearchParams(request?.search));
 
   return {
     params,

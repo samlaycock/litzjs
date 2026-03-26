@@ -2,6 +2,13 @@ import * as React from "react";
 
 import { getClientBindings } from "./client/bindings";
 import { interpolatePath } from "./path-matching";
+import {
+  createSearchParams,
+  type SearchParamRecord,
+  type SearchParamsInput,
+} from "./search-params";
+
+export type { SearchParamRecord, SearchParamValue } from "./search-params";
 
 export type MiddlewareOverrides<TContext = unknown> = {
   context?: TContext;
@@ -245,7 +252,7 @@ type PathRequestParams<TPath extends string> = string extends TPath
       };
 
 type SearchRequest = {
-  search?: URLSearchParams | Record<string, string>;
+  search?: SearchParamsInput;
 };
 
 type HasRequiredPathParams<TPath extends string> = string extends TPath
@@ -1447,14 +1454,10 @@ export function error<TData = unknown>(
 function buildApiHref(
   pathPattern: string,
   params?: Record<string, string>,
-  search?: URLSearchParams | Record<string, string>,
+  search?: SearchParamsInput,
 ): string {
   const pathname = interpolatePath(pathPattern, params ?? {}, "API");
-
-  const searchParams =
-    search instanceof URLSearchParams
-      ? new URLSearchParams(search)
-      : new URLSearchParams(search ?? {});
+  const searchParams = createSearchParams(search);
   const searchString = searchParams.toString();
 
   return searchString ? `${pathname}?${searchString}` : pathname;

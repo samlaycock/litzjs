@@ -293,6 +293,64 @@ function createMockResponse(): ServerResponse & { getBody(): string } {
 }
 
 describe("dev server abort signal lifecycle", () => {
+  test("rebuilds repeated query params for internal resource requests", async () => {
+    let capturedTags: string[] = [];
+    let capturedHref = "";
+    const server = createMockViteDevServer(async () => ({
+      resource: {
+        async loader({ request }: { request: Request }) {
+          const url = new URL(request.url);
+          capturedHref = request.url;
+          capturedTags = url.searchParams.getAll("tag");
+
+          return {
+            kind: "data",
+            data: {
+              ok: true,
+            },
+          };
+        },
+      },
+    }));
+    const internalMetadata = JSON.stringify({
+      path: "/resources/config",
+      operation: "loader",
+      request: {
+        search: {
+          tag: ["framework", "bun"],
+        },
+      },
+    });
+    const request = createMockRequest({
+      url: "/_litzjs/resource",
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: internalMetadata,
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzResourceRequest(
+      server,
+      [
+        {
+          path: "/resources/config",
+          modulePath: "src/resources/config.ts",
+          hasLoader: true,
+          hasAction: false,
+          hasComponent: false,
+        },
+      ],
+      request,
+      response,
+      next,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(capturedHref).toBe("http://localhost:5173/resources/config?tag=framework&tag=bun");
+    expect(capturedTags).toEqual(["framework", "bun"]);
+  });
+
   test("resource handler signal aborts when client disconnects", async () => {
     let capturedSignal: AbortSignal | undefined;
     const server = createMockViteDevServer(async () => ({

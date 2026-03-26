@@ -1,4 +1,4 @@
-export function sortRecord(record: Record<string, string>): Record<string, string> {
+export function sortRecord<TValue>(record: Record<string, TValue>): Record<string, TValue> {
   return Object.fromEntries(
     Object.entries(record).sort(([left], [right]) => left.localeCompare(right)),
   );

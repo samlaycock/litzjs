@@ -11,6 +11,7 @@ import {
   matchPathname,
   sortByPathSpecificity,
 } from "../path-matching";
+import { createSearchParamRecord, type SearchParamRecord } from "../search-params";
 import { installClientBindings } from "./bindings";
 import { createLinkComponent } from "./link";
 import { fetchRouteLoadersInParallel, processLoaderResults } from "./loader-fetch";
@@ -1193,7 +1194,7 @@ function buildActiveMatches(
 ): ActiveMatch[] {
   const routeParams = extractRouteParams(route.path, pathname) ?? {};
   const layouts = getLayoutChain(route.options?.layout);
-  const sortedSearch = sortRecord(Object.fromEntries(search.entries()));
+  const sortedSearch = sortRecord(createSearchParamRecord(search));
   const layoutMatches = layouts.map((layout) => {
     const params =
       extractRouteParams(layout.path, pathname) ?? filterParamsForPath(routeParams, layout.path);
@@ -1271,7 +1272,7 @@ function filterParamsForPath(
 function createRouteCacheKey(
   path: string,
   params: Record<string, string>,
-  sortedSearch: Record<string, string>,
+  sortedSearch: SearchParamRecord,
 ): string {
   return JSON.stringify({
     path,
