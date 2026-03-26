@@ -13,6 +13,7 @@ interface LoaderFetchContext {
     readonly params: Record<string, string>;
     readonly search: URLSearchParams;
   };
+  readonly signal?: AbortSignal;
 }
 
 interface LoaderSettledEntry {
@@ -28,10 +29,12 @@ export async function fetchRouteLoadersInParallel(
 ): Promise<readonly LoaderSettledResult[]> {
   return Promise.allSettled(
     matches.map((match) =>
-      fetchRouteLoader(context.routePath, context.baseRequest, match.id).then((loaderResult) => ({
-        match,
-        loaderResult,
-      })),
+      fetchRouteLoader(context.routePath, context.baseRequest, match.id, context.signal).then(
+        (loaderResult) => ({
+          match,
+          loaderResult,
+        }),
+      ),
     ),
   );
 }

@@ -14,6 +14,7 @@ export async function fetchRouteLoader(
   path: string,
   request: ResourceRequest,
   target?: string,
+  signal?: AbortSignal,
 ): Promise<LoaderHookResult> {
   const response = await fetch("/_litzjs/route", {
     method: "POST",
@@ -27,6 +28,7 @@ export async function fetchRouteLoader(
       operation: "loader",
       request: normalizeRequest(request),
     }),
+    signal,
   });
 
   return parseLoaderResponse(response);
