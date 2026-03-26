@@ -672,7 +672,13 @@ function cleanupResourceEntry(key: string, entry: ResourceStoreEntry): void {
     return;
   }
 
-  resourceStore.delete(key);
+  queueMicrotask(() => {
+    if (entry.listeners.size > 0 || entry.inFlight || entry.snapshot.pending) {
+      return;
+    }
+
+    resourceStore.delete(key);
+  });
 }
 
 function pruneResourceStore(): void {
