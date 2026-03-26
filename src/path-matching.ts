@@ -139,6 +139,50 @@ export function matchPrefixPathname(
   return params;
 }
 
+export function interpolatePath(
+  pathPattern: string,
+  params: Record<string, string>,
+  paramLabel = "path",
+): string {
+  const patternSegments = trimPathSegments(pathPattern);
+
+  if (patternSegments.length === 0) {
+    return "/";
+  }
+
+  const pathnameSegments: string[] = [];
+
+  for (const segment of patternSegments) {
+    if (segment.startsWith(":")) {
+      const key = segment.slice(1);
+      const value = params[key];
+
+      if (value === undefined) {
+        throw new Error(`Missing required ${paramLabel} param "${key}" for path "${pathPattern}".`);
+      }
+
+      pathnameSegments.push(encodeURIComponent(value));
+      continue;
+    }
+
+    if (isWildcardSegment(segment)) {
+      const key = getWildcardParamName(segment);
+      const value = key ? params[key] : "";
+
+      if (key && value === undefined) {
+        throw new Error(`Missing required ${paramLabel} param "${key}" for path "${pathPattern}".`);
+      }
+
+      pathnameSegments.push(...trimPathSegments(value ?? "").map(encodeURIComponent));
+      continue;
+    }
+
+    pathnameSegments.push(segment);
+  }
+
+  return `/${pathnameSegments.join("/")}`;
+}
+
 export function extractRouteLikeParams(
   pathPattern: string,
   pathname: string,
