@@ -14,6 +14,7 @@ import type {
 import { createFormDataPayload } from "../form-data";
 import { createInternalActionRequestInit, LITZ_RESULT_ACCEPT } from "../internal-transport";
 import { applySearchParams } from "./navigation";
+import { sortRecord } from "./sort-record";
 import {
   isRedirectSignal,
   isRouteLikeError,
@@ -617,12 +618,6 @@ function createResourceCacheKey(
     params: sortRecord(normalizedRequest.params),
     search: sortRecord(normalizedRequest.search),
   });
-}
-
-function sortRecord(value: Record<string, string>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(value).sort(([left], [right]) => left.localeCompare(right)),
-  );
 }
 
 function subscribe(key: string, listener: () => void): () => void {
