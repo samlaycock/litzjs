@@ -224,4 +224,41 @@ describe("resource runtime", () => {
       "idle",
     ]);
   });
+
+  test("resource store preserves entries across unmount/remount cycles (strict mode)", async () => {
+    let loaderCalls = 0;
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      loaderCalls += 1;
+      return Response.json({
+        kind: "data",
+        data: { id: "user-002", count: 1 },
+      });
+    }) as typeof fetch;
+
+    function Wrapper({ mountKey }: { readonly mountKey: number }): React.ReactElement {
+      return <accountResource.Component key={mountKey} params={{ id: "user-002" }} />;
+    }
+
+    // Initial mount: triggers one loader fetch
+    await act(async () => {
+      root?.render(<Wrapper mountKey={1} />);
+      await flushDom();
+    });
+
+    expect(loaderCalls).toBe(1);
+    expect(document.querySelector(".resource-count")?.getAttribute("data-value")).toBe("1");
+
+    // Change key to force unmount/remount of the resource component.
+    // This simulates the unsubscribe/resubscribe cycle that occurs
+    // during React strict mode or concurrent rendering transitions.
+    await act(async () => {
+      root?.render(<Wrapper mountKey={2} />);
+      await flushDom();
+    });
+
+    // The loader should NOT be called again — the cached entry should survive
+    expect(loaderCalls).toBe(1);
+    expect(document.querySelector(".resource-count")?.getAttribute("data-value")).toBe("1");
+  });
 });
