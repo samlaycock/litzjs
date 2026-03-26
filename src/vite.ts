@@ -411,7 +411,7 @@ export async function renderView(node, metadata = {}) {
         }
 
         const generation = manifestGeneration;
-        const relativePath = path.relative(root, file);
+        const relativePath = normalizeRelativePath(root, file);
         let changed = false;
 
         if (isRouteCandidate(relativePath)) {
@@ -504,7 +504,7 @@ export async function renderView(node, metadata = {}) {
           return;
         }
 
-        const relativePath = path.relative(root, file);
+        const relativePath = normalizeRelativePath(root, file);
 
         if (!isManifestCandidate(relativePath)) {
           return;
@@ -519,7 +519,7 @@ export async function renderView(node, metadata = {}) {
           return;
         }
 
-        const relativePath = path.relative(root, file);
+        const relativePath = normalizeRelativePath(root, file);
 
         if (!isManifestCandidate(relativePath)) {
           return;
