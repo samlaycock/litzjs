@@ -28,6 +28,7 @@ import {
   useRequiredRouteLocation,
   useRequiredRouteStatus,
 } from "./runtime";
+import { sortRecord } from "./sort-record";
 import { getRevalidateTargets } from "./transport";
 
 installClientBindings({
@@ -1290,12 +1291,6 @@ function getPathParamNames(pathPattern: string): string[] {
   );
   pathParamNamesCache.set(pathPattern, names);
   return names;
-}
-
-function sortRecord(record: Record<string, string>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(record).sort(([left], [right]) => left.localeCompare(right)),
-  );
 }
 
 function getCachedLoaderResult(key: string): LoaderHookResult | undefined {
