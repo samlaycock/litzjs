@@ -5,7 +5,12 @@ import type { ActionHookResult, LayoutReference, LoaderHookResult, SubmitOptions
 import type { RouteRuntimeState } from "./runtime";
 
 import { createFormDataPayload } from "../form-data";
-import { extractRouteLikeParams, matchPathname, sortByPathSpecificity } from "../path-matching";
+import {
+  extractRouteLikeParams,
+  hasPatternSegments,
+  matchPathname,
+  sortByPathSpecificity,
+} from "../path-matching";
 import { installClientBindings } from "./bindings";
 import { createLinkComponent } from "./link";
 import { fetchRouteLoadersInParallel, processLoaderResults } from "./loader-fetch";
@@ -112,7 +117,7 @@ const layoutChainCache = new WeakMap<LoadedLayout, LoadedLayout[]>();
 const pathParamNamesCache = new Map<string, string[]>();
 
 for (const entry of manifest) {
-  if (entry.path.includes(":")) {
+  if (hasPatternSegments(entry.path)) {
     dynamicManifestEntries.push(entry);
   } else {
     exactManifestEntries.set(entry.path, entry);
