@@ -685,7 +685,9 @@ function deferredCleanupResourceEntry(key: string, entry: ResourceStoreEntry): v
       return;
     }
 
-    resourceStore.delete(key);
+    if (resourceStore.get(key) === entry) {
+      resourceStore.delete(key);
+    }
   });
 }
 
