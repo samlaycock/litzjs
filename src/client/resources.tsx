@@ -631,7 +631,7 @@ function subscribe(key: string, listener: () => void): () => void {
 
   return () => {
     entry.listeners.delete(listener);
-    cleanupResourceEntry(key, entry);
+    deferredCleanupResourceEntry(key, entry);
   };
 }
 
@@ -668,6 +668,14 @@ function notify(entry: ResourceStoreEntry): void {
 }
 
 function cleanupResourceEntry(key: string, entry: ResourceStoreEntry): void {
+  if (entry.listeners.size > 0 || entry.inFlight || entry.snapshot.pending) {
+    return;
+  }
+
+  resourceStore.delete(key);
+}
+
+function deferredCleanupResourceEntry(key: string, entry: ResourceStoreEntry): void {
   if (entry.listeners.size > 0 || entry.inFlight || entry.snapshot.pending) {
     return;
   }

@@ -225,7 +225,7 @@ describe("resource runtime", () => {
     ]);
   });
 
-  test("resource store preserves entries across unmount/remount cycles (strict mode)", async () => {
+  test("resource store preserves entries across unmount/remount cycles", async () => {
     let loaderCalls = 0;
 
     globalThis.fetch = (async (_input: RequestInfo | URL, _init?: RequestInit) => {
@@ -249,9 +249,10 @@ describe("resource runtime", () => {
     expect(loaderCalls).toBe(1);
     expect(document.querySelector(".resource-count")?.getAttribute("data-value")).toBe("1");
 
-    // Change key to force unmount/remount of the resource component.
-    // This simulates the unsubscribe/resubscribe cycle that occurs
-    // during React strict mode or concurrent rendering transitions.
+    // Change key to force a full unmount/remount of the resource component.
+    // This exercises the same unsubscribe/resubscribe path that React strict
+    // mode triggers (albeit via a different mechanism — key change forces a new
+    // instance, whereas strict mode double-invokes effects on the same instance).
     await act(async () => {
       root?.render(<Wrapper mountKey={2} />);
       await flushDom();
