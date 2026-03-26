@@ -133,25 +133,29 @@ export default createServer({ helper });
         ".loader-css { color: blue; }\n",
         "utf8",
       );
-      writeFileSync(
-        path.join(root, "src", "routes", "index.tsx"),
-        readFileSync(path.join(root, "src", "routes", "index.tsx"), "utf8").replace(
-          'import { defineRoute } from "litzjs";',
-          'import "./home.css";\nimport { defineRoute } from "litzjs";',
-        ),
-        "utf8",
+      const indexRoutePath = path.join(root, "src", "routes", "index.tsx");
+      const injectedIndexRouteSource = readFileSync(indexRoutePath, "utf8").replace(
+        'import { defineRoute } from "litzjs";',
+        'import "./home.css";\nimport { defineRoute } from "litzjs";',
       );
-      writeFileSync(
-        path.join(root, "src", "routes", "features", "loader-data.tsx"),
-        readFileSync(
-          path.join(root, "src", "routes", "features", "loader-data.tsx"),
-          "utf8",
-        ).replace(
-          'import { data, defineRoute, server } from "litzjs";',
-          'import "./loader-data.css";\nimport { data, defineRoute, server } from "litzjs";',
-        ),
-        "utf8",
+
+      if (!injectedIndexRouteSource.includes('import "./home.css";')) {
+        throw new Error("CSS injection into the index route fixture failed.");
+      }
+
+      writeFileSync(indexRoutePath, injectedIndexRouteSource, "utf8");
+
+      const loaderDataRoutePath = path.join(root, "src", "routes", "features", "loader-data.tsx");
+      const injectedLoaderDataRouteSource = readFileSync(loaderDataRoutePath, "utf8").replace(
+        'import { data, defineRoute, server } from "litzjs";',
+        'import "./loader-data.css";\nimport { data, defineRoute, server } from "litzjs";',
       );
+
+      if (!injectedLoaderDataRouteSource.includes('import "./loader-data.css";')) {
+        throw new Error("CSS injection into the loader-data route fixture failed.");
+      }
+
+      writeFileSync(loaderDataRoutePath, injectedLoaderDataRouteSource, "utf8");
 
       const build = spawnSync(
         process.execPath,
@@ -159,6 +163,7 @@ export default createServer({ helper });
         {
           cwd: repoRoot,
           encoding: "utf8",
+          timeout: 55_000,
         },
       );
 
