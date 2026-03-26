@@ -88,6 +88,7 @@
     "@vitejs/plugin-rsc": "^0.5.21",
     "react": "^19",
     "react-dom": "^19",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "^8"
   }
 }

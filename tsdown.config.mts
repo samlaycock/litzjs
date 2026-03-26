@@ -11,6 +11,9 @@ export default defineConfig({
   platform: "neutral",
   dts: true,
   outDir: "./dist",
+  checks: {
+    pluginTimings: false,
+  },
   deps: {
     neverBundle: [
       "virtual:litzjs:route-manifest",
@@ -19,6 +22,10 @@ export default defineConfig({
       "react/jsx-runtime",
       "react/jsx-dev-runtime",
       "react-dom/client",
+      "node:fs",
+      "node:fs/promises",
+      "node:path",
+      "vite",
       "@vitejs/plugin-rsc",
     ],
     onlyBundle: false,

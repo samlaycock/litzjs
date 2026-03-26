@@ -22,6 +22,25 @@ import {
 } from "../src/vite";
 
 describe("vite production server helpers", () => {
+  test("build completes without warnings", () => {
+    const repoRoot = process.cwd();
+    const build = spawnSync(process.execPath, ["run", "build"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      timeout: 60_000,
+    });
+
+    if (build.status !== 0) {
+      throw new Error(
+        ["package build failed", build.stdout, build.stderr].filter(Boolean).join("\n\n"),
+      );
+    }
+
+    const buildOutput = [build.stdout, build.stderr].filter(Boolean).join("\n");
+
+    expect(buildOutput).not.toContain("Warning:");
+  }, 65000);
+
   test("prefers src/server.ts when auto-discovering a custom server entry", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-"));
 
