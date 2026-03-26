@@ -116,6 +116,67 @@ describe("fetchRouteLoadersInParallel", () => {
     expect(values[2]!.match.id).toBe("third");
   });
 
+  test("passes abort signal to fetchRouteLoader", async () => {
+    const receivedSignals: Array<AbortSignal | undefined> = [];
+
+    mockFetchRouteLoader.mockImplementation(
+      (_path: string, _req: unknown, _target: string, signal?: AbortSignal) => {
+        receivedSignals.push(signal);
+        return Promise.resolve(createDataResult("ok"));
+      },
+    );
+
+    const { fetchRouteLoadersInParallel } = await import("../src/client/loader-fetch");
+
+    const controller = new AbortController();
+    const matches = [createMatch("a"), createMatch("b")];
+
+    await fetchRouteLoadersInParallel(matches, {
+      routePath: "/test",
+      baseRequest: { params: {}, search: new URLSearchParams() },
+      signal: controller.signal,
+    });
+
+    expect(receivedSignals).toHaveLength(2);
+    expect(receivedSignals[0]).toBe(controller.signal);
+    expect(receivedSignals[1]).toBe(controller.signal);
+  });
+
+  test("rejects in-flight fetches when signal is aborted", async () => {
+    const controller = new AbortController();
+
+    mockFetchRouteLoader.mockImplementation(
+      (_path: string, _req: unknown, _target: string, signal?: AbortSignal) =>
+        new Promise<LoaderHookResult>((resolve, reject) => {
+          const onAbort = () =>
+            reject(new DOMException("The operation was aborted.", "AbortError"));
+          if (signal?.aborted) {
+            onAbort();
+            return;
+          }
+          signal?.addEventListener("abort", onAbort);
+          // Never resolves naturally — only via abort
+        }),
+    );
+
+    const { fetchRouteLoadersInParallel } = await import("../src/client/loader-fetch");
+
+    const matches = [createMatch("a")];
+
+    const promise = fetchRouteLoadersInParallel(matches, {
+      routePath: "/test",
+      baseRequest: { params: {}, search: new URLSearchParams() },
+      signal: controller.signal,
+    });
+
+    controller.abort();
+
+    const results = await promise;
+
+    expect(results[0]!.status).toBe("rejected");
+    expect((results[0] as PromiseRejectedResult).reason).toBeInstanceOf(DOMException);
+  });
+
   test("captures rejected loaders without blocking other results", async () => {
     mockFetchRouteLoader.mockImplementation((_path: string, _req: unknown, target: string) => {
       if (target === "failing") {

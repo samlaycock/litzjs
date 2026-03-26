@@ -396,13 +396,13 @@ function RouteHost(props: {
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
     const { loaderMatches, baseRequest } = activeRouteState;
     const finalLoaderMatchId = loaderMatches[loaderMatches.length - 1]?.id;
 
     const reload = async (mode: "loading" | "revalidating" = "loading") => {
       if (loaderMatches.length === 0) {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setPageState((current) => ({
             ...current,
             status: "idle",
@@ -419,10 +419,11 @@ function RouteHost(props: {
       const settled = await fetchRouteLoadersInParallel(loaderMatches, {
         routePath: renderedRoute.path,
         baseRequest,
+        signal: controller.signal,
       });
 
       processLoaderResults(settled, loaderMatches, {
-        isCancelled: () => cancelled,
+        isCancelled: () => controller.signal.aborted,
         onResult(match, loaderResult) {
           setCachedLoaderResult(match.cacheKey, withLoaderStaleState(loaderResult, false));
 
@@ -455,7 +456,7 @@ function RouteHost(props: {
     void reload();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [activeRouteState, navigate, renderedRoute]);
   const activeMatches: ActiveMatch[] = activeRouteState?.activeMatches ?? [];
@@ -779,6 +780,7 @@ async function reloadCurrentRoute(options: {
   navigate: (next: string, replace?: boolean) => void;
   setPageState: React.Dispatch<React.SetStateAction<PageState>>;
   mode?: "loading" | "revalidating";
+  signal?: AbortSignal;
 }): Promise<void> {
   const matches = buildActiveMatches(options.route, options.pathname, options.search);
   const loaderMatches = matches.filter((entry) => Boolean(entry.options?.loader));
@@ -808,6 +810,7 @@ async function reloadCurrentRoute(options: {
   const settled = await fetchRouteLoadersInParallel(loaderMatches, {
     routePath: options.route.path,
     baseRequest,
+    signal: options.signal,
   });
 
   processLoaderResults(settled, loaderMatches, {
