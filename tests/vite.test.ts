@@ -2,7 +2,17 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ViteDevServer } from "vite";
 
 import { describe, expect, mock, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -124,6 +134,83 @@ export default createServer({ helper });
       rmSync(serverOutDir, { force: true, recursive: true });
     }
   });
+
+  test("emits route-scoped CSS assets for lazy route entries", () => {
+    const repoRoot = process.cwd();
+    const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
+    const root = mkdtempSync(path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-css-"));
+
+    try {
+      cpSync(path.join(sourceFixtureRoot, "."), root, { recursive: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "home.css"),
+        ".home { color: red; }\n",
+        "utf8",
+      );
+      writeFileSync(
+        path.join(root, "src", "routes", "features", "loader-data.css"),
+        ".loader-css { color: blue; }\n",
+        "utf8",
+      );
+      const indexRoutePath = path.join(root, "src", "routes", "index.tsx");
+      const injectedIndexRouteSource = readFileSync(indexRoutePath, "utf8").replace(
+        'import { defineRoute } from "litzjs";',
+        'import "./home.css";\nimport { defineRoute } from "litzjs";',
+      );
+
+      if (!injectedIndexRouteSource.includes('import "./home.css";')) {
+        throw new Error("CSS injection into the index route fixture failed.");
+      }
+
+      writeFileSync(indexRoutePath, injectedIndexRouteSource, "utf8");
+
+      const loaderDataRoutePath = path.join(root, "src", "routes", "features", "loader-data.tsx");
+      const injectedLoaderDataRouteSource = readFileSync(loaderDataRoutePath, "utf8").replace(
+        'import { data, defineRoute, server } from "litzjs";',
+        'import "./loader-data.css";\nimport { data, defineRoute, server } from "litzjs";',
+      );
+
+      if (!injectedLoaderDataRouteSource.includes('import "./loader-data.css";')) {
+        throw new Error("CSS injection into the loader-data route fixture failed.");
+      }
+
+      writeFileSync(loaderDataRoutePath, injectedLoaderDataRouteSource, "utf8");
+
+      const build = spawnSync(
+        process.execPath,
+        ["x", "vite", "build", "--config", path.join(root, "vite.config.ts")],
+        {
+          cwd: repoRoot,
+          encoding: "utf8",
+          timeout: 55_000,
+        },
+      );
+
+      if (build.status !== 0) {
+        throw new Error(
+          ["vite build failed", build.stdout, build.stderr].filter(Boolean).join("\n\n"),
+        );
+      }
+
+      const manifest = JSON.parse(
+        readFileSync(path.join(root, "dist", "client", ".vite", "manifest.json"), "utf8"),
+      ) as Record<string, { css?: string[] }>;
+
+      expect(manifest["../../virtual:litzjs:browser-entry"]?.css).toBeUndefined();
+      expect(manifest["src/routes/index.tsx"]?.css).toHaveLength(1);
+      expect(manifest["src/routes/features/loader-data.tsx"]?.css).toHaveLength(1);
+      expect(manifest["src/routes/index.tsx"]?.css?.[0]).not.toBe(
+        manifest["src/routes/features/loader-data.tsx"]?.css?.[0],
+      );
+
+      const clientAssets = readdirSync(path.join(root, "dist", "client", "assets")).sort();
+
+      expect(clientAssets.some((file) => /^routes-.*\.css$/.test(file))).toBe(true);
+      expect(clientAssets.some((file) => /^loader-data-.*\.css$/.test(file))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 60000);
 });
 
 function createMockViteDevServer(
