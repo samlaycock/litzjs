@@ -262,4 +262,42 @@ describe("resource runtime", () => {
     expect(loaderCalls).toBe(1);
     expect(document.querySelector(".resource-count")?.getAttribute("data-value")).toBe("1");
   });
+
+  test("treats repeated query params as part of the resource cache key", async () => {
+    const loaderBodies: string[] = [];
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = init?.body as string;
+
+      if (!body) {
+        throw new Error("Expected loader request body.");
+      }
+
+      loaderBodies.push(body);
+
+      return Response.json({
+        kind: "data",
+        data: { id: "user-003", count: loaderBodies.length },
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(
+        <>
+          <accountResource.Component
+            params={{ id: "user-003" }}
+            search={new URLSearchParams("tag=framework&tag=bun")}
+          />
+          <accountResource.Component params={{ id: "user-003" }} search={{ tag: "bun" }} />
+        </>,
+      );
+      await flushDom();
+    });
+
+    expect(loaderBodies).toHaveLength(2);
+    expect(loaderBodies.map((body) => JSON.parse(body).request.search)).toEqual([
+      { tag: ["framework", "bun"] },
+      { tag: "bun" },
+    ]);
+  });
 });

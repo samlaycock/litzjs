@@ -144,6 +144,75 @@ describe("server security", () => {
     expect(body.data.sameSignal).toBe(true);
   });
 
+  test("preserves repeated query params when rebuilding internal route requests", async () => {
+    const server = createServer({
+      manifest: {
+        routes: [
+          {
+            id: "projects.show",
+            path: "/projects/:id",
+            route: {
+              loader(context: unknown) {
+                const { request } = context as { request: Request };
+                const url = new URL(request.url);
+
+                return {
+                  kind: "data",
+                  data: {
+                    href: request.url,
+                    tags: url.searchParams.getAll("tag"),
+                    term: url.searchParams.get("term"),
+                  },
+                };
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const routeRequest = createInternalActionRequestInit(
+      {
+        path: "/projects/:id",
+        target: "projects.show",
+        operation: "loader",
+        request: {
+          params: { id: "42" },
+          search: {
+            tag: ["framework", "bun"],
+            term: "litz",
+          },
+        },
+      },
+      {
+        reload: true,
+      },
+    );
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/route", {
+        method: "POST",
+        headers: routeRequest.headers,
+        body: routeRequest.body,
+      }),
+    );
+    const body = (await response.json()) as {
+      kind: "data";
+      data: {
+        href: string;
+        tags: string[];
+        term: string | null;
+      };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.kind).toBe("data");
+    expect(body.data.href).toBe(
+      "https://app.example.com/projects/42?tag=framework&tag=bun&term=litz",
+    );
+    expect(body.data.tags).toEqual(["framework", "bun"]);
+    expect(body.data.term).toBe("litz");
+  });
+
   test("does not expose unhandled server error messages from api routes", async () => {
     const server = createServer({
       manifest: {

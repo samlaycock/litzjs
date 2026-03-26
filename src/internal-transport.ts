@@ -1,3 +1,5 @@
+import type { SearchParamRecord } from "./search-params";
+
 import { createFormDataPayload } from "./form-data";
 
 export type InternalPayloadEntry = [string, FormDataEntryValue];
@@ -18,7 +20,7 @@ export type InternalRequestMetadata = {
   operation?: "loader" | "action";
   request?: {
     params?: Record<string, string>;
-    search?: Record<string, string>;
+    search?: SearchParamRecord;
   };
 };
 

@@ -4,6 +4,11 @@ import type { ActionHookResult, LoaderHookResult, ResourceRequest } from "../ind
 
 import { createInternalActionRequestInit, LITZ_RESULT_ACCEPT } from "../internal-transport";
 import {
+  createSearchParamRecord,
+  createSearchParams,
+  type SearchParamRecord,
+} from "../search-params";
+import {
   isRedirectSignal,
   isRouteLikeError,
   parseActionResponse,
@@ -59,14 +64,11 @@ export async function fetchRouteAction(
 
 function normalizeRequest(request: ResourceRequest): {
   params: Record<string, string>;
-  search: Record<string, string>;
+  search: SearchParamRecord;
 } {
   return {
     params: request.params ?? {},
-    search:
-      request.search instanceof URLSearchParams
-        ? Object.fromEntries(request.search.entries())
-        : (request.search ?? {}),
+    search: createSearchParamRecord(createSearchParams(request.search)),
   };
 }
 

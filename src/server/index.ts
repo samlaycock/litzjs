@@ -6,6 +6,7 @@ import {
   matchPathname,
   trimPathSegments,
 } from "../path-matching";
+import { createSearchParams, type SearchParamRecord } from "../search-params";
 import { parseInternalRequestBody, type InternalRequestBody } from "./internal-requests";
 import { createInternalHandlerHeaders } from "./request-headers";
 
@@ -611,7 +612,7 @@ function normalizeInternalRequest(
   requestData:
     | {
         params?: Record<string, string>;
-        search?: Record<string, string>;
+        search?: SearchParamRecord;
       }
     | undefined,
   payload: InternalRequestBody["payload"],
@@ -620,7 +621,7 @@ function normalizeInternalRequest(
   params: Record<string, string>;
 } {
   const params = requestData?.params ?? {};
-  const search = new URLSearchParams(requestData?.search ?? {});
+  const search = createSearchParams(requestData?.search);
   const url = new URL(originalRequest.url);
   url.pathname = interpolatePath(pathPattern, params);
   url.search = search.toString();
