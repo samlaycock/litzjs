@@ -814,6 +814,7 @@ async function reloadCurrentRoute(options: {
   });
 
   processLoaderResults(settled, loaderMatches, {
+    isCancelled: () => options.signal?.aborted === true,
     onResult(match, loaderResult) {
       setCachedLoaderResult(match.cacheKey, withLoaderStaleState(loaderResult, false));
       options.setPageState((current) =>
