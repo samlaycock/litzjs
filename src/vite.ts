@@ -336,7 +336,7 @@ export async function renderView(node, metadata = {}) {
             apiPatterns,
           );
 
-          if (manifestGeneration !== generation) {
+          if (manifestGeneration !== generation || pendingFullDiscovery) {
             return;
           }
 
@@ -491,7 +491,10 @@ export async function renderView(node, metadata = {}) {
 
             if (pendingRetry.has(file)) {
               pendingRetry.delete(file);
-              runSingleFileRefresh(file);
+
+              if (!pendingFullDiscovery) {
+                runSingleFileRefresh(file);
+              }
             }
           });
       };
