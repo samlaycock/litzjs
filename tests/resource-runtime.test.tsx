@@ -39,6 +39,33 @@ function createDeferred<T>(): Deferred<T> {
   };
 }
 
+class TestErrorBoundary extends React.Component<
+  { readonly children?: React.ReactNode },
+  { readonly error: unknown }
+> {
+  override readonly state = { error: null };
+
+  static getDerivedStateFromError(error: unknown) {
+    return { error };
+  }
+
+  override render(): React.ReactNode {
+    if (this.state.error) {
+      const error = this.state.error as { kind?: string; message?: string };
+
+      return (
+        <div
+          className="resource-boundary"
+          data-kind={error.kind ?? "unknown"}
+          data-message={error.message ?? "unknown"}
+        />
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const accountResource = defineResource("/resource/account/:id", {
   component: function AccountResource() {
     const details = accountResource.useData() as { id: string; count: number } | null;
@@ -437,5 +464,81 @@ describe("resource runtime", () => {
       "resolved",
     );
     expect(document.querySelector(".overlap-action-kind")?.getAttribute("data-value")).toBe("data");
+  });
+
+  test("preserves a concurrent action fault when a loader succeeds afterward", async () => {
+    const loaderRefreshDeferred = createDeferred<Response>();
+    const actionDeferred = createDeferred<Response>();
+    const originalConsoleError = console.error;
+    let loaderCalls = 0;
+
+    console.error = () => {};
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      const metadata = headers.get("x-litzjs-request");
+
+      if (metadata) {
+        return actionDeferred.promise;
+      }
+
+      loaderCalls += 1;
+
+      if (loaderCalls === 1) {
+        return Response.json({
+          kind: "data",
+          data: { id: "user-005", count: 1 },
+        });
+      }
+
+      return loaderRefreshDeferred.promise;
+    }) as typeof fetch;
+
+    try {
+      await act(async () => {
+        root?.render(
+          <TestErrorBoundary>
+            <overlapResource.Component params={{ id: "user-005" }} />
+          </TestErrorBoundary>,
+        );
+        await flushDom();
+      });
+
+      act(() => {
+        (document.querySelector(".overlap-reload") as HTMLButtonElement).click();
+      });
+      await flushDom();
+
+      act(() => {
+        (document.querySelector(".overlap-submit") as HTMLButtonElement).click();
+      });
+
+      actionDeferred.resolve(
+        Response.json(
+          {
+            kind: "fault",
+            message: "database unavailable",
+          },
+          { status: 500 },
+        ),
+      );
+      loaderRefreshDeferred.resolve(
+        Response.json({
+          kind: "data",
+          data: { id: "user-005", count: 3 },
+        }),
+      );
+
+      await act(async () => {
+        await flushDom();
+      });
+
+      expect(document.querySelector(".resource-boundary")?.getAttribute("data-kind")).toBe("fault");
+      expect(document.querySelector(".resource-boundary")?.getAttribute("data-message")).toBe(
+        "database unavailable",
+      );
+    } finally {
+      console.error = originalConsoleError;
+    }
   });
 });

@@ -508,7 +508,7 @@ async function performPreparedResourceRequest(
           data: loaderResult.kind === "data" ? loaderResult.data : null,
           view: loaderResult.kind === "view" ? loaderResult.node : null,
           status: "idle",
-          failure: undefined,
+          failure: entry.snapshot.failure,
         };
         return loaderResult;
       }
