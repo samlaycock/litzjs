@@ -124,6 +124,11 @@ const routeModulePrefetchCache = new Map<string, Promise<void>>();
 const layoutChainCache = new WeakMap<LoadedLayout, LoadedLayout[]>();
 const pathParamNamesCache = new Map<string, string[]>();
 
+interface MountAppOptions {
+  readonly component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
+  readonly layout?: LayoutReference;
+}
+
 for (const entry of manifest) {
   if (hasPatternSegments(entry.path)) {
     dynamicManifestEntries.push(entry);
@@ -214,22 +219,29 @@ function getLocationContext(): React.Context<{
   return locationContext;
 }
 
-export function mountApp(
-  element: Element,
-  options?: {
-    component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
-    layout?: LayoutReference;
-  },
-): void {
+export function mountApp(element: Element, options?: MountAppOptions): void {
+  const resolvedOptions = normalizeMountAppOptions(options);
+
   void import("react-dom/client").then(({ createRoot }) => {
     const root = createRoot(element);
     root.render(
       React.createElement(LitzApp, {
-        component: options?.component,
-        layout: options?.layout,
+        component: resolvedOptions?.component,
+        layout: resolvedOptions?.layout,
       }),
     );
   });
+}
+
+function normalizeMountAppOptions(options?: MountAppOptions): MountAppOptions | undefined {
+  if (typeof options === "function") {
+    console.warn(
+      "[litzjs] mountApp(root, Wrapper) is no longer supported. Pass mountApp(root, { component: Wrapper }) instead.",
+    );
+    return undefined;
+  }
+
+  return options;
 }
 
 export function useNavigate(): (href: string, options?: { replace?: boolean }) => void {

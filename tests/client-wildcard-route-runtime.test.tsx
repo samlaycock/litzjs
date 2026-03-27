@@ -117,4 +117,53 @@ describe("client wildcard route runtime", () => {
     );
     expect(loadDocsRoute).toHaveBeenCalledTimes(1);
   });
+
+  test("mounts wrapper components from the options object", async () => {
+    clientModule = await import("../src/client/index");
+
+    function TestWrapper({ children }: React.PropsWithChildren): React.ReactElement {
+      return <div data-wrapper="options-object">{children}</div>;
+    }
+
+    await act(async () => {
+      clientModule?.mountApp(container!, { component: TestWrapper });
+      await flushApp();
+    });
+
+    expect(container?.querySelector('[data-wrapper="options-object"]')).not.toBeNull();
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe("home-route");
+  });
+
+  test("warns when passed a wrapper component instead of the options object", async () => {
+    clientModule = await import("../src/client/index");
+
+    const originalConsoleWarn = console.warn;
+    const warnings: string[] = [];
+
+    function LegacyWrapper({ children }: React.PropsWithChildren): React.ReactElement {
+      return <div data-wrapper="legacy">{children}</div>;
+    }
+
+    console.warn = (message?: unknown) => {
+      warnings.push(String(message));
+    };
+
+    try {
+      await act(async () => {
+        clientModule?.mountApp(
+          container!,
+          LegacyWrapper as unknown as Parameters<ClientModule["mountApp"]>[1],
+        );
+        await flushApp();
+      });
+    } finally {
+      console.warn = originalConsoleWarn;
+    }
+
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe("home-route");
+    expect(container?.querySelector('[data-wrapper="legacy"]')).toBeNull();
+    expect(warnings).toEqual([
+      "[litzjs] mountApp(root, Wrapper) is no longer supported. Pass mountApp(root, { component: Wrapper }) instead.",
+    ]);
+  });
 });
