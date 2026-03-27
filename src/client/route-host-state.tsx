@@ -15,6 +15,12 @@ export type MatchedManifestEntry<TRoute> = {
   entry: RouteManifestEntry<TRoute>;
 } | null;
 
+export type RouteLoadFailureState<TRoute, TPageState> = {
+  displayLocation: string;
+  renderedRoute: TRoute | null;
+  pageState: TPageState;
+};
+
 export function useResolvedRouteState<TRoute, TPageState>(options: {
   matched: MatchedManifestEntry<TRoute>;
   location: string;
@@ -22,6 +28,11 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
   createBootstrapPageState(this: void, route: TRoute): TPageState;
   getCachedRoute(this: void, id: string): TRoute | null;
   setCachedRoute(this: void, id: string, route: TRoute): void;
+  resolveRouteLoadFailureState?(
+    this: void,
+    error: unknown,
+    previousRoute: TRoute | null,
+  ): RouteLoadFailureState<TRoute, TPageState>;
 }): {
   displayLocation: string;
   renderedRoute: TRoute | null;
@@ -32,6 +43,7 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
   const createBootstrapPageState = options.createBootstrapPageState;
   const getCachedRoute = options.getCachedRoute;
   const setCachedRoute = options.setCachedRoute;
+  const resolveRouteLoadFailureState = options.resolveRouteLoadFailureState;
   const [displayLocation, setDisplayLocation] = React.useState(() => options.location);
   const [renderedRoute, setRenderedRoute] = React.useState<TRoute | null>(null);
   const [pageState, setPageState] = React.useState<TPageState>(() => createEmptyPageState());
@@ -80,25 +92,36 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
         return;
       }
 
-      const loaded = await matchedEntry.load();
+      try {
+        const loaded = await matchedEntry.load();
 
-      if (cancelled) {
-        return;
+        if (cancelled) {
+          return;
+        }
+
+        if (!loaded.route) {
+          throw new Error(`Route module "${matchedEntry.id}" does not export "route".`);
+        }
+
+        setCachedRoute(matchedEntry.id, loaded.route);
+        const loadedRouteState = resolveLoadedRouteState({
+          loadedRoute: loaded.route,
+          nextLocation: options.location,
+          createBootstrapPageState: (route) => createBootstrapPageState(route),
+        });
+        setPageState(loadedRouteState.pageState);
+        setRenderedRoute(loadedRouteState.loadedRoute);
+        setDisplayLocation(loadedRouteState.displayLocation);
+      } catch (error) {
+        if (cancelled || !resolveRouteLoadFailureState) {
+          throw error;
+        }
+
+        const failedRouteState = resolveRouteLoadFailureState(error, renderedRouteRef.current);
+        setRenderedRoute(failedRouteState.renderedRoute);
+        setDisplayLocation(failedRouteState.displayLocation);
+        setPageState(failedRouteState.pageState);
       }
-
-      if (!loaded.route) {
-        throw new Error(`Route module "${matchedEntry.id}" does not export "route".`);
-      }
-
-      setCachedRoute(matchedEntry.id, loaded.route);
-      const loadedRouteState = resolveLoadedRouteState({
-        loadedRoute: loaded.route,
-        nextLocation: options.location,
-        createBootstrapPageState: (route) => createBootstrapPageState(route),
-      });
-      setPageState(loadedRouteState.pageState);
-      setRenderedRoute(loadedRouteState.loadedRoute);
-      setDisplayLocation(loadedRouteState.displayLocation);
     }
 
     void loadRouteModule();
@@ -112,6 +135,7 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
     getCachedRoute,
     options.location,
     options.matched,
+    resolveRouteLoadFailureState,
     setCachedRoute,
   ]);
 

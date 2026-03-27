@@ -386,6 +386,24 @@ function RouteHost(props: {
     (route: LoadedRoute) => createBootstrapPageState(route, url.pathname, search),
     [search, url.pathname],
   );
+  const resolveRouteLoadFailureState = React.useCallback(
+    (error: unknown) => {
+      const failedRoute = createRouteLoadFailureRoute(
+        matched?.entry ?? {
+          id: url.pathname,
+          path: url.pathname,
+          load: async () => ({}),
+        },
+      );
+
+      return {
+        displayLocation: props.location,
+        renderedRoute: failedRoute,
+        pageState: createRouteLoadFailurePageState(failedRoute, url.pathname, search, error),
+      };
+    },
+    [matched, props.location, search, url.pathname],
+  );
   const { displayLocation, renderedRoute, pageState, setPageState } = useResolvedRouteState<
     LoadedRoute,
     PageState
@@ -396,6 +414,7 @@ function RouteHost(props: {
     createBootstrapPageState: createBootstrapPageStateForLocation,
     getCachedRoute: getCachedRouteModule,
     setCachedRoute: setCachedRouteModule,
+    resolveRouteLoadFailureState,
   });
 
   const displayedUrl = React.useMemo(() => new URL(displayLocation), [displayLocation]);
@@ -421,7 +440,7 @@ function RouteHost(props: {
   }, [displayedSearch, displayedUrl.pathname, renderedRoute]);
 
   React.useEffect(() => {
-    if (!renderedRoute || !activeRouteState) {
+    if (!renderedRoute || !activeRouteState || pageState.errorInfo) {
       return;
     }
 
@@ -516,7 +535,7 @@ function RouteHost(props: {
     return () => {
       controller.abort();
     };
-  }, [activeRouteState, navigate, renderedRoute]);
+  }, [activeRouteState, navigate, pageState.errorInfo, renderedRoute]);
   const activeMatches: ActiveMatch[] = activeRouteState?.activeMatches ?? [];
   const matchesValue = activeMatches;
   const reloadImpl = React.useCallback(
@@ -643,6 +662,25 @@ type PageState = {
   offlineStaleMatchIds?: ReadonlySet<string>;
 };
 
+function normalizeRouteModuleLoadError(error: unknown): MatchErrorInfo {
+  return {
+    kind: "fault",
+    status: 500,
+    headers: new Headers(),
+    message: error instanceof Error ? error.message : "Failed to load route module.",
+  };
+}
+
+function createRouteLoadFailureRoute(entry: ManifestEntry): LoadedRoute {
+  return {
+    id: entry.id,
+    path: entry.path,
+    component() {
+      return React.createElement(React.Fragment);
+    },
+  };
+}
+
 function createEmptyPageState(): PageState {
   return {
     matchStates: {},
@@ -733,6 +771,23 @@ function createBootstrapPageState(
     error,
     status: hasCachedLoader ? "revalidating" : "loading",
     pending: missingLoader || hasCachedLoader,
+  };
+}
+
+function createRouteLoadFailurePageState(
+  route: LoadedRoute,
+  pathname: string,
+  search: URLSearchParams,
+  error: unknown,
+): PageState {
+  return {
+    ...createBootstrapPageState(route, pathname, search),
+    status: "error",
+    pending: false,
+    error: null,
+    errorInfo: normalizeRouteModuleLoadError(error),
+    errorTargetId: route.id,
+    offlineStaleMatchIds: undefined,
   };
 }
 

@@ -37,6 +37,12 @@ type TestRoute = {
   };
 };
 
+type TestPageState = {
+  routeId: string | null;
+  status: "loading" | "idle" | "error";
+  errorMessage: string | null;
+};
+
 function renderTestRoute(route: TestRoute): React.ReactElement {
   const routeNode = React.createElement(route.component);
 
@@ -144,12 +150,16 @@ describe("route host state", () => {
       const createEmptyPageState = React.useCallback(
         () => ({
           routeId: null,
+          status: "loading" as const,
+          errorMessage: null,
         }),
         [],
       );
       const createBootstrapPageState = React.useCallback(
         (route: TestRoute) => ({
           routeId: route.id,
+          status: "idle" as const,
+          errorMessage: null,
         }),
         [],
       );
@@ -157,7 +167,7 @@ describe("route host state", () => {
       const setCachedRoute = React.useCallback((id: string, route: TestRoute) => {
         cache.set(id, route);
       }, []);
-      const state = useResolvedRouteState<TestRoute, { routeId: string | null }>({
+      const state = useResolvedRouteState<TestRoute, TestPageState>({
         matched,
         location: props.location,
         createEmptyPageState,
@@ -214,5 +224,182 @@ describe("route host state", () => {
     );
     expect(document.getElementById("page-state")?.getAttribute("data-value")).toBe("next-route");
     expect(mountEvents).toEqual(["mount"]);
+  });
+
+  test("routes rejected route module loads through the failure state callback", async () => {
+    const loadError = new Error("Chunk 404");
+    const fallbackRoute: TestRoute = {
+      id: "route-load-fault",
+      component() {
+        return <div id="route-state" data-value="route-load-fault" />;
+      },
+    };
+
+    function TestHarness(props: { location: string }) {
+      const matched = React.useMemo(
+        () =>
+          ({
+            entry: {
+              id: "broken-route",
+              load: async () => Promise.reject(loadError),
+            },
+          }) satisfies MatchedManifestEntry<TestRoute>,
+        [],
+      );
+      const createEmptyPageState = React.useCallback(
+        () => ({
+          routeId: null,
+          status: "loading" as const,
+          errorMessage: null,
+        }),
+        [],
+      );
+      const createBootstrapPageState = React.useCallback(
+        (route: TestRoute) => ({
+          routeId: route.id,
+          status: "idle" as const,
+          errorMessage: null,
+        }),
+        [],
+      );
+      const setCachedRoute = React.useCallback(() => {}, []);
+      const resolveRouteLoadFailureState = React.useCallback(
+        (error: unknown) => ({
+          displayLocation: props.location,
+          renderedRoute: fallbackRoute,
+          pageState: {
+            routeId: fallbackRoute.id,
+            status: "error" as const,
+            errorMessage: error instanceof Error ? error.message : String(error),
+          },
+        }),
+        [props.location],
+      );
+      const state = useResolvedRouteState<TestRoute, TestPageState>({
+        matched,
+        location: props.location,
+        createEmptyPageState,
+        createBootstrapPageState,
+        getCachedRoute: React.useCallback(() => null, []),
+        setCachedRoute,
+        resolveRouteLoadFailureState,
+      });
+
+      return (
+        <div>
+          <div id="display-location" data-value={state.displayLocation} />
+          <div id="page-state" data-value={state.pageState.routeId ?? "none"} />
+          <div id="status-state" data-value={state.pageState.status} />
+          <div id="error-state" data-value={state.pageState.errorMessage ?? "none"} />
+          {state.renderedRoute ? renderTestRoute(state.renderedRoute) : null}
+        </div>
+      );
+    }
+
+    await act(async () => {
+      root?.render(<TestHarness location="https://example.com/broken" />);
+      await flushDom();
+    });
+
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe(
+      "route-load-fault",
+    );
+    expect(document.getElementById("display-location")?.getAttribute("data-value")).toBe(
+      "https://example.com/broken",
+    );
+    expect(document.getElementById("page-state")?.getAttribute("data-value")).toBe(
+      "route-load-fault",
+    );
+    expect(document.getElementById("status-state")?.getAttribute("data-value")).toBe("error");
+    expect(document.getElementById("error-state")?.getAttribute("data-value")).toBe("Chunk 404");
+  });
+
+  test("routes missing route exports through the failure state callback", async () => {
+    const fallbackRoute: TestRoute = {
+      id: "route-load-fault",
+      component() {
+        return <div id="route-state" data-value="route-load-fault" />;
+      },
+    };
+
+    function TestHarness(props: { location: string }) {
+      const matched = React.useMemo(
+        () =>
+          ({
+            entry: {
+              id: "missing-route-export",
+              load: async () => ({}),
+            },
+          }) satisfies MatchedManifestEntry<TestRoute>,
+        [],
+      );
+      const createEmptyPageState = React.useCallback(
+        () => ({
+          routeId: null,
+          status: "loading" as const,
+          errorMessage: null,
+        }),
+        [],
+      );
+      const createBootstrapPageState = React.useCallback(
+        (route: TestRoute) => ({
+          routeId: route.id,
+          status: "idle" as const,
+          errorMessage: null,
+        }),
+        [],
+      );
+      const setCachedRoute = React.useCallback(() => {}, []);
+      const resolveRouteLoadFailureState = React.useCallback(
+        (error: unknown) => ({
+          displayLocation: props.location,
+          renderedRoute: fallbackRoute,
+          pageState: {
+            routeId: fallbackRoute.id,
+            status: "error" as const,
+            errorMessage: error instanceof Error ? error.message : String(error),
+          },
+        }),
+        [props.location],
+      );
+      const state = useResolvedRouteState<TestRoute, TestPageState>({
+        matched,
+        location: props.location,
+        createEmptyPageState,
+        createBootstrapPageState,
+        getCachedRoute: React.useCallback(() => null, []),
+        setCachedRoute,
+        resolveRouteLoadFailureState,
+      });
+
+      return (
+        <div>
+          <div id="display-location" data-value={state.displayLocation} />
+          <div id="page-state" data-value={state.pageState.routeId ?? "none"} />
+          <div id="status-state" data-value={state.pageState.status} />
+          <div id="error-state" data-value={state.pageState.errorMessage ?? "none"} />
+          {state.renderedRoute ? renderTestRoute(state.renderedRoute) : null}
+        </div>
+      );
+    }
+
+    await act(async () => {
+      root?.render(<TestHarness location="https://example.com/missing-export" />);
+      await flushDom();
+    });
+
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe(
+      "route-load-fault",
+    );
+    expect(document.getElementById("display-location")?.getAttribute("data-value")).toBe(
+      "https://example.com/missing-export",
+    );
+    expect(document.getElementById("page-state")?.getAttribute("data-value")).toBe(
+      "route-load-fault",
+    );
+    expect(document.getElementById("status-state")?.getAttribute("data-value")).toBe("error");
+    expect(document.getElementById("error-state")?.getAttribute("data-value")).toBe(
+      'Route module "missing-route-export" does not export "route".',
+    );
   });
 });
