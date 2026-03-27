@@ -27,6 +27,34 @@ export function hasPatternSegments(path: string): boolean {
   );
 }
 
+function safeDecodePathSegment(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
+function decodePathSegments(segments: readonly string[]): string[] | null {
+  const decodedSegments: string[] = [];
+
+  for (const segment of segments) {
+    const decodedSegment = safeDecodePathSegment(segment);
+
+    if (decodedSegment === null) {
+      return null;
+    }
+
+    decodedSegments.push(decodedSegment);
+  }
+
+  return decodedSegments;
+}
+
+export function hasMalformedPathnameEncoding(pathname: string): boolean {
+  return trimPathSegments(pathname).some((segment) => safeDecodePathSegment(segment) === null);
+}
+
 function getWildcardParamName(segment: string): string | null {
   if (segment === "*") {
     return null;
@@ -62,7 +90,13 @@ export function matchPathname(routePath: string, pathname: string): Record<strin
       }
 
       if (routeSegment.startsWith(":")) {
-        params[routeSegment.slice(1)] = decodeURIComponent(pathSegment);
+        const decodedPathSegment = safeDecodePathSegment(pathSegment);
+
+        if (decodedPathSegment === null) {
+          return null;
+        }
+
+        params[routeSegment.slice(1)] = decodedPathSegment;
         continue;
       }
 
@@ -71,7 +105,13 @@ export function matchPathname(routePath: string, pathname: string): Record<strin
       }
     }
 
-    const remaining = pathSegments.slice(staticSegments.length).map(decodeURIComponent).join("/");
+    const decodedRemainingSegments = decodePathSegments(pathSegments.slice(staticSegments.length));
+
+    if (decodedRemainingSegments === null) {
+      return null;
+    }
+
+    const remaining = decodedRemainingSegments.join("/");
     const paramName = getWildcardParamName(lastRouteSegment);
 
     if (paramName) {
@@ -96,7 +136,13 @@ export function matchPathname(routePath: string, pathname: string): Record<strin
     }
 
     if (routeSegment.startsWith(":")) {
-      params[routeSegment.slice(1)] = decodeURIComponent(pathSegment);
+      const decodedPathSegment = safeDecodePathSegment(pathSegment);
+
+      if (decodedPathSegment === null) {
+        return null;
+      }
+
+      params[routeSegment.slice(1)] = decodedPathSegment;
       continue;
     }
 
@@ -135,7 +181,13 @@ export function matchPrefixPathname(
     }
 
     if (routeSegment.startsWith(":")) {
-      params[routeSegment.slice(1)] = decodeURIComponent(pathSegment);
+      const decodedPathSegment = safeDecodePathSegment(pathSegment);
+
+      if (decodedPathSegment === null) {
+        return null;
+      }
+
+      params[routeSegment.slice(1)] = decodedPathSegment;
       continue;
     }
 

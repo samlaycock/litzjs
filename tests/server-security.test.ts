@@ -239,6 +239,33 @@ describe("server security", () => {
     expect(body).not.toContain("postgres://user:secret@example.com/db");
   });
 
+  test("treats malformed percent-encoding in api route pathnames as bad requests", async () => {
+    const server = createServer({
+      manifest: {
+        apiRoutes: [
+          {
+            path: "/api/projects/:id",
+            api: {
+              methods: {
+                GET() {
+                  return new Response("ok");
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const response = await server.fetch(
+      new Request("https://app.example.com/api/projects/%E0%A4%A"),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(400);
+    expect(body).toBe("Bad Request");
+  });
+
   test("does not expose unhandled server error messages from route loaders", async () => {
     const server = createServer({
       manifest: {
