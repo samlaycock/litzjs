@@ -1190,10 +1190,15 @@ function useMatchRuntime(options: {
               ...current,
               actionResult: result,
               error: null,
-              status: resolveSettledPageStatus({
-                ...current,
-                actionResult: result,
-              }),
+              status: resolveSettledPageStatus(
+                {
+                  ...current,
+                  actionResult: result,
+                },
+                {
+                  ignoreLoaderMatchIds: [route.id],
+                },
+              ),
               pending: false,
             },
             result,
@@ -1206,10 +1211,15 @@ function useMatchRuntime(options: {
               ...current,
               actionResult: result,
               error: null,
-              status: resolveSettledPageStatus({
-                ...current,
-                actionResult: result,
-              }),
+              status: resolveSettledPageStatus(
+                {
+                  ...current,
+                  actionResult: result,
+                },
+                {
+                  ignoreLoaderMatchIds: [route.id],
+                },
+              ),
               pending: false,
             },
             result,
@@ -1223,10 +1233,15 @@ function useMatchRuntime(options: {
           status:
             result.kind === "fault"
               ? "error"
-              : resolveSettledPageStatus({
-                  ...current,
-                  actionResult: result,
-                }),
+              : resolveSettledPageStatus(
+                  {
+                    ...current,
+                    actionResult: result,
+                  },
+                  {
+                    ignoreLoaderMatchIds: result.kind === "invalid" ? [route.id] : undefined,
+                  },
+                ),
           pending: false,
           errorInfo: result.kind === "fault" ? (result as MatchErrorInfo) : current.errorInfo,
           errorTargetId: result.kind === "fault" ? route.id : current.errorTargetId,
