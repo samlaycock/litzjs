@@ -492,10 +492,11 @@ function RouteHost(props: {
           });
         },
         resolveHasOfflineFallback(matchId) {
-          const matchIndex = loaderMatches.findIndex((entry) => entry.id === matchId);
+          const { activeMatches } = activeRouteState;
+          const matchIndex = activeMatches.findIndex((entry) => entry.id === matchId);
 
           for (let i = matchIndex; i >= 0; i -= 1) {
-            if (loaderMatches[i]?.options?.offline?.fallbackComponent) {
+            if (activeMatches[i]?.options?.offline?.fallbackComponent) {
               return true;
             }
           }
@@ -925,10 +926,10 @@ async function reloadCurrentRoute(options: {
       });
     },
     resolveHasOfflineFallback(matchId) {
-      const matchIndex = loaderMatches.findIndex((entry) => entry.id === matchId);
+      const matchIndex = matches.findIndex((entry) => entry.id === matchId);
 
       for (let i = matchIndex; i >= 0; i -= 1) {
-        if (loaderMatches[i]?.options?.offline?.fallbackComponent) {
+        if (matches[i]?.options?.offline?.fallbackComponent) {
           return true;
         }
       }
