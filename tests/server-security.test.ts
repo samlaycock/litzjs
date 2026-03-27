@@ -213,6 +213,128 @@ describe("server security", () => {
     expect(body.data.term).toBe("litz");
   });
 
+  test("supports batched internal route loader requests and preserves requested order", async () => {
+    let layoutCalls = 0;
+    let routeCalls = 0;
+
+    const server = createServer({
+      manifest: {
+        routes: [
+          {
+            id: "projects.show",
+            path: "/projects/:id",
+            route: {
+              loader(context: unknown) {
+                routeCalls += 1;
+
+                const { request, params } = context as {
+                  request: Request;
+                  params: Record<string, string>;
+                };
+
+                return {
+                  kind: "data",
+                  data: {
+                    source: "route",
+                    href: request.url,
+                    id: params.id,
+                  },
+                };
+              },
+              options: {
+                layout: {
+                  id: "projects.layout",
+                  path: "/projects",
+                  options: {
+                    loader(context: unknown) {
+                      layoutCalls += 1;
+
+                      const { request } = context as {
+                        request: Request;
+                      };
+
+                      return {
+                        kind: "data",
+                        data: {
+                          source: "layout",
+                          href: request.url,
+                        },
+                      };
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/route", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          path: "/projects/:id",
+          targets: ["projects.show", "projects.layout"],
+          operation: "loader",
+          request: {
+            params: { id: "42" },
+            search: {
+              tab: "settings",
+            },
+          },
+        }),
+      }),
+    );
+    const body = (await response.json()) as {
+      kind: "batch";
+      results: Array<{
+        status: number;
+        body: {
+          kind: "data";
+          data: {
+            source: string;
+            href: string;
+            id?: string;
+          };
+          revalidate: string[];
+        };
+      }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.kind).toBe("batch");
+    expect(layoutCalls).toBe(1);
+    expect(routeCalls).toBe(1);
+    expect(body.results).toHaveLength(2);
+    expect(body.results[0]).toEqual({
+      status: 200,
+      body: {
+        kind: "data",
+        data: {
+          source: "route",
+          href: "https://app.example.com/projects/42?tab=settings",
+          id: "42",
+        },
+        revalidate: [],
+      },
+    });
+    expect(body.results[1]).toEqual({
+      status: 200,
+      body: {
+        kind: "data",
+        data: {
+          source: "layout",
+          href: "https://app.example.com/projects/42?tab=settings",
+        },
+        revalidate: [],
+      },
+    });
+  });
+
   test("does not expose unhandled server error messages from api routes", async () => {
     const server = createServer({
       manifest: {

@@ -33,6 +33,16 @@ export type LitzJsonBody =
     };
 
 type LitzJsonKind = LitzJsonBody["kind"];
+type BatchedLoaderEntry = {
+  status: number;
+  headers?: Array<[string, string]>;
+  body: Extract<LitzJsonBody, { kind: "data" | "redirect" | "error" | "fault" }>;
+};
+
+type BatchedLoaderBody = {
+  kind: "batch";
+  results: BatchedLoaderEntry[];
+};
 
 export async function parseLoaderResponse(response: Response): Promise<LoaderHookResult> {
   const contentType = response.headers.get("content-type") ?? "";
@@ -83,6 +93,99 @@ export async function parseLoaderResponse(response: Response): Promise<LoaderHoo
   }
 
   throw createRouteLikeError(response.status, publicHeaders, body);
+}
+
+export async function parseLoaderBatchResponse(
+  response: Response,
+): Promise<readonly PromiseSettledResult<LoaderHookResult>[]> {
+  const contentType = response.headers.get("content-type") ?? "";
+  const publicHeaders = createPublicResultHeaders(response.headers);
+  const bodyText = await response.text();
+
+  if (!isJsonContentType(contentType)) {
+    throw createRouteLikeError(
+      response.status,
+      publicHeaders,
+      createInvalidTransportFault(response.status, contentType, bodyText, "non-json"),
+    );
+  }
+
+  try {
+    const parsedBody = JSON.parse(bodyText) as unknown;
+
+    if (isBatchedLoaderBody(parsedBody)) {
+      return parsedBody.results.map((entry) => {
+        const headers = createPublicResultHeaders(new Headers(entry.headers));
+
+        switch (entry.body.kind) {
+          case "data":
+            return {
+              status: "fulfilled",
+              value: {
+                kind: "data",
+                status: entry.status,
+                headers,
+                stale: false,
+                data: entry.body.data,
+                render() {
+                  return null;
+                },
+              },
+            } satisfies PromiseFulfilledResult<LoaderHookResult>;
+          case "error":
+            return {
+              status: "fulfilled",
+              value: {
+                kind: "error",
+                status: entry.status,
+                headers,
+                stale: false,
+                message: entry.body.message,
+                code: entry.body.code,
+                data: entry.body.data,
+              },
+            } satisfies PromiseFulfilledResult<LoaderHookResult>;
+          case "redirect":
+            return {
+              status: "rejected",
+              reason: createRedirectSignal(entry.status, headers, entry.body),
+            } satisfies PromiseRejectedResult;
+          case "fault":
+            return {
+              status: "rejected",
+              reason: createRouteLikeError(entry.status, headers, entry.body),
+            } satisfies PromiseRejectedResult;
+        }
+      });
+    }
+
+    if (
+      isLitzJsonBody(parsedBody) &&
+      (parsedBody.kind === "error" || parsedBody.kind === "fault")
+    ) {
+      throw createRouteLikeError(response.status, publicHeaders, parsedBody);
+    }
+
+    if (isLitzJsonBody(parsedBody) && parsedBody.kind === "redirect") {
+      throw createRedirectSignal(response.status, publicHeaders, parsedBody);
+    }
+
+    throw createRouteLikeError(
+      response.status,
+      publicHeaders,
+      createInvalidTransportFault(response.status, contentType, bodyText, "unsupported-kind"),
+    );
+  } catch (error) {
+    if (isRouteLikeError(error) || isRedirectSignal(error)) {
+      throw error;
+    }
+
+    throw createRouteLikeError(
+      response.status,
+      publicHeaders,
+      createInvalidTransportFault(response.status, contentType, bodyText, "malformed-json"),
+    );
+  }
 }
 
 export async function parseActionResponse(response: Response): Promise<ActionHookResult> {
@@ -318,6 +421,45 @@ function isLitzJsonBody(value: unknown): value is LitzJsonBody {
   }
 
   return false;
+}
+
+function isBatchedLoaderBody(value: unknown): value is BatchedLoaderBody {
+  const candidate = value as { kind?: unknown; results?: unknown } | null;
+
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    candidate?.kind === "batch" &&
+    Array.isArray(candidate.results) &&
+    candidate.results.every(isBatchedLoaderEntry)
+  );
+}
+
+function isBatchedLoaderEntry(value: unknown): value is BatchedLoaderEntry {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { status?: unknown }).status === "number" &&
+    isBatchedHeaderEntries((value as { headers?: unknown }).headers) &&
+    isLitzJsonBody((value as { body?: unknown }).body) &&
+    ["data", "redirect", "error", "fault"].includes(
+      ((value as { body: { kind?: unknown } }).body.kind ?? "") as string,
+    )
+  );
+}
+
+function isBatchedHeaderEntries(value: unknown): value is Array<[string, string]> | undefined {
+  return (
+    value === undefined ||
+    (Array.isArray(value) &&
+      value.every(
+        (entry) =>
+          Array.isArray(entry) &&
+          entry.length === 2 &&
+          typeof entry[0] === "string" &&
+          typeof entry[1] === "string",
+      ))
+  );
 }
 
 function createResponsePreview(bodyText: string): string {

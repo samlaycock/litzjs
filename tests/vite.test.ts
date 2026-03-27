@@ -477,6 +477,108 @@ describe("dev server abort signal lifecycle", () => {
 });
 
 describe("dev server error masking", () => {
+  test("supports batched internal route loader requests and preserves requested order", async () => {
+    let layoutCalls = 0;
+    let routeCalls = 0;
+
+    const server = createMockViteDevServer(async () => ({
+      route: {
+        async loader({ request, params }: { request: Request; params: Record<string, string> }) {
+          routeCalls += 1;
+
+          return {
+            kind: "data",
+            data: {
+              source: "route",
+              href: request.url,
+              id: params.id,
+            },
+          };
+        },
+        options: {
+          layout: {
+            id: "projects.layout",
+            path: "/projects",
+            options: {
+              async loader({ request }: { request: Request }) {
+                layoutCalls += 1;
+
+                return {
+                  kind: "data",
+                  data: {
+                    source: "layout",
+                    href: request.url,
+                  },
+                };
+              },
+            },
+          },
+        },
+      },
+    }));
+    const internalMetadata = JSON.stringify({
+      path: "/projects/:id",
+      targets: ["projects.show", "projects.layout"],
+      operation: "loader",
+      request: {
+        params: { id: "42" },
+        search: {
+          tab: "settings",
+        },
+      },
+    });
+    const request = createMockRequest({
+      url: "/_litzjs/route",
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: internalMetadata,
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzRouteRequest(
+      server,
+      [{ id: "projects.show", path: "/projects/:id", modulePath: "src/routes/projects.ts" }],
+      request,
+      response,
+      next,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(layoutCalls).toBe(1);
+    expect(routeCalls).toBe(1);
+    expect(JSON.parse(response.getBody())).toEqual({
+      kind: "batch",
+      results: [
+        {
+          status: 200,
+          body: {
+            kind: "data",
+            data: {
+              source: "route",
+              href: "http://localhost:5173/projects/42?tab=settings",
+              id: "42",
+            },
+            revalidate: [],
+          },
+        },
+        {
+          status: 200,
+          body: {
+            kind: "data",
+            data: {
+              source: "layout",
+              href: "http://localhost:5173/projects/42?tab=settings",
+            },
+            revalidate: [],
+          },
+        },
+      ],
+    });
+  });
+
   test("treats missing internal route targets as faults", async () => {
     const server = createMockViteDevServer(async () => ({}));
     const internalMetadata = JSON.stringify({

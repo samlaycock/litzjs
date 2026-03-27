@@ -1,29 +1,10 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 
 import type { LoaderSettledResult } from "../src/client/loader-fetch";
 import type { LoaderHookResult } from "../src/index";
 
-const mockFetchRouteLoader = mock();
-
-void mock.module("../src/client/runtime", () => ({
-  fetchRouteLoader: mockFetchRouteLoader,
-  isRedirectSignal(value: unknown): boolean {
-    return (
-      typeof value === "object" &&
-      value !== null &&
-      "kind" in value &&
-      (value as { kind: string }).kind === "redirect"
-    );
-  },
-  isRouteLikeError(value: unknown): boolean {
-    return (
-      typeof value === "object" &&
-      value !== null &&
-      "kind" in value &&
-      ((value as { kind: string }).kind === "error" || (value as { kind: string }).kind === "fault")
-    );
-  },
-}));
+const mockFetch = mock<typeof fetch>();
+const originalFetch = globalThis.fetch;
 
 import { processLoaderResults } from "../src/client/loader-fetch";
 
@@ -41,162 +22,128 @@ function createDataResult(data: unknown): LoaderHookResult {
   } as LoaderHookResult;
 }
 
+function createTransportResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "content-type": "application/vnd.litzjs.result+json",
+    },
+  });
+}
+
 beforeEach(() => {
-  mockFetchRouteLoader.mockReset();
+  mockFetch.mockReset();
+  globalThis.fetch = mockFetch as unknown as typeof fetch;
+});
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
 });
 
 describe("fetchRouteLoadersInParallel", () => {
-  test("fetches all loaders concurrently rather than sequentially", async () => {
-    let activeCalls = 0;
-    let maxConcurrentCalls = 0;
+  test("fetches all loaders in a single batched request", async () => {
+    const baseRequest = {
+      params: { id: "7" },
+      search: new URLSearchParams("tab=settings"),
+    };
+    const controller = new AbortController();
 
-    mockFetchRouteLoader.mockImplementation(
-      () =>
-        new Promise<LoaderHookResult>((resolve) => {
-          activeCalls++;
-          maxConcurrentCalls = Math.max(maxConcurrentCalls, activeCalls);
-          setTimeout(() => {
-            activeCalls--;
-            resolve(createDataResult({ value: "ok" }));
-          }, 10);
-        }),
+    mockFetch.mockResolvedValue(
+      createTransportResponse({
+        kind: "batch",
+        results: [
+          {
+            status: 200,
+            body: {
+              kind: "data",
+              data: "layout-data",
+              revalidate: [],
+            },
+          },
+          {
+            status: 200,
+            body: {
+              kind: "data",
+              data: "route-data",
+              revalidate: [],
+            },
+          },
+        ],
+      }),
     );
 
     const { fetchRouteLoadersInParallel } = await import("../src/client/loader-fetch");
 
-    const matches = [createMatch("layout-a"), createMatch("layout-b"), createMatch("route")];
+    const matches = [createMatch("layout-a"), createMatch("route")];
 
-    await fetchRouteLoadersInParallel(matches, {
+    const results = await fetchRouteLoadersInParallel(matches, {
       routePath: "/test",
-      baseRequest: { params: {}, search: new URLSearchParams() },
+      baseRequest,
+      signal: controller.signal,
     });
 
-    expect(maxConcurrentCalls).toBe(3);
-    expect(mockFetchRouteLoader).toHaveBeenCalledTimes(3);
-  });
-
-  test("returns results in the same order as input matches", async () => {
-    const resolvers: Array<(result: LoaderHookResult) => void> = [];
-
-    mockFetchRouteLoader.mockImplementation(
-      () =>
-        new Promise<LoaderHookResult>((resolve) => {
-          resolvers.push(resolve);
-        }),
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0]?.[0]).toBe("/_litzjs/route");
+    expect((mockFetch.mock.calls[0]?.[1] as RequestInit | undefined)?.signal).toBe(
+      controller.signal,
     );
+    const requestBody = (mockFetch.mock.calls[0]?.[1] as RequestInit | undefined)?.body;
 
-    const { fetchRouteLoadersInParallel } = await import("../src/client/loader-fetch");
-
-    const matches = [createMatch("first"), createMatch("second"), createMatch("third")];
-
-    const promise = fetchRouteLoadersInParallel(matches, {
-      routePath: "/test",
-      baseRequest: { params: {}, search: new URLSearchParams() },
+    expect(typeof requestBody).toBe("string");
+    expect(JSON.parse(requestBody as string)).toEqual({
+      path: "/test",
+      targets: ["layout-a", "route"],
+      operation: "loader",
+      request: {
+        params: { id: "7" },
+        search: {
+          tab: "settings",
+        },
+      },
     });
-
-    // Resolve in reverse order
-    resolvers[2]!(createDataResult("third-data"));
-    resolvers[0]!(createDataResult("first-data"));
-    resolvers[1]!(createDataResult("second-data"));
-
-    const results = await promise;
-
-    expect(results).toHaveLength(3);
+    expect(results).toHaveLength(2);
     expect(results[0]!.status).toBe("fulfilled");
     expect(results[1]!.status).toBe("fulfilled");
-    expect(results[2]!.status).toBe("fulfilled");
-
-    const values = results.map((r) => (r as PromiseFulfilledResult<unknown>).value) as Array<{
-      match: { id: string };
-      loaderResult: LoaderHookResult;
-    }>;
-
-    expect(values[0]!.match.id).toBe("first");
-    expect(values[1]!.match.id).toBe("second");
-    expect(values[2]!.match.id).toBe("third");
-  });
-
-  test("passes abort signal to fetchRouteLoader", async () => {
-    const receivedSignals: Array<AbortSignal | undefined> = [];
-
-    mockFetchRouteLoader.mockImplementation(
-      (_path: string, _req: unknown, _target: string, signal?: AbortSignal) => {
-        receivedSignals.push(signal);
-        return Promise.resolve(createDataResult("ok"));
-      },
+    expect((results[0] as PromiseFulfilledResult<{ match: { id: string } }>).value.match.id).toBe(
+      "layout-a",
     );
-
-    const { fetchRouteLoadersInParallel } = await import("../src/client/loader-fetch");
-
-    const controller = new AbortController();
-    const matches = [createMatch("a"), createMatch("b")];
-
-    await fetchRouteLoadersInParallel(matches, {
-      routePath: "/test",
-      baseRequest: { params: {}, search: new URLSearchParams() },
-      signal: controller.signal,
-    });
-
-    expect(receivedSignals).toHaveLength(2);
-    expect(receivedSignals[0]).toBe(controller.signal);
-    expect(receivedSignals[1]).toBe(controller.signal);
+    expect((results[1] as PromiseFulfilledResult<{ match: { id: string } }>).value.match.id).toBe(
+      "route",
+    );
   });
 
-  test("rejects in-flight fetches when signal is aborted", async () => {
-    const controller = new AbortController();
-
-    mockFetchRouteLoader.mockImplementation(
-      (_path: string, _req: unknown, _target: string, signal?: AbortSignal) =>
-        new Promise<LoaderHookResult>((resolve, reject) => {
-          const onAbort = () =>
-            reject(new DOMException("The operation was aborted.", "AbortError"));
-          if (signal?.aborted) {
-            onAbort();
-            return;
-          }
-          signal?.addEventListener("abort", onAbort);
-          // Never resolves naturally — only via abort
+  test("falls back to individual loader requests when the batched request fails", async () => {
+    mockFetch
+      .mockRejectedValueOnce(new Error("batch unsupported"))
+      .mockResolvedValueOnce(
+        createTransportResponse({
+          kind: "data",
+          data: "ok-loader-ok",
+          revalidate: [],
         }),
-    );
+      )
+      .mockResolvedValueOnce(
+        createTransportResponse(
+          {
+            kind: "fault",
+            message: "fail",
+          },
+          500,
+        ),
+      );
 
     const { fetchRouteLoadersInParallel } = await import("../src/client/loader-fetch");
 
-    const matches = [createMatch("a")];
-
-    const promise = fetchRouteLoadersInParallel(matches, {
-      routePath: "/test",
-      baseRequest: { params: {}, search: new URLSearchParams() },
-      signal: controller.signal,
-    });
-
-    controller.abort();
-
-    const results = await promise;
-
-    expect(results[0]!.status).toBe("rejected");
-    expect((results[0] as PromiseRejectedResult).reason).toBeInstanceOf(DOMException);
-  });
-
-  test("captures rejected loaders without blocking other results", async () => {
-    mockFetchRouteLoader.mockImplementation((_path: string, _req: unknown, target: string) => {
-      if (target === "failing") {
-        return Promise.reject({ kind: "error", status: 500, message: "fail" });
-      }
-      return Promise.resolve(createDataResult("ok"));
-    });
-
-    const { fetchRouteLoadersInParallel } = await import("../src/client/loader-fetch");
-
-    const matches = [createMatch("ok-loader"), createMatch("failing"), createMatch("another-ok")];
+    const matches = [createMatch("ok-loader"), createMatch("failing")];
 
     const results = await fetchRouteLoadersInParallel(matches, {
       routePath: "/test",
       baseRequest: { params: {}, search: new URLSearchParams() },
     });
 
+    expect(mockFetch).toHaveBeenCalledTimes(3);
     expect(results[0]!.status).toBe("fulfilled");
     expect(results[1]!.status).toBe("rejected");
-    expect(results[2]!.status).toBe("fulfilled");
   });
 });
 

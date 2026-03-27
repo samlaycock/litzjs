@@ -17,6 +17,7 @@ export type InternalPayload = {
 export type InternalRequestMetadata = {
   path?: string;
   target?: string;
+  targets?: string[];
   operation?: "loader" | "action";
   request?: {
     params?: Record<string, string>;
