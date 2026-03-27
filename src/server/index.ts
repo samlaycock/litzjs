@@ -119,11 +119,23 @@ export function createServer<TContext = unknown>(
 
     try {
       if (url.pathname === "/_litzjs/resource") {
-        return await handleResourceRequest(request, manifest.resources ?? [], getContext);
+        return await handleResourceRequest(
+          request,
+          manifest.resources ?? [],
+          getContext,
+          (error, context) => options.onError?.(error, context),
+          () => (contextLoaded ? contextValue : undefined),
+        );
       }
 
       if (url.pathname === "/_litzjs/route" || url.pathname === "/_litzjs/action") {
-        return await handleRouteRequest(request, manifest.routes ?? [], getContext);
+        return await handleRouteRequest(
+          request,
+          manifest.routes ?? [],
+          getContext,
+          (error, context) => options.onError?.(error, context),
+          () => (contextLoaded ? contextValue : undefined),
+        );
       }
 
       const apiResponse = await handleApiRequest(request, manifest.apiRoutes ?? [], getContext);
@@ -201,133 +213,149 @@ async function handleResourceRequest<TContext>(
   request: Request,
   resources: ResourceModule[],
   getContext: () => Promise<TContext | undefined>,
+  reportError?: (error: unknown, context: TContext | undefined) => void,
+  getLoadedContext?: () => TContext | undefined,
 ): Promise<Response> {
-  if (request.method !== "POST") {
-    return new Response("Method Not Allowed", { status: 405 });
-  }
+  try {
+    if (request.method !== "POST") {
+      return new Response("Method Not Allowed", { status: 405 });
+    }
 
-  const body = await parseInternalRequestBody(request);
-  const resourcePath = body.path;
-  const operation = body.operation ?? "loader";
-  const entry = resources.find((resource) => resource.path === resourcePath);
+    const body = await parseInternalRequestBody(request);
+    const resourcePath = body.path;
+    const operation = body.operation ?? "loader";
+    const entry = resources.find((resource) => resource.path === resourcePath);
 
-  if (!resourcePath || !entry?.resource) {
-    return createLitzJsonResponse(404, { kind: "error", message: "Resource not found." });
-  }
+    if (!resourcePath || !entry?.resource) {
+      return createLitzJsonResponse(404, { kind: "error", message: "Resource not found." });
+    }
 
-  const handler = operation === "action" ? entry.resource.action : entry.resource.loader;
-  const middleware = entry.resource.middleware ?? [];
+    const handler = operation === "action" ? entry.resource.action : entry.resource.loader;
+    const middleware = entry.resource.middleware ?? [];
 
-  if (!handler) {
-    return createLitzJsonResponse(405, {
-      kind: "error",
-      message: `Resource does not define a ${operation}.`,
-    });
-  }
-
-  const normalizedRequest = normalizeInternalRequest(
-    request,
-    resourcePath,
-    body.request,
-    body.payload,
-  );
-  const signal = request.signal;
-  const context = await getContext();
-  const result = await runMiddlewareChain({
-    middleware,
-    request: normalizedRequest.request,
-    params: normalizedRequest.params,
-    signal,
-    context,
-    execute(nextContext) {
-      return handler({
-        request: normalizedRequest.request,
-        params: normalizedRequest.params,
-        signal,
-        context: nextContext,
+    if (!handler) {
+      return createLitzJsonResponse(405, {
+        kind: "error",
+        message: `Resource does not define a ${operation}.`,
       });
-    },
-  });
+    }
 
-  return createServerResultResponse(result, `${entry.path}#${operation}`);
+    const normalizedRequest = normalizeInternalRequest(
+      request,
+      resourcePath,
+      body.request,
+      body.payload,
+    );
+    const signal = request.signal;
+    const context = await getContext();
+    const result = await runMiddlewareChain({
+      middleware,
+      request: normalizedRequest.request,
+      params: normalizedRequest.params,
+      signal,
+      context,
+      execute(nextContext) {
+        return handler({
+          request: normalizedRequest.request,
+          params: normalizedRequest.params,
+          signal,
+          context: nextContext,
+        });
+      },
+    });
+
+    return createServerResultResponse(result, `${entry.path}#${operation}`);
+  } catch (error) {
+    reportError?.(error, getLoadedContext?.());
+    return createUnhandledFaultResponse();
+  }
 }
 
 async function handleRouteRequest<TContext>(
   request: Request,
   routes: RouteModule[],
   getContext: () => Promise<TContext | undefined>,
+  reportError?: (error: unknown, context: TContext | undefined) => void,
+  getLoadedContext?: () => TContext | undefined,
 ): Promise<Response> {
-  if (request.method !== "POST") {
-    return new Response("Method Not Allowed", { status: 405 });
-  }
+  try {
+    if (request.method !== "POST") {
+      return new Response("Method Not Allowed", { status: 405 });
+    }
 
-  const body = await parseInternalRequestBody(request);
-  const routePath = body.path;
-  const targetId = body.target;
-  const operation =
-    body.operation ?? (new URL(request.url).pathname === "/_litzjs/action" ? "action" : "loader");
-  const entry = routes.find((route) => route.path === routePath);
+    const body = await parseInternalRequestBody(request);
+    const routePath = body.path;
+    const targetId = body.target;
+    const operation =
+      body.operation ?? (new URL(request.url).pathname === "/_litzjs/action" ? "action" : "loader");
+    const entry = routes.find((route) => route.path === routePath);
 
-  if (!routePath || !entry?.route) {
-    return createLitzJsonResponse(404, { kind: "error", message: "Route not found." });
-  }
+    if (!routePath || !entry?.route) {
+      return createLitzJsonResponse(404, { kind: "error", message: "Route not found." });
+    }
 
-  const chain = getRouteMatchChain(entry);
-  const target =
-    operation === "action"
-      ? chain[chain.length - 1]
-      : findTargetRouteMatch(chain, targetId ?? routePath);
-
-  if (!target) {
-    return createLitzJsonResponse(404, { kind: "error", message: "Route target not found." });
-  }
-
-  const targetIndex = chain.findIndex((candidate) => candidate.id === target.id);
-  const handler =
-    operation === "action" ? (entry.route.action ?? entry.route.options?.action) : target.loader;
-  const middleware = chain.slice(0, targetIndex + 1).flatMap((candidate) => candidate.middleware);
-
-  if (!handler) {
-    return createLitzJsonResponse(405, {
-      kind: "error",
-      message: `Route does not define a ${operation}.`,
-    });
-  }
-
-  const normalizedRequest = normalizeInternalRequest(
-    request,
-    routePath,
-    body.request,
-    body.payload,
-  );
-  const signal = request.signal;
-  const context = await getContext();
-  const result = await runMiddlewareChain({
-    middleware,
-    request: normalizedRequest.request,
-    params:
+    const chain = getRouteMatchChain(entry);
+    const target =
       operation === "action"
-        ? normalizedRequest.params
-        : (extractRouteLikeParams(target.path, new URL(normalizedRequest.request.url).pathname) ??
-          normalizedRequest.params),
-    signal,
-    context,
-    execute(nextContext) {
-      const params =
+        ? chain[chain.length - 1]
+        : findTargetRouteMatch(chain, targetId ?? routePath);
+
+    if (!target) {
+      return createLitzJsonResponse(404, { kind: "error", message: "Route target not found." });
+    }
+
+    const targetIndex = chain.findIndex((candidate) => candidate.id === target.id);
+    const handler =
+      operation === "action" ? (entry.route.action ?? entry.route.options?.action) : target.loader;
+    const middleware = chain.slice(0, targetIndex + 1).flatMap((candidate) => candidate.middleware);
+
+    if (!handler) {
+      return createLitzJsonResponse(405, {
+        kind: "error",
+        message: `Route does not define a ${operation}.`,
+      });
+    }
+
+    const normalizedRequest = normalizeInternalRequest(
+      request,
+      routePath,
+      body.request,
+      body.payload,
+    );
+    const signal = request.signal;
+    const context = await getContext();
+    const result = await runMiddlewareChain({
+      middleware,
+      request: normalizedRequest.request,
+      params:
         operation === "action"
           ? normalizedRequest.params
           : (extractRouteLikeParams(target.path, new URL(normalizedRequest.request.url).pathname) ??
-            normalizedRequest.params);
-      return handler({
-        request: normalizedRequest.request,
-        params,
-        signal,
-        context: nextContext,
-      });
-    },
-  });
+            normalizedRequest.params),
+      signal,
+      context,
+      execute(nextContext) {
+        const params =
+          operation === "action"
+            ? normalizedRequest.params
+            : (extractRouteLikeParams(
+                target.path,
+                new URL(normalizedRequest.request.url).pathname,
+              ) ?? normalizedRequest.params);
+        return handler({
+          request: normalizedRequest.request,
+          params,
+          signal,
+          context: nextContext,
+        });
+      },
+    });
 
-  return createServerResultResponse(result, `${target.id}#${operation}`);
+    return createServerResultResponse(result, `${target.id}#${operation}`);
+  } catch (error) {
+    reportError?.(error, getLoadedContext?.());
+    return createUnhandledFaultResponse();
+  }
 }
 
 async function handleApiRequest<TContext>(
@@ -595,6 +623,13 @@ function createLitzJsonResponse(
   return new Response(JSON.stringify(body), {
     status,
     headers: responseHeaders,
+  });
+}
+
+function createUnhandledFaultResponse(): Response {
+  return createLitzJsonResponse(500, {
+    kind: "fault",
+    message: "Internal server error.",
   });
 }
 

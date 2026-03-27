@@ -83,9 +83,9 @@ function createRuntimeState(overrides: Partial<RouteRuntimeState> = {}): RouteRu
     actionResult: null,
     data: null,
     view: null,
+    error: null,
     async submit() {},
     reload() {},
-    retry() {},
     ...overrides,
   };
 }
@@ -94,6 +94,7 @@ function HookProbe(): React.ReactElement {
   const loaderResult = route.useLoaderResult();
   const loaderData = route.useLoaderData();
   const loaderView = route.useLoaderView();
+  const loaderError = route.useLoaderError();
   const actionResult = route.useActionResult();
   const actionData = route.useActionData();
   const actionView = route.useActionView();
@@ -110,6 +111,7 @@ function HookProbe(): React.ReactElement {
       <div id="loader-view" data-value={loaderView ? "present" : "null"}>
         {loaderView}
       </div>
+      <div id="loader-error" data-value={loaderError?.message ?? "null"} />
       <div id="action-result-kind" data-value={actionResult?.kind ?? "null"} />
       <div id="action-data" data-value={String(actionData ? JSON.stringify(actionData) : "null")} />
       <div id="action-view" data-value={actionView ? "present" : "null"}>
@@ -132,6 +134,7 @@ function HookProbe(): React.ReactElement {
 function NextRouteHookProbe(): React.ReactElement {
   const loaderResult = nextRoute.useLoaderResult();
   const loaderData = nextRoute.useLoaderData();
+  const loaderError = nextRoute.useLoaderError();
   const actionResult = nextRoute.useActionResult?.();
   const mergedData = nextRoute.useData();
   const mergedView = nextRoute.useView();
@@ -144,6 +147,7 @@ function NextRouteHookProbe(): React.ReactElement {
         id="next-loader-data"
         data-value={String(loaderData ? JSON.stringify(loaderData) : "null")}
       />
+      <div id="next-loader-error" data-value={loaderError?.message ?? "null"} />
       <div id="next-action-result-kind" data-value={actionResult?.kind ?? "null"} />
       <div
         id="next-merged-data"
@@ -199,6 +203,7 @@ describe("route result hooks", () => {
     expect(document.getElementById("loader-result-kind")?.getAttribute("data-value")).toBe("null");
     expect(document.getElementById("loader-data")?.getAttribute("data-value")).toBe("null");
     expect(document.getElementById("loader-view")?.getAttribute("data-value")).toBe("null");
+    expect(document.getElementById("loader-error")?.getAttribute("data-value")).toBe("null");
     expect(document.getElementById("action-result-kind")?.getAttribute("data-value")).toBe("null");
     expect(document.getElementById("action-data")?.getAttribute("data-value")).toBe("null");
     expect(document.getElementById("action-view")?.getAttribute("data-value")).toBe("null");
@@ -253,6 +258,31 @@ describe("route result hooks", () => {
     expect(document.getElementById("action-data")?.getAttribute("data-value")).toBe("null");
     expect(document.getElementById("merged-data")?.getAttribute("data-value")).toContain(
       '"count":3',
+    );
+  });
+
+  test("surfaces explicit loader errors through useLoaderError() and useError()", async () => {
+    await act(async () => {
+      root?.render(
+        <RouteRuntimeProvider
+          value={createRuntimeState({
+            loaderResult: error(404, "Project not found") as RouteRuntimeState["loaderResult"],
+            error: error(404, "Project not found") as RouteRuntimeState["error"],
+            status: "error",
+          })}
+        >
+          <HookProbe />
+        </RouteRuntimeProvider>,
+      );
+      await flushDom();
+    });
+
+    expect(document.getElementById("loader-result-kind")?.getAttribute("data-value")).toBe("error");
+    expect(document.getElementById("loader-error")?.getAttribute("data-value")).toBe(
+      "Project not found",
+    );
+    expect(document.getElementById("merged-error")?.getAttribute("data-value")).toBe(
+      "Project not found",
     );
   });
 
@@ -348,6 +378,7 @@ describe("route result hooks", () => {
               422,
               "Project name is invalid",
             ) as RouteRuntimeState["actionResult"],
+            error: error(422, "Project name is invalid") as RouteRuntimeState["error"],
           })}
         >
           <HookProbe />
@@ -415,6 +446,7 @@ describe("route result hooks", () => {
               422,
               "Project name is invalid",
             ) as RouteRuntimeState["actionResult"],
+            error: error(422, "Project name is invalid") as RouteRuntimeState["error"],
           })}
         >
           <HookProbe />
@@ -557,9 +589,9 @@ describe("route result hooks", () => {
               label: "next",
             },
             view: null,
+            error: null,
             async submit() {},
             reload() {},
-            retry() {},
           }}
         >
           <NextRouteHookProbe />
@@ -574,6 +606,7 @@ describe("route result hooks", () => {
     expect(document.getElementById("next-loader-data")?.getAttribute("data-value")).toContain(
       '"label":"next"',
     );
+    expect(document.getElementById("next-loader-error")?.getAttribute("data-value")).toBe("null");
     expect(document.getElementById("next-action-result-kind")?.getAttribute("data-value")).toBe(
       "null",
     );

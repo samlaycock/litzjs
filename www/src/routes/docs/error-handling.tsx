@@ -13,7 +13,7 @@ function DocsErrorHandlingPage() {
       <title>Error Handling | Litz</title>
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">Error Handling</h1>
       <p className="text-xl text-neutral-300 mb-8">
-        Handle expected errors with error(), catch faults with errorComponent, and read error state
+        Handle expected errors with error(), catch faults with errorBoundary, and read error state
         with hooks.
       </p>
 
@@ -55,8 +55,9 @@ export const route = defineRoute("/posts/:id", {
         <p className="text-neutral-400 mb-4">
           An <code className="text-sky-400">error</code> is an expected application-level failure —
           you returned <code className="text-sky-400">error()</code> explicitly. A{" "}
-          <code className="text-sky-400">fault</code> is an unexpected runtime failure — an
-          exception escaped your handler's control flow.
+          <code className="text-sky-400">fault</code> is an unexpected runtime failure. You can
+          either return <code className="text-sky-400">fault()</code> explicitly or let an exception
+          escape your handler's control flow.
         </p>
         <p className="text-neutral-400 mb-4">
           Both are normalized into a <code className="text-sky-400">RouteErrorLike</code> shape:
@@ -64,75 +65,60 @@ export const route = defineRoute("/posts/:id", {
         <CodeBlock
           language="tsx"
           code={`// error — you returned error() explicitly
-{ kind: "error", status: 404, message: "Post not found", code: "POST_NOT_FOUND" }
+return error(404, "Post not found", { code: "POST_NOT_FOUND" });
 
-// fault — an unhandled exception
-{ kind: "fault", status: 500, message: "Internal server error", digest: "abc123" }`}
+// fault — an unexpected failure
+return fault(500, "Internal server error", { digest: "abc123" });`}
         />
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">errorComponent</h2>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">errorBoundary</h2>
         <p className="text-neutral-400 mb-4">
           Routes and layouts accept an{" "}
           <code className="text-sky-400">
-            {"errorComponent: React.ComponentType<{ error: RouteErrorLike }>"}
+            {"errorBoundary: React.ComponentType<{ error: RouteFaultLike }>"}
           </code>{" "}
-          option. It renders when the loader or action produces an error or fault.
+          option. It renders only when the loader or action faults.
         </p>
         <CodeBlock
           language="tsx"
-          code={`import { defineRoute, server, error, data } from "litzjs";
+          code={`import { defineRoute, server } from "litzjs";
 
-function PostError({ error }: { error: RouteErrorLike }) {
-  if (error.kind === "error" && error.status === 404) {
-    return <p>Post not found. It may have been deleted.</p>;
-  }
+function PostFault({ error }: { error: RouteFaultLike }) {
   return <p>Something went wrong. Please try again later.</p>;
 }
 
 export const route = defineRoute("/posts/:id", {
   component: PostPage,
-  errorComponent: PostError,
-  loader: server(async ({ params }) => {
-    const post = await db.posts.find(params.id);
-    if (!post) return error(404, "Not found");
-    return data({ post });
+  errorBoundary: PostFault,
+  loader: server(async () => {
+    throw new Error("Database unavailable");
   }),
 });`}
         />
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">pendingComponent</h2>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Initial Loading</h2>
         <p className="text-neutral-400 mb-4">
-          Routes and layouts also accept a{" "}
-          <code className="text-sky-400">pendingComponent: React.ComponentType</code> option. It
-          renders on first load when no settled loader state exists yet. Once data arrives, it
-          switches to the normal component.
+          Routes and layouts render immediately on first mount. While a loader is still pending,
+          data, view, and error hooks stay <code className="text-sky-400">null</code> and{" "}
+          <code className="text-sky-400">route.usePending()</code> stays{" "}
+          <code className="text-sky-400">true</code>.
         </p>
         <CodeBlock
           language="tsx"
-          code={`function PostSkeleton() {
-  return (
-    <div className="animate-pulse">
-      <div className="h-8 bg-neutral-800 rounded w-3/4 mb-4" />
-      <div className="h-4 bg-neutral-800 rounded w-full mb-2" />
-      <div className="h-4 bg-neutral-800 rounded w-5/6" />
-    </div>
-  );
-}
+          code={`function PostPage() {
+  const post = route.useLoaderData();
+  const pending = route.usePending();
 
-export const route = defineRoute("/posts/:id", {
-  component: PostPage,
-  pendingComponent: PostSkeleton,
-  errorComponent: PostError,
-  loader: server(async ({ params }) => {
-    const post = await db.posts.find(params.id);
-    if (!post) return error(404, "Not found");
-    return data({ post });
-  }),
-});`}
+  if (pending && !post) {
+    return <p>Loading post...</p>;
+  }
+
+  return <h1>{post?.title ?? "Untitled"}</h1>;
+}`}
         />
       </section>
 
@@ -143,12 +129,16 @@ export const route = defineRoute("/posts/:id", {
         </p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>
-            <code className="text-sky-400">route.useError()</code> — latest settled error from
-            loader or action
+            <code className="text-sky-400">route.useLoaderError()</code> — explicit loader error()
+            only
           </li>
           <li>
             <code className="text-sky-400">route.useActionError()</code> — explicit action error()
             only
+          </li>
+          <li>
+            <code className="text-sky-400">route.useError()</code> — latest settled explicit error
+            from loader or action
           </li>
           <li>
             <code className="text-sky-400">route.useStatus()</code> — returns{" "}
@@ -159,17 +149,19 @@ export const route = defineRoute("/posts/:id", {
           language="tsx"
           code={`function PostPage() {
   const data = route.useLoaderData();
-  const error = route.useError();
+  const loaderError = route.useLoaderError();
   const actionError = route.useActionError();
+  const error = route.useError();
   const status = route.useStatus();
 
-  if (status === "error" && error) {
-    return <p>Error {error.status}: {error.message}</p>;
+  if (loaderError) {
+    return <p>Loader error {loaderError.status}: {loaderError.message}</p>;
   }
 
   return (
     <div>
       {actionError && <p className="text-red-400">{actionError.message}</p>}
+      {status === "error" && error ? <p>Latest error: {error.message}</p> : null}
       <h1>{data.post.title}</h1>
     </div>
   );
@@ -178,21 +170,21 @@ export const route = defineRoute("/posts/:id", {
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Retry and reload</h2>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Reload</h2>
         <p className="text-neutral-400 mb-4">
-          <code className="text-sky-400">route.useRetry()</code> retries the failed loader.{" "}
           <code className="text-sky-400">route.useReload()</code> reloads the loader regardless of
-          whether it failed.
+          whether it is currently pending, idle, or in an explicit error state.
         </p>
         <CodeBlock
           language="tsx"
-          code={`function PostError({ error }: { error: RouteErrorLike }) {
-  const retry = route.useRetry();
+          code={`function PostPage() {
+  const reload = route.useReload();
+  const error = route.useError();
 
   return (
     <div>
-      <p>Error: {error.message}</p>
-      <button onClick={retry}>Try again</button>
+      {error ? <p>Error: {error.message}</p> : null}
+      <button onClick={reload}>Reload</button>
     </div>
   );
 }`}

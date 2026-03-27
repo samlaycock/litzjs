@@ -110,6 +110,9 @@ function AppShell(props: { children: ReactNode }) {
             <code className="text-sky-400">{"layout.useLoaderView()"}</code>
           </li>
           <li>
+            <code className="text-sky-400">{"layout.useLoaderError()"}</code>
+          </li>
+          <li>
             <code className="text-sky-400">{"layout.useData()"}</code>
           </li>
           <li>
@@ -129,9 +132,6 @@ function AppShell(props: { children: ReactNode }) {
           </li>
           <li>
             <code className="text-sky-400">{"layout.useReload()"}</code>
-          </li>
-          <li>
-            <code className="text-sky-400">{"layout.useRetry()"}</code>
           </li>
         </ul>
       </section>
@@ -207,12 +207,8 @@ function UsersPage() {
             before the loader
           </li>
           <li>
-            <code className="text-sky-400">pendingComponent</code> (optional) &mdash; shown while
-            the layout loader is in flight
-          </li>
-          <li>
-            <code className="text-sky-400">errorComponent</code> (optional) &mdash; shown when the
-            layout loader errors
+            <code className="text-sky-400">errorBoundary</code> (optional) &mdash; shown when the
+            layout loader faults
           </li>
         </ul>
       </section>

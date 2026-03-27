@@ -55,6 +55,9 @@ export type RouteErrorLike =
       digest?: string;
     };
 
+export type RouteExplicitErrorLike = Extract<RouteErrorLike, { kind: "error" }>;
+export type RouteFaultLike = Extract<RouteErrorLike, { kind: "fault" }>;
+
 export type RouteStatus =
   | "idle"
   | "loading"
@@ -300,6 +303,16 @@ type LoaderViewHookBranch<TNode extends React.ReactNode> = {
   render(this: void): React.ReactNode;
 };
 
+type LoaderErrorHookBranch<TData> = {
+  kind: "error";
+  status: number;
+  headers: Headers;
+  stale: boolean;
+  message: string;
+  code?: string;
+  data?: TData;
+};
+
 type ActionInvalidHookBranch<TData> = {
   kind: "invalid";
   status: number;
@@ -359,6 +372,11 @@ export type LoaderHookResultFor<TResult extends ServerResult = ServerResult> =
       Extract<TResult, { kind: "view" }> extends never
         ? never
         : LoaderViewHookBranch<LoaderNodeFor<TResult> & React.ReactNode>
+    >
+  | PresentResult<
+      Extract<TResult, { kind: "error" }> extends never
+        ? never
+        : LoaderErrorHookBranch<ErrorDataFor<TResult>>
     >;
 
 export type ActionHookResultFor<TResult extends ServerResult = ServerResult> =
@@ -397,6 +415,10 @@ type LoaderDataValueFor<TResult extends ServerResult> = LoaderDataFor<TResult> |
 type LoaderViewValueFor<TResult extends ServerResult> =
   | (LoaderNodeFor<TResult> & React.ReactNode)
   | null;
+type LoaderExplicitErrorValueFor<TResult extends ServerResult> = Extract<
+  LoaderHookResultFor<TResult>,
+  { kind: "error" }
+> | null;
 type ActionDataValueFor<TResult extends ServerResult> = ActionDataFor<TResult> | null;
 type ActionViewValueFor<TResult extends ServerResult> =
   | (ActionViewNodeFor<TResult> & React.ReactNode)
@@ -416,6 +438,13 @@ type MergedDataValueFor<TLoaderResult extends ServerResult, TActionResult extend
 type MergedViewValueFor<TLoaderResult extends ServerResult, TActionResult extends ServerResult> =
   | (LoaderNodeFor<TLoaderResult> & React.ReactNode)
   | (ActionViewNodeFor<TActionResult> & React.ReactNode)
+  | null;
+type MergedExplicitErrorValueFor<
+  TLoaderResult extends ServerResult,
+  TActionResult extends ServerResult,
+> =
+  | Extract<LoaderHookResultFor<TLoaderResult>, { kind: "error" }>
+  | Extract<ActionHookResultFor<TActionResult>, { kind: "error" }>
   | null;
 
 export type ActionErrorResultFor<TResult extends ServerResult = ServerResult> = Extract<
@@ -517,8 +546,7 @@ export type DefineRouteOptions<
   loader?: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>>;
   action?: RouteServerHandler<TContext, TActionResult, NoInferType<TPath>>;
   middleware?: MiddlewareRef<TContext, ServerResult>[];
-  pendingComponent?: React.ComponentType;
-  errorComponent?: React.ComponentType<{ error: RouteErrorLike }>;
+  errorBoundary?: React.ComponentType<{ error: RouteFaultLike }>;
   offline?: {
     fallbackComponent?: React.ComponentType;
     preserveStaleOnFailure?: boolean;
@@ -563,8 +591,7 @@ export type DefineLayoutOptions<
   layout?: LayoutReference;
   loader?: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>>;
   middleware?: MiddlewareRef<TContext, ServerResult>[];
-  pendingComponent?: React.ComponentType;
-  errorComponent?: React.ComponentType<{ error: RouteErrorLike }>;
+  errorBoundary?: React.ComponentType<{ error: RouteFaultLike }>;
 };
 
 type LayoutBaseOptions<TPath extends string = string, TContext = unknown> = Omit<
@@ -610,8 +637,7 @@ export type LayoutReference = {
     layout?: LayoutReference;
     loader?: unknown;
     middleware?: MiddlewareRef<any, ServerResult>[];
-    pendingComponent?: React.ComponentType;
-    errorComponent?: React.ComponentType<{ error: RouteErrorLike }>;
+    errorBoundary?: React.ComponentType<{ error: RouteFaultLike }>;
   };
 };
 
@@ -619,9 +645,9 @@ type LayoutLoaderClientHooks<TLoaderResult extends ServerResult> = {
   useLoaderResult(): LoaderHookResultFor<TLoaderResult> | null;
   useLoaderData(): LoaderDataValueFor<TLoaderResult>;
   useLoaderView(): LoaderViewValueFor<TLoaderResult>;
+  useLoaderError(): LoaderExplicitErrorValueFor<TLoaderResult>;
   useData(): LoaderDataValueFor<TLoaderResult>;
   useView(): LoaderViewValueFor<TLoaderResult>;
-  useRetry(): () => void;
   useReload(): () => void;
 };
 
@@ -629,7 +655,7 @@ type RouteLoaderClientHooks<TLoaderResult extends ServerResult> = {
   useLoaderResult(): LoaderHookResultFor<TLoaderResult> | null;
   useLoaderData(): LoaderDataValueFor<TLoaderResult>;
   useLoaderView(): LoaderViewValueFor<TLoaderResult>;
-  useRetry(): () => void;
+  useLoaderError(): LoaderExplicitErrorValueFor<TLoaderResult>;
   useReload(): () => void;
 };
 
@@ -676,11 +702,12 @@ export type LitzRoute<
         ? {
             useData(): LoaderDataValueFor<TLoaderResult>;
             useView(): LoaderViewValueFor<TLoaderResult>;
+            useError(): LoaderExplicitErrorValueFor<TLoaderResult>;
           }
         : {
             useData(): MergedDataValueFor<TLoaderResult, TActionResult>;
             useView(): MergedViewValueFor<TLoaderResult, TActionResult>;
-            useError(): ActionExplicitErrorValueFor<TActionResult>;
+            useError(): MergedExplicitErrorValueFor<TLoaderResult, TActionResult>;
           })
 >;
 
@@ -733,7 +760,7 @@ export type LitzResource<
         useLoaderResult(): LoaderHookResultFor<TLoaderResult> | null;
         useLoaderData(): LoaderDataValueFor<TLoaderResult>;
         useLoaderView(): LoaderViewValueFor<TLoaderResult>;
-        useRetry(): () => void;
+        useLoaderError(): LoaderExplicitErrorValueFor<TLoaderResult>;
         useReload(): () => void;
       }) &
     ([TActionResult] extends [never]
@@ -762,11 +789,12 @@ export type LitzResource<
         ? {
             useData(): LoaderDataValueFor<TLoaderResult>;
             useView(): LoaderViewValueFor<TLoaderResult>;
+            useError(): LoaderExplicitErrorValueFor<TLoaderResult>;
           }
         : {
             useData(): MergedDataValueFor<TLoaderResult, TActionResult>;
             useView(): MergedViewValueFor<TLoaderResult, TActionResult>;
-            useError(): ActionExplicitErrorValueFor<TActionResult>;
+            useError(): MergedExplicitErrorValueFor<TLoaderResult, TActionResult>;
           })
 >;
 
@@ -979,13 +1007,14 @@ export function defineRoute(path: string, options: DefineRouteOptions<any, any, 
         .loaderResult as LoaderHookResultFor<ServerResult> | null;
       return loaderResult?.kind === "view" ? loaderResult.node : null;
     },
+    useLoaderError: () => {
+      const loaderResult = getRequiredRouteData(path)
+        .loaderResult as LoaderHookResultFor<ServerResult> | null;
+      return loaderResult?.kind === "error" ? loaderResult : null;
+    },
     useData: () => getRequiredRouteData(path).data as unknown,
     useView: () => getRequiredRouteData(path).view as React.ReactNode | null,
-    useError: () => {
-      const actionResult = getRequiredRouteData(path)
-        .actionResult as ActionHookResultFor<ServerResult>;
-      return actionResult?.kind === "error" ? actionResult : null;
-    },
+    useError: () => getRequiredRouteData(path).error as RouteExplicitErrorLike | null,
     useActionResult: () =>
       getRequiredRouteData(path).actionResult as ActionHookResultFor<ServerResult>,
     useActionData: () => {
@@ -1017,10 +1046,6 @@ export function defineRoute(path: string, options: DefineRouteOptions<any, any, 
         URLSearchParams,
         SetSearchParams,
       ];
-    },
-    useRetry: () => {
-      const actions = getRequiredRouteActions(path);
-      return () => actions.retry();
     },
     useReload: () => {
       const actions = getRequiredRouteActions(path);
@@ -1080,6 +1105,11 @@ export function defineLayout(path: string, options: DefineLayoutOptions<any, any
         .loaderResult as LoaderHookResultFor<ServerResult> | null;
       return loaderResult?.kind === "view" ? loaderResult.node : null;
     },
+    useLoaderError: () => {
+      const loaderResult = getRequiredRouteData(path)
+        .loaderResult as LoaderHookResultFor<ServerResult> | null;
+      return loaderResult?.kind === "error" ? loaderResult : null;
+    },
     useData: () => {
       const loaderResult = getRequiredRouteData(path)
         .loaderResult as LoaderHookResultFor<ServerResult> | null;
@@ -1095,10 +1125,6 @@ export function defineLayout(path: string, options: DefineLayoutOptions<any, any
         URLSearchParams,
         SetSearchParams,
       ];
-    },
-    useRetry: () => {
-      const actions = getRequiredRouteActions(path);
-      return () => actions.retry();
     },
     useReload: () => {
       const actions = getRequiredRouteActions(path);
@@ -1257,6 +1283,11 @@ export function defineResource(path: any, options: any): any {
         .loaderResult as LoaderHookResultFor<ServerResult> | null;
       return loaderResult?.kind === "view" ? loaderResult.node : null;
     },
+    useLoaderError: () => {
+      const loaderResult = getRequiredResourceData(path)
+        .loaderResult as LoaderHookResultFor<ServerResult> | null;
+      return loaderResult?.kind === "error" ? loaderResult : null;
+    },
     useActionResult: () =>
       getRequiredResourceData(path).actionResult as ActionHookResultFor<ServerResult>,
     useActionData: () => {
@@ -1281,11 +1312,7 @@ export function defineResource(path: any, options: any): any {
     },
     useData: () => getRequiredResourceData(path).data as unknown,
     useView: () => getRequiredResourceData(path).view as React.ReactNode | null,
-    useError: () => {
-      const actionResult = getRequiredResourceData(path)
-        .actionResult as ActionHookResultFor<ServerResult>;
-      return actionResult?.kind === "error" ? actionResult : null;
-    },
+    useError: () => getRequiredResourceData(path).error as RouteExplicitErrorLike | null,
     useStatus: () => getRequiredResourceStatus(path).status as RouteStatus,
     usePending: () => getRequiredResourceStatus(path).pending,
     useParams: () => getRequiredResourceLocation(path).params as PathParams<string>,
@@ -1295,10 +1322,6 @@ export function defineResource(path: any, options: any): any {
         URLSearchParams,
         SetSearchParams,
       ];
-    },
-    useRetry: () => {
-      const actions = getRequiredResourceActions(path);
-      return () => actions.retry();
     },
     useReload: () => {
       const actions = getRequiredResourceActions(path);
@@ -1448,6 +1471,23 @@ export function error<TData = unknown>(
     headers: options.headers,
     code: options.code,
     data: options.data,
+  };
+}
+
+export function fault(
+  status: number,
+  message: string,
+  options: {
+    headers?: HeadersInit;
+    digest?: string;
+  } = {},
+): FaultResult {
+  return {
+    kind: "fault",
+    status,
+    message,
+    headers: options.headers,
+    digest: options.digest,
   };
 }
 

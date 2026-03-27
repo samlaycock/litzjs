@@ -24,7 +24,6 @@ export const route = defineRoute("/features/status-pending", {
       note: note || "(empty)",
     });
   }),
-  pendingComponent: StatusPending,
 });
 
 function StatusPage() {
@@ -33,7 +32,6 @@ function StatusPage() {
   const status = route.useStatus();
   const pending = route.usePending();
   const submitting = status === "submitting";
-  const retry = route.useRetry();
   const reload = route.useReload();
 
   return (
@@ -48,9 +46,6 @@ function StatusPage() {
         <p>Last note: {action?.note ?? "(none)"}</p>
 
         <div>
-          <button type="button" onClick={() => retry()}>
-            Retry
-          </button>
           <button type="button" onClick={() => reload()}>
             Reload
           </button>
@@ -79,15 +74,6 @@ function StatusFormFields(props: { submitting: boolean }) {
         useFormStatus data:{" "}
         {typeof pendingNote === "string" && pendingNote ? pendingNote : "(idle)"}
       </p>
-    </>
-  );
-}
-
-function StatusPending() {
-  return (
-    <>
-      <title>Status Pending | Litz RSC Smoke</title>
-      <main>Loading status route...</main>
     </>
   );
 }

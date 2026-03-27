@@ -165,8 +165,7 @@ function ProfilePage() {
 
 Routes and layouts can also define:
 
-- `pendingComponent` for the first unresolved loader pass
-- `errorComponent` for `error(...)` results and unhandled route faults
+- `errorBoundary` for unhandled route faults
 - `middleware` for per-definition request handling
 
 ## Layouts
@@ -205,6 +204,7 @@ Layouts can declare loaders and use the same route-state hooks:
 - `layout.useLoaderResult()`
 - `layout.useLoaderData()`
 - `layout.useLoaderView()`
+- `layout.useLoaderError()`
 - `layout.useData()`
 - `layout.useView()`
 - `layout.useParams()`
@@ -212,7 +212,6 @@ Layouts can declare loaders and use the same route-state hooks:
 - `layout.useStatus()`
 - `layout.usePending()`
 - `layout.useReload()`
-- `layout.useRetry()`
 
 ## `view(...)`
 
@@ -247,8 +246,8 @@ function ReportsPanel() {
 Result hooks are layered:
 
 - `useLoaderResult()` and `useActionResult()` expose the raw normalized result branches
-- `useLoaderData()` / `useLoaderView()` and `useActionData()` / `useActionView()` / `useActionError()` expose branch-specific values
-- `useData()` / `useView()` / `useError()` expose the latest settled value from either the loader or action
+- `useLoaderData()` / `useLoaderView()` / `useLoaderError()` and `useActionData()` / `useActionView()` / `useActionError()` expose branch-specific values
+- `useData()` / `useView()` / `useError()` expose the latest settled merged value
 - unresolved values are `null`
 
 ## Route State Hooks
@@ -260,7 +259,6 @@ function SaveToolbar() {
   const status = route.useStatus();
   const pending = route.usePending();
   const reload = route.useReload();
-  const retry = route.useRetry();
   const submit = route.useSubmit({
     onSuccess(result) {
       console.log("saved", result.kind);
@@ -272,9 +270,6 @@ function SaveToolbar() {
       <p>Status: {status}</p>
       <button onClick={() => reload()} disabled={pending}>
         Reload
-      </button>
-      <button onClick={() => retry()} disabled={pending}>
-        Retry
       </button>
       <button onClick={() => submit({ name: "Ada" })} disabled={pending}>
         Save
@@ -296,6 +291,7 @@ function SaveToolbar() {
 Use the more specific hooks when you know which source you want:
 
 - `useLoaderData()` if you only care about loader `data(...)`
+- `useLoaderError()` if you only care about loader `error(...)`
 - `useActionError()` if you only care about explicit action `error(...)`
 - `useView()` if you want the latest settled `view(...)` from either side
 
@@ -658,6 +654,7 @@ Inside a resource component subtree, resources expose the same style of hooks as
 - `resource.useLoaderResult()`
 - `resource.useLoaderData()`
 - `resource.useLoaderView()`
+- `resource.useLoaderError()`
 - `resource.useActionResult()`
 - `resource.useActionData()`
 - `resource.useActionView()`
@@ -671,13 +668,12 @@ Inside a resource component subtree, resources expose the same style of hooks as
 - `resource.useParams()`
 - `resource.useSearch()`
 - `resource.useReload()`
-- `resource.useRetry()`
 - `resource.useSubmit()`
 - `resource.Form`
 
 The main split to keep in mind:
 
-- `useLoaderData()` / `useLoaderView()` read loader-only state
+- `useLoaderData()` / `useLoaderView()` / `useLoaderError()` read loader-only state
 - `useActionData()` / `useActionView()` / `useActionError()` / `useInvalid()` read action-only state
 - `useData()` / `useView()` / `useError()` read the latest settled merged value for the resource
 
@@ -867,10 +863,13 @@ Behavior summary:
 
 - `data(...)` populates loader/action data hooks
 - `view(...)` populates loader/action view hooks
+- `error(...)` populates loader/action error hooks
+- `fault(...)` populates route fault boundaries
 - `invalid(...)` populates `useInvalid()`
 - `redirect(...)` navigates instead of producing hook state
+- explicit loader `error(...)` is available through `useLoaderError()` and `useError()`
 - explicit action `error(...)` is available through `useActionError()` and `useError()`
-- route faults and loader failures go through route error boundaries
+- route faults go through route error boundaries
 
 ## Middleware
 

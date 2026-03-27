@@ -1,8 +1,8 @@
-import { defineRoute, error, server } from "litzjs";
+import { defineRoute, fault, server } from "litzjs";
 
 export const route = defineRoute("/features/error-default", {
   component: BrokenDefaultPage,
-  loader: server(async () => error(500, "Broken route with default fallback")),
+  loader: server(async () => fault(500, "Broken route with default fallback")),
 });
 
 function BrokenDefaultPage() {

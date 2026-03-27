@@ -50,6 +50,7 @@ export type ResourceDataState = {
   actionResult: ActionHookResult;
   data: unknown;
   view: React.ReactNode | null;
+  error: import("../index").RouteExplicitErrorLike | null;
 };
 
 export type ResourceActionsState = {
@@ -60,7 +61,6 @@ export type ResourceActionsState = {
     options?: SubmitOptions,
   ): Promise<void>;
   reload(this: void): void;
-  retry(this: void): void;
 };
 
 export type ResourceRuntimeState = ResourceLocationState &
@@ -73,6 +73,7 @@ type ResourceSnapshot = {
   actionResult: ActionHookResult;
   data: unknown;
   view: React.ReactNode | null;
+  error: import("../index").RouteExplicitErrorLike | null;
   status: RouteStatus;
   pending: boolean;
   failure?: unknown;
@@ -189,10 +190,12 @@ export function ResourceRuntimeProvider(props: {
       actionResult: props.value.actionResult,
       data: props.value.data,
       view: props.value.view,
+      error: props.value.error,
     }),
     [
       props.value.actionResult,
       props.value.data,
+      props.value.error,
       props.value.id,
       props.value.loaderResult,
       props.value.view,
@@ -203,9 +206,8 @@ export function ResourceRuntimeProvider(props: {
       id: props.value.id,
       submit: props.value.submit,
       reload: props.value.reload,
-      retry: props.value.retry,
     }),
-    [props.value.id, props.value.reload, props.value.retry, props.value.submit],
+    [props.value.id, props.value.reload, props.value.submit],
   );
 
   return (
@@ -404,10 +406,6 @@ function useResourceRuntime(resourcePath: string, request?: ResourceRequest): Re
     void reloadImpl(snapshot.loaderResult ? "revalidating" : "loading");
   }, [reloadImpl, snapshot.loaderResult]);
 
-  const retry = React.useCallback(() => {
-    void reloadImpl(snapshot.loaderResult ? "revalidating" : "loading");
-  }, [reloadImpl, snapshot.loaderResult]);
-
   if (snapshot.failure) {
     throw snapshot.failure;
   }
@@ -424,19 +422,19 @@ function useResourceRuntime(resourcePath: string, request?: ResourceRequest): Re
       actionResult: snapshot.actionResult,
       data: snapshot.data,
       view: snapshot.view,
+      error: snapshot.error,
       submit,
       reload,
-      retry,
     }),
     [
       params,
       reload,
       resourcePath,
-      retry,
       searchState,
       setSearch,
       snapshot.actionResult,
       snapshot.data,
+      snapshot.error,
       snapshot.loaderResult,
       snapshot.pending,
       snapshot.status,
@@ -507,7 +505,8 @@ async function performPreparedResourceRequest(
           loaderResult,
           data: loaderResult.kind === "data" ? loaderResult.data : null,
           view: loaderResult.kind === "view" ? loaderResult.node : null,
-          status: "idle",
+          error: loaderResult.kind === "error" ? loaderResult : null,
+          status: loaderResult.kind === "error" ? "error" : "idle",
           failure: entry.snapshot.failure,
         };
         return loaderResult;
@@ -519,6 +518,7 @@ async function performPreparedResourceRequest(
         entry.snapshot = {
           ...entry.snapshot,
           actionResult,
+          error: null,
           status: "idle",
           failure: undefined,
         };
@@ -541,6 +541,7 @@ async function performPreparedResourceRequest(
         actionResult,
         data: actionResult.kind === "data" ? actionResult.data : null,
         view: actionResult.kind === "view" ? actionResult.node : null,
+        error: actionResult.kind === "error" ? actionResult : null,
         status: actionResult.kind === "error" ? "error" : "idle",
         failure: undefined,
       };
@@ -639,6 +640,7 @@ function getInitialSnapshot(): ResourceSnapshot {
     actionResult: null,
     data: null,
     view: null,
+    error: null,
     status: "idle",
     pending: false,
   };

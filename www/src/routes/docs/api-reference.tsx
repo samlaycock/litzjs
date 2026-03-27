@@ -23,9 +23,7 @@ function ApiReference() {
           <code className="text-sky-400">defineRoute(path, options)</code> — Define a route.
           Options:{" "}
           <code className="text-sky-400">
-            {
-              "{ component, loader?, action?, layout?, middleware?, pendingComponent?, errorComponent?, offline? }"
-            }
+            {"{ component, loader?, action?, layout?, middleware?, errorBoundary?, offline? }"}
           </code>
         </p>
 
@@ -34,7 +32,7 @@ function ApiReference() {
           <code className="text-sky-400">defineLayout(path, options)</code> — Define a layout.
           Options:{" "}
           <code className="text-sky-400">
-            {"{ component, loader?, layout?, middleware?, pendingComponent?, errorComponent? }"}
+            {"{ component, loader?, layout?, middleware?, errorBoundary? }"}
           </code>
         </p>
 
@@ -215,6 +213,10 @@ function ApiReference() {
             <code className="text-sky-400">route.useLoaderView()</code> — Loader view node or null
           </li>
           <li>
+            <code className="text-sky-400">route.useLoaderError()</code> — Explicit loader error or
+            null
+          </li>
+          <li>
             <code className="text-sky-400">route.useActionResult()</code> — Normalized action result
             or null
           </li>
@@ -241,10 +243,8 @@ function ApiReference() {
             or action
           </li>
           <li>
-            <code className="text-sky-400">route.useError()</code> — Latest settled error
-          </li>
-          <li>
-            <code className="text-sky-400">route.useRetry()</code> — Retry failed loader
+            <code className="text-sky-400">route.useError()</code> — Latest settled merged explicit
+            error
           </li>
           <li>
             <code className="text-sky-400">route.useReload()</code> — Reload loader
@@ -293,11 +293,7 @@ function ApiReference() {
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">RouteErrorLike</h3>
         <p className="text-neutral-400 mb-4">
-          <code className="text-sky-400">
-            {
-              "{ kind: 'error', status, message, code?, data? } | { kind: 'fault', status, message, digest? }"
-            }
-          </code>
+          <code className="text-sky-400">{"RouteExplicitErrorLike | RouteFaultLike"}</code>
         </p>
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">SubmitOptions</h3>

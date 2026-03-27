@@ -274,12 +274,17 @@ describe("server security", () => {
         body: routeRequest.body,
       }),
     );
-    const body = await response.text();
+    const body = (await response.json()) as {
+      kind: "fault";
+      message: string;
+      digest?: string;
+    };
 
     expect(response.status).toBe(500);
-    expect(body).toBe("Litz server error.");
-    expect(body).not.toContain("SELECT");
-    expect(body).not.toContain("abc123");
+    expect(body.kind).toBe("fault");
+    expect(body.message).toBe("Internal server error.");
+    expect(body.message).not.toContain("SELECT");
+    expect(body.message).not.toContain("abc123");
   });
 
   test("does not expose unhandled server error messages from resource loaders", async () => {
@@ -313,11 +318,107 @@ describe("server security", () => {
         body: resourceRequest.body,
       }),
     );
-    const body = await response.text();
+    const body = (await response.json()) as {
+      kind: "fault";
+      message: string;
+      digest?: string;
+    };
 
     expect(response.status).toBe(500);
-    expect(body).toBe("Litz server error.");
-    expect(body).not.toContain("ENOENT");
-    expect(body).not.toContain("/etc/shadow");
+    expect(body.kind).toBe("fault");
+    expect(body.message).toBe("Internal server error.");
+    expect(body.message).not.toContain("ENOENT");
+    expect(body.message).not.toContain("/etc/shadow");
+  });
+
+  test("does not expose unhandled server error messages from route actions", async () => {
+    const server = createServer({
+      manifest: {
+        routes: [
+          {
+            id: "secrets.update",
+            path: "/secrets/:id",
+            route: {
+              action() {
+                throw new Error("update credentials set token='abc123'");
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const actionRequest = createInternalActionRequestInit(
+      {
+        path: "/secrets/:id",
+        operation: "action",
+        request: {
+          params: { id: "1" },
+        },
+      },
+      { name: "Litz" },
+    );
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/action", {
+        method: "POST",
+        headers: actionRequest.headers,
+        body: actionRequest.body,
+      }),
+    );
+    const body = (await response.json()) as {
+      kind: "fault";
+      message: string;
+      digest?: string;
+    };
+
+    expect(response.status).toBe(500);
+    expect(body.kind).toBe("fault");
+    expect(body.message).toBe("Internal server error.");
+    expect(body.message).not.toContain("update credentials");
+    expect(body.message).not.toContain("abc123");
+  });
+
+  test("does not expose unhandled server error messages from resource actions", async () => {
+    const server = createServer({
+      manifest: {
+        resources: [
+          {
+            path: "/resources/config",
+            resource: {
+              action() {
+                throw new Error("permission denied: /etc/shadow");
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const actionRequest = createInternalActionRequestInit(
+      {
+        path: "/resources/config",
+        operation: "action",
+        request: {},
+      },
+      { name: "Litz" },
+    );
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/resource", {
+        method: "POST",
+        headers: actionRequest.headers,
+        body: actionRequest.body,
+      }),
+    );
+    const body = (await response.json()) as {
+      kind: "fault";
+      message: string;
+      digest?: string;
+    };
+
+    expect(response.status).toBe(500);
+    expect(body.kind).toBe("fault");
+    expect(body.message).toBe("Internal server error.");
+    expect(body.message).not.toContain("permission denied");
+    expect(body.message).not.toContain("/etc/shadow");
   });
 });
