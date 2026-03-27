@@ -11,6 +11,7 @@ export interface LinkProps extends Omit<React.ComponentPropsWithoutRef<"a">, "hr
   readonly prefetchData?: boolean;
 }
 
+// The dependency bag is expected to be module-level or memoized by the caller.
 export function createLinkComponent(dependencies: {
   useNavigate(): (href: string, options?: { replace?: boolean }) => void;
   prefetchRouteForHref(
@@ -19,6 +20,7 @@ export function createLinkComponent(dependencies: {
       target?: string | null;
       download?: string | boolean | null;
       includeData?: boolean;
+      signal?: AbortSignal;
     },
   ): void;
 }): React.ComponentType<LinkProps> {
@@ -44,11 +46,18 @@ export function createLinkComponent(dependencies: {
         return;
       }
 
+      const controller = new AbortController();
+
       dependencies.prefetchRouteForHref(href, {
         target,
         download,
         includeData: prefetchData,
+        signal: controller.signal,
       });
+
+      return () => {
+        controller.abort();
+      };
     }, [dependencies, download, href, prefetch, prefetchData, target]);
 
     return React.createElement("a", {

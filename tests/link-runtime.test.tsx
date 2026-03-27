@@ -313,6 +313,70 @@ describe("link runtime", () => {
     );
   });
 
+  test("render prefetch aborts in-flight work when the link unmounts", async () => {
+    const receivedSignals: AbortSignal[] = [];
+
+    function App() {
+      const [visible, setVisible] = React.useState(true);
+      const RuntimeLink = React.useMemo(
+        () =>
+          createLinkComponent({
+            useNavigate() {
+              const context = React.useContext(NavigationContext);
+
+              if (!context) {
+                throw new Error("Test navigation context is missing.");
+              }
+
+              return (href, options) => context.navigate(href, options);
+            },
+            prefetchRouteForHref(_href, options) {
+              if (options?.signal) {
+                receivedSignals.push(options.signal);
+              }
+            },
+          }),
+        [],
+      );
+      const navigationValue = React.useMemo(
+        () => ({
+          navigate() {
+            throw new Error("Render prefetch should not navigate.");
+          },
+        }),
+        [],
+      );
+
+      return (
+        <NavigationContext.Provider value={navigationValue}>
+          <button id="toggle-link" onClick={() => setVisible(false)} type="button">
+            Hide link
+          </button>
+          {visible ? (
+            <RuntimeLink href="/next" prefetch="render" prefetchData>
+              Open next route
+            </RuntimeLink>
+          ) : null}
+        </NavigationContext.Provider>
+      );
+    }
+
+    await act(async () => {
+      root?.render(<App />);
+      await flushDom();
+    });
+
+    expect(receivedSignals).toHaveLength(1);
+    expect(receivedSignals[0]?.aborted).toBe(false);
+
+    await act(async () => {
+      (document.getElementById("toggle-link") as HTMLButtonElement | null)?.click();
+      await flushDom();
+    });
+
+    expect(receivedSignals[0]?.aborted).toBe(true);
+  });
+
   test("prefetch none skips route warming until click", async () => {
     function App() {
       const [location, setLocation] = React.useState(() => window.location.href);
