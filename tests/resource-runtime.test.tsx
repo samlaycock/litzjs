@@ -187,6 +187,47 @@ const loaderErrorActionResource = defineResource("/resource/error-action/:id", {
   action: server(async ({ params }) => data({ id: params.id, count: 2 })),
 });
 
+const raceResourceEvents: string[] = [];
+const raceResource = defineResource("/resource/race/:id", {
+  component: function RaceResource() {
+    const details = raceResource.useData() as { value: string } | null;
+    const submit = raceResource.useSubmit({
+      onSuccess(result) {
+        raceResourceEvents.push(`success:${String((result.data as { value?: string }).value)}`);
+      },
+    });
+
+    return (
+      <section>
+        <div className="race-value" data-value={details?.value ?? "(none)"} />
+        <div className="race-status" data-value={raceResource.useStatus()} />
+        <div className="race-pending" data-value={raceResource.usePending() ? "yes" : "no"} />
+        <div className="race-events" data-value={raceResourceEvents.join(",") || "(empty)"} />
+        <button
+          type="button"
+          className="race-submit-first"
+          onClick={() => {
+            void submit({ value: "first" });
+          }}
+        >
+          Submit first
+        </button>
+        <button
+          type="button"
+          className="race-submit-second"
+          onClick={() => {
+            void submit({ value: "second" });
+          }}
+        >
+          Submit second
+        </button>
+      </section>
+    );
+  },
+  loader: server(async () => data({ value: "initial" })),
+  action: server(async () => data({ value: "server" })),
+});
+
 function ResourceStatusFields(): React.ReactElement {
   const status = useFormStatus();
   const increment = status.data?.get("increment");
@@ -248,6 +289,7 @@ describe("resource runtime", () => {
     root = createRoot(container);
     installRuntimeBindings();
     originalFetch = globalThis.fetch;
+    raceResourceEvents.length = 0;
   });
 
   afterEach(async () => {
@@ -729,5 +771,138 @@ describe("resource runtime", () => {
     expect(document.querySelector(".resource-action-kind")?.getAttribute("data-value")).toBe(
       "data",
     );
+  });
+
+  test("keeps overlapping resource submits latest-only and aborts the older request", async () => {
+    const actionSignals: AbortSignal[] = [];
+    const actionDeferreds: Array<{ resolve(response: Response): void }> = [];
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      const metadata = headers.get("x-litzjs-request");
+
+      if (!metadata) {
+        return Response.json({
+          kind: "data",
+          data: { value: "initial" },
+        });
+      }
+
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      actionSignals.push(init?.signal as AbortSignal);
+
+      return await new Promise<Response>((resolve) => {
+        actionDeferreds.push({ resolve });
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<raceResource.Component params={{ id: "user-007" }} />);
+      await flushDom();
+    });
+
+    expect(document.querySelector(".race-value")?.getAttribute("data-value")).toBe("initial");
+
+    await act(async () => {
+      (document.querySelector(".race-submit-first") as HTMLButtonElement).click();
+      await flushDom();
+    });
+
+    await act(async () => {
+      (document.querySelector(".race-submit-second") as HTMLButtonElement).click();
+      await flushDom();
+    });
+
+    expect(actionSignals).toHaveLength(2);
+    expect(actionSignals[0]?.aborted).toBe(true);
+    expect(actionSignals[1]?.aborted).toBe(false);
+
+    await act(async () => {
+      actionDeferreds[1]?.resolve(
+        Response.json({
+          kind: "data",
+          data: { value: "second" },
+        }),
+      );
+      await flushDom();
+    });
+
+    expect(document.querySelector(".race-value")?.getAttribute("data-value")).toBe("second");
+    expect(raceResourceEvents).toEqual(["success:second"]);
+    expect(document.querySelector(".race-status")?.getAttribute("data-value")).toBe("idle");
+    expect(document.querySelector(".race-pending")?.getAttribute("data-value")).toBe("no");
+
+    await act(async () => {
+      actionDeferreds[0]?.resolve(
+        Response.json({
+          kind: "data",
+          data: { value: "first" },
+        }),
+      );
+      await flushDom();
+    });
+
+    expect(document.querySelector(".race-value")?.getAttribute("data-value")).toBe("second");
+    expect(raceResourceEvents).toEqual(["success:second"]);
+  });
+
+  test("aborts an in-flight resource submit when the resource unmounts", async () => {
+    let actionAborted = false;
+    let resolveActionFetch: ((response: Response) => void) | null = null;
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      const metadata = headers.get("x-litzjs-request");
+
+      if (!metadata) {
+        return Response.json({
+          kind: "data",
+          data: { value: "initial" },
+        });
+      }
+
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      (init?.signal as AbortSignal).addEventListener(
+        "abort",
+        () => {
+          actionAborted = true;
+        },
+        { once: true },
+      );
+
+      return await new Promise<Response>((resolve) => {
+        resolveActionFetch = resolve;
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<raceResource.Component params={{ id: "user-008" }} />);
+      await flushDom();
+    });
+
+    await act(async () => {
+      (document.querySelector(".race-submit-first") as HTMLButtonElement).click();
+      await flushDom();
+    });
+
+    await act(async () => {
+      root?.render(<div className="unmounted-resource" />);
+      await flushDom();
+    });
+
+    expect(actionAborted).toBe(true);
+
+    await act(async () => {
+      resolveActionFetch?.(
+        Response.json({
+          kind: "data",
+          data: { value: "first" },
+        }),
+      );
+      await flushDom();
+    });
+
+    expect(document.querySelector(".unmounted-resource")).not.toBeNull();
+    expect(raceResourceEvents).toEqual([]);
   });
 });

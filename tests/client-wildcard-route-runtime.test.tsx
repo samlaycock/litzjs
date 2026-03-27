@@ -8,6 +8,7 @@ import { flushDom, installTestDom } from "./test-dom";
 type ClientModule = typeof import("../src/client/index");
 
 let clientModule: ClientModule | null = null;
+const routeSubmitEvents: string[] = [];
 const projectRoute = defineRoute("/projects/:id", {
   component: ProjectRoute,
   loader: server(() =>
@@ -33,6 +34,13 @@ const loadDocsRoute = mock(async () => ({
 }));
 const loadProjectRoute = mock(async () => ({
   route: projectRoute,
+}));
+const submitRoute = defineRoute("/submit/:id", {
+  component: SubmitRoute,
+  action: server(async () => data({ value: "server" })),
+});
+const loadSubmitRoute = mock(async () => ({
+  route: submitRoute,
 }));
 
 function HomeRoute(): React.ReactElement {
@@ -74,6 +82,39 @@ function ProjectRoute(): React.ReactElement {
   );
 }
 
+function SubmitRoute(): React.ReactElement {
+  if (!clientModule) {
+    throw new Error("Client runtime has not been loaded.");
+  }
+
+  const navigate = clientModule.useNavigate();
+  const actionData = submitRoute.useActionData() as { value: string } | null;
+  const submit = submitRoute.useSubmit({
+    onSuccess(result) {
+      routeSubmitEvents.push(`success:${String((result.data as { value?: string }).value)}`);
+    },
+  });
+
+  return (
+    <main>
+      <div id="route-state" data-value="submit-route" />
+      <div id="submit-data" data-value={actionData ? JSON.stringify(actionData) : "null"} />
+      <div id="submit-status" data-value={submitRoute.useStatus()} />
+      <div id="submit-pending" data-value={String(submitRoute.usePending())} />
+      <div id="submit-events" data-value={routeSubmitEvents.join(",") || "(empty)"} />
+      <button id="submit-first" type="button" onClick={() => void submit({ value: "first" })}>
+        Submit first
+      </button>
+      <button id="submit-second" type="button" onClick={() => void submit({ value: "second" })}>
+        Submit second
+      </button>
+      <button id="submit-navigate-home" type="button" onClick={() => navigate("/")}>
+        Navigate home
+      </button>
+    </main>
+  );
+}
+
 void mock.module("virtual:litzjs:route-manifest", () => ({
   routeManifest: [
     {
@@ -91,13 +132,18 @@ void mock.module("virtual:litzjs:route-manifest", () => ({
       path: projectRoute.path,
       load: loadProjectRoute,
     },
+    {
+      id: submitRoute.id,
+      path: submitRoute.path,
+      load: loadSubmitRoute,
+    },
   ],
 }));
 
 async function flushApp(): Promise<void> {
-  await flushDom();
-  await flushDom();
-  await flushDom();
+  for (let index = 0; index < 6; index += 1) {
+    await flushDom();
+  }
 }
 
 describe("client wildcard route runtime", () => {
@@ -114,6 +160,8 @@ describe("client wildcard route runtime", () => {
     loadHomeRoute.mockClear();
     loadDocsRoute.mockClear();
     loadProjectRoute.mockClear();
+    loadSubmitRoute.mockClear();
+    routeSubmitEvents.length = 0;
     originalFetch = globalThis.fetch;
   });
 
@@ -283,6 +331,152 @@ describe("client wildcard route runtime", () => {
     );
     expect(document.getElementById("status-state")?.getAttribute("data-value")).toBe("idle");
     expect(document.getElementById("pending-state")?.getAttribute("data-value")).toBe("false");
+  });
+
+  test("keeps overlapping route submits latest-only and aborts the older request", async () => {
+    window.history.replaceState(null, "", "/submit/42");
+
+    const actionSignals: AbortSignal[] = [];
+    const actionDeferreds: Array<{ resolve(response: Response): void }> = [];
+
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const inputUrl =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+
+      if (inputUrl !== "/_litzjs/action") {
+        throw new Error(`Unexpected fetch target "${inputUrl}".`);
+      }
+
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      expect(init?.body).toBeInstanceOf(FormData);
+      actionSignals.push(init?.signal as AbortSignal);
+
+      return new Promise<Response>((resolve) => {
+        actionDeferreds.push({ resolve });
+      });
+    }) as typeof globalThis.fetch;
+
+    clientModule = await import("../src/client/index");
+
+    await act(async () => {
+      clientModule?.mountApp(container!);
+      await flushApp();
+    });
+
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe("submit-route");
+
+    await act(async () => {
+      (document.getElementById("submit-first") as HTMLButtonElement | null)?.click();
+      await flushDom();
+    });
+
+    await act(async () => {
+      (document.getElementById("submit-second") as HTMLButtonElement | null)?.click();
+      await flushDom();
+    });
+
+    expect(actionSignals).toHaveLength(2);
+    expect(actionSignals[0]?.aborted).toBe(true);
+    expect(actionSignals[1]?.aborted).toBe(false);
+
+    await act(async () => {
+      actionDeferreds[1]?.resolve(
+        Response.json({
+          kind: "data",
+          data: { value: "second" },
+        }),
+      );
+      await flushApp();
+    });
+
+    expect(document.getElementById("submit-data")?.getAttribute("data-value")).toBe(
+      JSON.stringify({ value: "second" }),
+    );
+    expect(document.getElementById("submit-events")?.getAttribute("data-value")).toBe(
+      "success:second",
+    );
+    expect(document.getElementById("submit-status")?.getAttribute("data-value")).toBe("idle");
+    expect(document.getElementById("submit-pending")?.getAttribute("data-value")).toBe("false");
+
+    await act(async () => {
+      actionDeferreds[0]?.resolve(
+        Response.json({
+          kind: "data",
+          data: { value: "first" },
+        }),
+      );
+      await flushApp();
+    });
+
+    expect(document.getElementById("submit-data")?.getAttribute("data-value")).toBe(
+      JSON.stringify({ value: "second" }),
+    );
+    expect(document.getElementById("submit-events")?.getAttribute("data-value")).toBe(
+      "success:second",
+    );
+  });
+
+  test("aborts an in-flight route submit when navigation replaces the active route", async () => {
+    window.history.replaceState(null, "", "/submit/42");
+
+    let actionAborted = false;
+    let resolveActionFetch: ((response: Response) => void) | null = null;
+
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const inputUrl =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+
+      if (inputUrl !== "/_litzjs/action") {
+        throw new Error(`Unexpected fetch target "${inputUrl}".`);
+      }
+
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      (init?.signal as AbortSignal).addEventListener(
+        "abort",
+        () => {
+          actionAborted = true;
+        },
+        { once: true },
+      );
+
+      return new Promise<Response>((resolve) => {
+        resolveActionFetch = resolve;
+      });
+    }) as typeof globalThis.fetch;
+
+    clientModule = await import("../src/client/index");
+
+    await act(async () => {
+      clientModule?.mountApp(container!);
+      await flushApp();
+    });
+
+    await act(async () => {
+      (document.getElementById("submit-first") as HTMLButtonElement | null)?.click();
+      await flushDom();
+    });
+
+    await act(async () => {
+      (document.getElementById("submit-navigate-home") as HTMLButtonElement | null)?.click();
+      await flushApp();
+    });
+
+    expect(window.location.pathname).toBe("/");
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe("home-route");
+    expect(actionAborted).toBe(true);
+
+    await act(async () => {
+      resolveActionFetch?.(
+        Response.json({
+          kind: "data",
+          data: { value: "first" },
+        }),
+      );
+      await flushApp();
+    });
+
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe("home-route");
+    expect(routeSubmitEvents).toEqual([]);
   });
 
   test("mounts wrapper components from the options object", async () => {
