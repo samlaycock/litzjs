@@ -1,5 +1,7 @@
 import * as React from "react";
 
+import type { SubmitPayload } from "./form-data";
+
 import { getClientBindings } from "./client/bindings";
 import { interpolatePath } from "./path-matching";
 import {
@@ -8,6 +10,13 @@ import {
   type SearchParamsInput,
 } from "./search-params";
 
+export {
+  formJson,
+  type FormDataPayloadRecord,
+  type FormDataPayloadValue,
+  type FormJsonValue,
+  type SubmitPayload,
+} from "./form-data";
 export type { SearchParamRecord, SearchParamValue } from "./search-params";
 
 export type MiddlewareOverrides<TContext = unknown> = {
@@ -667,9 +676,7 @@ type RouteActionClientHooks<TActionResult extends ServerResult> = {
   useActionView(): ActionViewValueFor<TActionResult>;
   useActionError(): ActionExplicitErrorValueFor<TActionResult>;
   useInvalid(): ActionInvalidValueFor<TActionResult>;
-  useSubmit(
-    opts?: SubmitOptions<TActionResult>,
-  ): (payload: FormData | Record<string, unknown>) => Promise<void>;
+  useSubmit(opts?: SubmitOptions<TActionResult>): (payload: SubmitPayload) => Promise<void>;
   Form: React.ComponentType<RouteFormProps>;
 };
 
@@ -774,9 +781,7 @@ export type LitzResource<
           useActionView(): ActionViewValueFor<TActionResult>;
           useActionError(): ActionExplicitErrorValueFor<TActionResult>;
           useInvalid(): ActionInvalidValueFor<TActionResult>;
-          useSubmit(
-            opts?: SubmitOptions<TActionResult>,
-          ): (payload: FormData | Record<string, unknown>) => Promise<void>;
+          useSubmit(opts?: SubmitOptions<TActionResult>): (payload: SubmitPayload) => Promise<void>;
           Form: React.ComponentType<RouteFormProps>;
         }) &
     ([TLoaderResult] extends [never]
@@ -1055,7 +1060,7 @@ export function defineRoute(path: string, options: DefineRouteOptions<any, any, 
     },
     useSubmit: (opts?: SubmitOptions<ServerResult>) => {
       const actions = getRequiredRouteActions(path);
-      return (payload: FormData | Record<string, unknown>) => actions.submit(payload, opts);
+      return (payload: SubmitPayload) => actions.submit(payload, opts);
     },
     Form(props: RouteFormProps) {
       const bindings = getClientBindings();
@@ -1331,7 +1336,7 @@ export function defineResource(path: any, options: any): any {
     },
     useSubmit: (opts?: SubmitOptions<ServerResult>) => {
       const actions = getRequiredResourceActions(path);
-      return (payload: FormData | Record<string, unknown>) => actions.submit(payload, opts);
+      return (payload: SubmitPayload) => actions.submit(payload, opts);
     },
     Form(props: RouteFormProps) {
       const bindings = getClientBindings();

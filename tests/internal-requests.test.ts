@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { formJson } from "../src";
 import {
   createInternalActionRequestInit,
   parseInternalRequestBody,
@@ -48,7 +49,7 @@ describe("internal action requests", () => {
     expect(await (receivedUpload as File).text()).toBe("hello litz");
   });
 
-  test("serializes object payload values consistently for internal actions", async () => {
+  test("serializes explicit JSON payload values consistently for internal actions", async () => {
     const actionRequest = createInternalActionRequestInit(
       {
         path: "/projects",
@@ -56,10 +57,10 @@ describe("internal action requests", () => {
       },
       {
         name: "Litz",
-        metadata: {
+        metadata: formJson({
           published: false,
           tags: ["framework"],
-        },
+        }),
       },
     );
 
@@ -75,5 +76,35 @@ describe("internal action requests", () => {
       ["name", "Litz"],
       ["metadata", JSON.stringify({ published: false, tags: ["framework"] })],
     ]);
+  });
+
+  test("rejects implicit object payload values for internal actions", () => {
+    expect(() =>
+      createInternalActionRequestInit(
+        {
+          path: "/projects",
+          operation: "action",
+        },
+        {
+          metadata: {
+            published: false,
+          } as never,
+        },
+      ),
+    ).toThrow(/formJson/);
+  });
+
+  test("rejects null payload values instead of coercing them to empty strings", () => {
+    expect(() =>
+      createInternalActionRequestInit(
+        {
+          path: "/projects",
+          operation: "action",
+        },
+        {
+          nickname: null as never,
+        },
+      ),
+    ).toThrow(/null/);
   });
 });

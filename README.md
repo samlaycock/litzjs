@@ -279,6 +279,10 @@ function SaveToolbar() {
 }
 ```
 
+Imperative submit payloads now use an explicit `FormData` contract. Primitive values and
+`Blob`/`File` values append directly, arrays expand into repeated fields, and structured values
+must be wrapped with `formJson(value)` so their JSON encoding is intentional.
+
 `useStatus()` returns one of:
 
 - `idle`
@@ -657,6 +661,9 @@ function QuickActions() {
   );
 }
 ```
+
+Use `formJson(value)` here as well when a field should be JSON-encoded instead of appended as a
+plain scalar.
 
 ### Available Resource Hooks
 
