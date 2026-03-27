@@ -345,4 +345,112 @@ describe("processLoaderResults offline handling", () => {
       expect(resultIds).toEqual(["c"]);
     });
   });
+
+  describe("resolveHasOfflineFallback", () => {
+    test("routes raw network errors through onRouteError when fallback is available", () => {
+      const matches = [createMatch("a")];
+
+      const settled: LoaderSettledResult[] = [
+        { status: "rejected", reason: new TypeError("Failed to fetch") },
+      ];
+
+      let errorMatchId: string | undefined;
+      let errorValue: unknown;
+
+      processLoaderResults(settled, matches, {
+        onResult() {},
+        onRedirect() {},
+        onRouteError(matchId, error) {
+          errorMatchId = matchId;
+          errorValue = error;
+        },
+        resolveHasOfflineFallback() {
+          return true;
+        },
+      });
+
+      expect(errorMatchId).toBe("a");
+      expect(errorValue).toEqual({
+        kind: "fault",
+        status: 0,
+        headers: expect.any(Headers),
+        message: "Failed to fetch",
+      });
+    });
+
+    test("still throws raw network errors when no fallback is available", () => {
+      const matches = [createMatch("a")];
+
+      const settled: LoaderSettledResult[] = [
+        { status: "rejected", reason: new TypeError("Failed to fetch") },
+      ];
+
+      expect(() => {
+        processLoaderResults(settled, matches, {
+          onResult() {},
+          onRedirect() {},
+          onRouteError() {},
+          resolveHasOfflineFallback() {
+            return false;
+          },
+        });
+      }).toThrow("Failed to fetch");
+    });
+
+    test("uses generic message for non-Error network failures", () => {
+      const matches = [createMatch("a")];
+
+      const settled: LoaderSettledResult[] = [{ status: "rejected", reason: "connection refused" }];
+
+      let errorValue: unknown;
+
+      processLoaderResults(settled, matches, {
+        onResult() {},
+        onRedirect() {},
+        onRouteError(_matchId, error) {
+          errorValue = error;
+        },
+        resolveHasOfflineFallback() {
+          return true;
+        },
+      });
+
+      expect(errorValue).toEqual({
+        kind: "fault",
+        status: 0,
+        headers: expect.any(Headers),
+        message: "Network request failed",
+      });
+    });
+
+    test("preserveStaleOnFailure takes priority over fallback for eligible matches", () => {
+      const matches = [createMatch("a")];
+      const networkError = new TypeError("Failed to fetch");
+
+      const settled: LoaderSettledResult[] = [{ status: "rejected", reason: networkError }];
+
+      let offlineStaleMatchId: string | undefined;
+      let errorMatchId: string | undefined;
+
+      processLoaderResults(settled, matches, {
+        onResult() {},
+        onRedirect() {},
+        onRouteError(matchId) {
+          errorMatchId = matchId;
+        },
+        resolveOfflineEligible() {
+          return true;
+        },
+        onOfflineStale(matchId) {
+          offlineStaleMatchId = matchId;
+        },
+        resolveHasOfflineFallback() {
+          return true;
+        },
+      });
+
+      expect(offlineStaleMatchId).toBe("a");
+      expect(errorMatchId).toBeUndefined();
+    });
+  });
 });

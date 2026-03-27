@@ -49,6 +49,7 @@ export function processLoaderResults(
     onRouteError: (matchId: string, error: unknown) => void;
     resolveOfflineEligible?: (matchId: string) => boolean;
     onOfflineStale?: (matchId: string) => void;
+    resolveHasOfflineFallback?: (matchId: string) => boolean;
   },
 ): void {
   for (const [index, result] of settled.entries()) {
@@ -73,6 +74,16 @@ export function processLoaderResults(
 
       if (isRouteLikeError(error)) {
         callbacks.onRouteError(matchId, error);
+        return;
+      }
+
+      if (callbacks.resolveHasOfflineFallback?.(matchId)) {
+        callbacks.onRouteError(matchId, {
+          kind: "fault" as const,
+          status: 0,
+          headers: new Headers(),
+          message: error instanceof Error ? error.message : "Network request failed",
+        });
         return;
       }
 
