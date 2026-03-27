@@ -1209,6 +1209,8 @@ export async function handleLitzResourceRequest(
   response: ServerResponse,
   next: Connect.NextFunction,
 ): Promise<void> {
+  let viewId = "litzjs#view";
+
   if (!request.url?.startsWith("/_litzjs/resource")) {
     next();
     return;
@@ -1259,6 +1261,7 @@ export async function handleLitzResourceRequest(
     }
 
     const handler = operation === "action" ? resource.action : resource.loader;
+    viewId = `${entry.path}#${operation}`;
 
     if (!handler) {
       sendLitzJson(response, 405, {
@@ -1302,10 +1305,10 @@ export async function handleLitzResourceRequest(
       },
     });
 
-    await sendServerResult(server, response, result, `${entry.path}#${operation}`);
+    await sendServerResult(server, response, result, viewId);
   } catch (error) {
     if (isServerResultLike(error)) {
-      await sendServerResult(server, response, error);
+      await sendServerResult(server, response, error, viewId);
       return;
     }
 
@@ -1325,6 +1328,8 @@ export async function handleLitzRouteRequest(
   response: ServerResponse,
   next: Connect.NextFunction,
 ): Promise<void> {
+  let viewId = "litzjs#view";
+
   if (!request.url?.startsWith("/_litzjs/route") && !request.url?.startsWith("/_litzjs/action")) {
     next();
     return;
@@ -1432,6 +1437,7 @@ export async function handleLitzRouteRequest(
     const handler =
       operation === "action" ? (route.action ?? route.options?.action) : target.loader;
     const validation = operation === "action" ? route.options?.input : target.input;
+    viewId = `${target.id}#${operation}`;
 
     if (!handler) {
       sendLitzJson(response, 405, {
@@ -1485,10 +1491,10 @@ export async function handleLitzRouteRequest(
       },
     });
 
-    await sendServerResult(server, response, result, `${target.id}#${operation}`);
+    await sendServerResult(server, response, result, viewId);
   } catch (error) {
     if (isServerResultLike(error)) {
-      await sendServerResult(server, response, error);
+      await sendServerResult(server, response, error, viewId);
       return;
     }
 

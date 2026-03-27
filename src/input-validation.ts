@@ -88,12 +88,7 @@ export async function resolveValidatedInput<TContext>(options: {
     headers: options.validation?.headers
       ? await options.validation.headers(options.request.headers, validationContext)
       : options.request.headers,
-    body:
-      !options.validation?.body ||
-      options.request.method === "GET" ||
-      options.request.method === "HEAD"
-        ? undefined
-        : await options.validation.body(options.request.clone(), validationContext),
+    body: await resolveValidatedBody(options, validationContext),
   };
 }
 
@@ -158,7 +153,7 @@ export function createApiResponseFromResult(result: RuntimeServerResult): Respon
       );
     case "view":
       return createJsonResponse(
-        500,
+        result.status ?? 500,
         {
           message: "View responses are not supported for API validation.",
         },
@@ -179,5 +174,31 @@ function createJsonResponse(
   return new Response(JSON.stringify(body), {
     status,
     headers,
+  });
+}
+
+async function resolveValidatedBody<TContext>(
+  options: {
+    validation?: RuntimeInputValidation;
+    request: Request;
+    params: Record<string, string>;
+    signal: AbortSignal;
+    context: TContext | undefined;
+  },
+  validationContext: RuntimeInputValidationContext<TContext>,
+): Promise<unknown> {
+  if (
+    !options.validation?.body ||
+    options.request.method === "GET" ||
+    options.request.method === "HEAD"
+  ) {
+    return undefined;
+  }
+
+  const clonedRequest = options.request.clone();
+
+  return options.validation.body(clonedRequest, {
+    ...validationContext,
+    request: clonedRequest,
   });
 }
