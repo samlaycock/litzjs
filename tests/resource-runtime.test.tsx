@@ -123,6 +123,36 @@ const overlapResource = defineResource("/resource/overlap/:id", {
   action: server(async ({ params }) => data({ id: params.id, count: 2 })),
 });
 
+const loaderErrorActionResource = defineResource("/resource/error-action/:id", {
+  component: function LoaderErrorActionResource() {
+    const loaderError = (loaderErrorActionResource as any).useLoaderError();
+    const error = (loaderErrorActionResource as any).useError();
+    const status = loaderErrorActionResource.useStatus();
+    const actionResult = loaderErrorActionResource.useActionResult();
+    const submit = loaderErrorActionResource.useSubmit();
+
+    return (
+      <section>
+        <div className="loader-error-message" data-value={loaderError?.message ?? "(none)"} />
+        <div className="merged-error-message" data-value={error?.message ?? "(none)"} />
+        <div className="resource-status" data-value={status} />
+        <div className="resource-action-kind" data-value={actionResult?.kind ?? "(none)"} />
+        <button
+          type="button"
+          className="resource-submit"
+          onClick={() => {
+            void submit({ refresh: "1" });
+          }}
+        >
+          Submit
+        </button>
+      </section>
+    );
+  },
+  loader: server(async ({ params }) => data({ id: params.id, count: 1 })),
+  action: server(async ({ params }) => data({ id: params.id, count: 2 })),
+});
+
 function ResourceStatusFields(): React.ReactElement {
   const status = useFormStatus();
   const increment = status.data?.get("increment");
@@ -540,5 +570,63 @@ describe("resource runtime", () => {
     } finally {
       console.error = originalConsoleError;
     }
+  });
+
+  test("keeps loader errors source-scoped after a later successful action", async () => {
+    let loaderCalls = 0;
+    let actionCalls = 0;
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      const metadata = headers.get("x-litzjs-request");
+
+      if (metadata) {
+        actionCalls += 1;
+        return Response.json({
+          kind: "data",
+          data: { id: "user-006", count: 2 },
+        });
+      }
+
+      loaderCalls += 1;
+      return Response.json(
+        {
+          kind: "error",
+          message: "Loader not found",
+        },
+        { status: 404 },
+      );
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<loaderErrorActionResource.Component params={{ id: "user-006" }} />);
+      await flushDom();
+    });
+
+    expect(loaderCalls).toBe(1);
+    expect(document.querySelector(".loader-error-message")?.getAttribute("data-value")).toBe(
+      "Loader not found",
+    );
+    expect(document.querySelector(".merged-error-message")?.getAttribute("data-value")).toBe(
+      "Loader not found",
+    );
+    expect(document.querySelector(".resource-status")?.getAttribute("data-value")).toBe("error");
+
+    await act(async () => {
+      (document.querySelector(".resource-submit") as HTMLButtonElement).click();
+      await flushDom();
+    });
+
+    expect(actionCalls).toBe(1);
+    expect(document.querySelector(".loader-error-message")?.getAttribute("data-value")).toBe(
+      "Loader not found",
+    );
+    expect(document.querySelector(".merged-error-message")?.getAttribute("data-value")).toBe(
+      "(none)",
+    );
+    expect(document.querySelector(".resource-status")?.getAttribute("data-value")).toBe("idle");
+    expect(document.querySelector(".resource-action-kind")?.getAttribute("data-value")).toBe(
+      "data",
+    );
   });
 });
