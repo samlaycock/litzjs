@@ -423,6 +423,39 @@ describe("processLoaderResults offline handling", () => {
       });
     });
 
+    test("structured route errors bypass offline fallback and use normal error path", () => {
+      const matches = [createMatch("a")];
+      const routeError = Object.assign(new Error("Not Found"), {
+        kind: "error" as const,
+        status: 404,
+        headers: new Headers(),
+        message: "Not Found",
+      });
+
+      const settled: LoaderSettledResult[] = [{ status: "rejected", reason: routeError }];
+
+      let errorMatchId: string | undefined;
+      let errorValue: unknown;
+      let fallbackChecked = false;
+
+      processLoaderResults(settled, matches, {
+        onResult() {},
+        onRedirect() {},
+        onRouteError(matchId, error) {
+          errorMatchId = matchId;
+          errorValue = error;
+        },
+        resolveHasOfflineFallback() {
+          fallbackChecked = true;
+          return true;
+        },
+      });
+
+      expect(errorMatchId).toBe("a");
+      expect(errorValue).toBe(routeError);
+      expect(fallbackChecked).toBe(false);
+    });
+
     test("preserveStaleOnFailure takes priority over fallback for eligible matches", () => {
       const matches = [createMatch("a")];
       const networkError = new TypeError("Failed to fetch");
