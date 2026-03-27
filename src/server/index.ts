@@ -18,6 +18,9 @@ import { parseInternalRequestBody, type InternalRequestBody } from "./internal-r
 import { createInternalHandlerHeaders } from "./request-headers";
 
 type Awaitable<T> = T | Promise<T>;
+type DocumentResponseValue = Response | string | null | undefined;
+type DocumentResponseFactory = (request: Request) => Awaitable<DocumentResponseValue>;
+type DocumentResponseOption = Response | string | DocumentResponseFactory;
 type MiddlewareContextValue<TContext = unknown> = {
   request: Request;
   params: Record<string, string>;
@@ -133,7 +136,8 @@ export type CreateServerOptions<TContext = unknown> = {
   createContext?(request: Request): Promise<TContext> | TContext;
   onError?(error: unknown, context: TContext | undefined): void;
   manifest?: ServerManifest;
-  document?: string | ((request: Request) => Promise<Response> | Response);
+  document?: DocumentResponseOption;
+  notFound?: DocumentResponseOption;
   assets?: (request: Request) => Promise<Response | null | undefined> | Response | null | undefined;
 };
 
@@ -196,10 +200,21 @@ export function createServer<TContext = unknown>(
         }
 
         if (shouldServeDocument(request, url.pathname)) {
-          const documentResponse = await createDocumentResponse(options.document, request);
+          const matchedRoute = hasMatchingDocumentRoute(manifest.routes ?? [], url.pathname);
+          const primaryResponse = matchedRoute
+            ? await createDocumentResponse(options.document, request, 200)
+            : await createDocumentResponse(options.notFound, request, 404);
 
-          if (documentResponse) {
-            return toHeadResponseIfNeeded(request, documentResponse);
+          if (primaryResponse) {
+            return toHeadResponseIfNeeded(request, primaryResponse);
+          }
+
+          const fallbackDocumentResponse = !matchedRoute
+            ? await createDocumentResponse(options.document, request, 200)
+            : null;
+
+          if (fallbackDocumentResponse) {
+            return toHeadResponseIfNeeded(request, fallbackDocumentResponse);
           }
         }
       }
@@ -222,23 +237,43 @@ export function createServer<TContext = unknown>(
 }
 
 async function createDocumentResponse(
-  document: CreateServerOptions["document"],
+  document: CreateServerOptions["document"]  ,
   request: Request,
+  status: number,
 ): Promise<Response | null> {
   if (!document) {
     return null;
   }
 
-  if (typeof document === "string") {
-    return new Response(request.method === "HEAD" ? null : document, {
-      status: 200,
+  const resolvedDocument = typeof document === "function" ? await document(request) : document;
+
+  if (!resolvedDocument) {
+    return null;
+  }
+
+  if (typeof resolvedDocument === "string") {
+    return new Response(request.method === "HEAD" ? null : resolvedDocument, {
+      status,
       headers: {
         "content-type": "text/html; charset=utf-8",
       },
     });
   }
 
-  return document(request);
+  if (resolvedDocument instanceof Response) {
+    return resolvedDocument;
+  }
+
+  return new Response(request.method === "HEAD" ? null : String(resolvedDocument), {
+    status,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+    },
+  });
+}
+
+function hasMatchingDocumentRoute(routes: RouteModule[], pathname: string): boolean {
+  return routes.some((route) => matchPathname(route.path, pathname) !== null);
 }
 
 function toHeadResponseIfNeeded(request: Request, response: Response): Response {

@@ -122,7 +122,8 @@ function ApiReference() {
         <h3 className="text-xl font-medium text-neutral-100 mb-3">mountApp</h3>
         <p className="text-neutral-400 mb-4">
           <code className="text-sky-400">mountApp(element, options?)</code> — Mount the Litz app to
-          a DOM element. Options: <code className="text-sky-400">{"{ component?, layout? }"}</code>
+          a DOM element. Options:{" "}
+          <code className="text-sky-400">{"{ component?, layout?, notFound? }"}</code>
         </p>
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">Link</h3>
@@ -145,7 +146,10 @@ function ApiReference() {
         <h3 className="text-xl font-medium text-neutral-100 mb-3">createServer</h3>
         <p className="text-neutral-400 mb-4">
           <code className="text-sky-400">createServer(options?)</code> — Create WinterCG request
-          handler. Options: <code className="text-sky-400">{"{ createContext?, onError? }"}</code>
+          handler. Options:{" "}
+          <code className="text-sky-400">
+            {"{ createContext?, onError?, document?, notFound?, assets? }"}
+          </code>
         </p>
       </section>
 

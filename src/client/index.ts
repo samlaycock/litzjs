@@ -129,6 +129,7 @@ const pathParamNamesCache = new Map<string, string[]>();
 interface MountAppOptions {
   readonly component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
   readonly layout?: LayoutReference;
+  readonly notFound?: React.ComponentType;
 }
 
 for (const entry of manifest) {
@@ -230,6 +231,7 @@ export function mountApp(element: Element, options?: MountAppOptions): void {
       React.createElement(LitzApp, {
         component: resolvedOptions?.component,
         layout: resolvedOptions?.layout,
+        notFound: resolvedOptions?.notFound,
       }),
     );
   });
@@ -298,6 +300,7 @@ export const Link = createLinkComponent({
 function LitzApp(props: {
   component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
   layout?: LayoutReference;
+  notFound?: React.ComponentType;
 }): React.ReactElement {
   const [location, setLocation] = React.useState(() => window.location.href);
 
@@ -346,6 +349,7 @@ function LitzApp(props: {
     location,
     navigate,
     component: props.component,
+    notFound: props.notFound,
   });
 
   const content = props.layout
@@ -371,6 +375,7 @@ function RouteHost(props: {
   location: string;
   navigate(this: void, next: string, replace?: boolean): void;
   component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
+  notFound?: React.ComponentType;
 }): React.ReactElement {
   const navigate = React.useCallback(
     (next: string, replace?: boolean) => {
@@ -552,23 +557,19 @@ function RouteHost(props: {
     [displayedSearch, displayedUrl.pathname, navigate, renderedRoute, setPageState],
   );
 
-  if (!matched) {
-    return React.createElement(NotFoundPage);
-  }
-
-  if (!renderedRoute) {
-    return React.createElement(React.Fragment);
-  }
-
-  const content = renderMatchChain(
-    renderedRoute,
-    activeMatches,
-    pageState,
-    displayLocation,
-    navigate,
-    reloadImpl,
-    setPageState,
-  );
+  const content = !matched
+    ? React.createElement(props.notFound ?? DefaultNotFoundPage)
+    : !renderedRoute
+      ? React.createElement(React.Fragment)
+      : renderMatchChain(
+          renderedRoute,
+          activeMatches,
+          pageState,
+          displayLocation,
+          navigate,
+          reloadImpl,
+          setPageState,
+        );
 
   return React.createElement(
     getMatchesContext().Provider,
@@ -603,7 +604,7 @@ function findMatch(pathname: string): {
   return null;
 }
 
-function NotFoundPage(): React.ReactElement {
+function DefaultNotFoundPage(): React.ReactElement {
   return React.createElement("main", null, React.createElement("h1", null, "Not Found"));
 }
 
