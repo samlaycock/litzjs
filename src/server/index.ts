@@ -232,6 +232,8 @@ async function handleResourceRequest<TContext>(
   reportError?: (error: unknown, context: TContext | undefined) => void,
   getLoadedContext?: () => TContext | undefined,
 ): Promise<Response> {
+  let viewId = "litzjs#view";
+
   try {
     if (request.method !== "POST") {
       return new Response("Method Not Allowed", { status: 405 });
@@ -249,6 +251,7 @@ async function handleResourceRequest<TContext>(
     const resource = entry.resource;
     const handler = operation === "action" ? resource.action : resource.loader;
     const middleware = resource.middleware ?? [];
+    viewId = `${entry.path}#${operation}`;
 
     if (!handler) {
       return createLitzJsonResponse(405, {
@@ -290,10 +293,10 @@ async function handleResourceRequest<TContext>(
       },
     });
 
-    return createServerResultResponse(result, `${entry.path}#${operation}`);
+    return createServerResultResponse(result, viewId);
   } catch (error) {
     if (isServerResultLike(error)) {
-      return createServerResultResponse(error);
+      return createServerResultResponse(error, viewId);
     }
 
     reportError?.(error, getLoadedContext?.());
@@ -308,6 +311,8 @@ async function handleRouteRequest<TContext>(
   reportError?: (error: unknown, context: TContext | undefined) => void,
   getLoadedContext?: () => TContext | undefined,
 ): Promise<Response> {
+  let viewId = "litzjs#view";
+
   try {
     if (request.method !== "POST") {
       return new Response("Method Not Allowed", { status: 405 });
@@ -339,6 +344,7 @@ async function handleRouteRequest<TContext>(
       operation === "action" ? (entry.route.action ?? entry.route.options?.action) : target.loader;
     const validation = operation === "action" ? entry.route.options?.input : target.input;
     const middleware = chain.slice(0, targetIndex + 1).flatMap((candidate) => candidate.middleware);
+    viewId = `${target.id}#${operation}`;
 
     if (!handler) {
       return createLitzJsonResponse(405, {
@@ -390,10 +396,10 @@ async function handleRouteRequest<TContext>(
       },
     });
 
-    return createServerResultResponse(result, `${target.id}#${operation}`);
+    return createServerResultResponse(result, viewId);
   } catch (error) {
     if (isServerResultLike(error)) {
-      return createServerResultResponse(error);
+      return createServerResultResponse(error, viewId);
     }
 
     reportError?.(error, getLoadedContext?.());

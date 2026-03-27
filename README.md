@@ -841,7 +841,7 @@ Each parser receives the raw value plus `{ request, params, signal, context }`.
 - `params` receives the path params object
 - `search` receives `URLSearchParams`
 - `headers` receives `Headers`
-- `body` receives a cloned `Request`, so handlers can still read the original request body
+- `body` receives a cloned `Request`, and `context.request` inside the body parser points at that same clone so handlers can still read the original request body safely
 
 Parsed values are exposed on `context.input`. When no parser is defined, the raw request values are
 still available through `request`, `params`, and the standard Web APIs.

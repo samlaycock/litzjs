@@ -156,6 +156,75 @@ describe("input validation hooks", () => {
     });
   });
 
+  test("body parsers receive the cloned request through both arguments", async () => {
+    const route = defineRoute("/projects/:id", {
+      component() {
+        return null;
+      },
+      input: {
+        async body(request: any, context: any) {
+          return {
+            sameRequest: request === context.request,
+            contextMethod: context.request.method,
+          };
+        },
+      } as any,
+      async action({ input, request }) {
+        const validatedInput = input as any;
+        const formData = await request.formData();
+
+        return data({
+          sameRequest: validatedInput.body?.sameRequest ?? false,
+          contextMethod: validatedInput.body?.contextMethod ?? null,
+          rawName: formData.get("name"),
+        });
+      },
+    });
+    const app = createServer({
+      manifest: {
+        routes: [{ id: route.id, path: route.path, route: route as any }],
+      },
+    });
+    const actionRequest = createInternalActionRequestInit(
+      {
+        path: route.path,
+        operation: "action",
+        request: {
+          params: {
+            id: "42",
+          },
+        },
+      },
+      {
+        name: "Litz",
+      },
+    );
+
+    const response = await app.fetch(
+      new Request("https://app.example.com/_litzjs/action", {
+        method: "POST",
+        headers: actionRequest.headers,
+        body: actionRequest.body,
+      }),
+    );
+    const body = (await response.json()) as {
+      kind: "data";
+      data: {
+        sameRequest: boolean;
+        contextMethod: string | null;
+        rawName: string | null;
+      };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.kind).toBe("data");
+    expect(body.data).toEqual({
+      sameRequest: true,
+      contextMethod: "POST",
+      rawName: "Litz",
+    });
+  });
+
   test("resource actions can short-circuit with invalid results from input body parsing", async () => {
     let actionCalls = 0;
 
@@ -316,6 +385,45 @@ describe("input validation hooks", () => {
       message: "Project name must be a non-empty string.",
       code: undefined,
       data: undefined,
+    });
+  });
+
+  test("api validation fallback preserves explicit status for unsupported view results", async () => {
+    const api = defineApiRoute("/api/projects/:id", {
+      input: {
+        async body() {
+          throw {
+            kind: "view",
+            status: 418,
+            node: null,
+          };
+        },
+      } as any,
+      POST() {
+        return Response.json({ ok: true });
+      },
+    });
+    const app = createServer({
+      manifest: {
+        apiRoutes: [{ path: api.path, api: api as any }],
+      },
+    });
+
+    const response = await app.fetch(
+      new Request("https://app.example.com/api/projects/7", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Litz",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(418);
+    expect(await response.json()).toEqual({
+      message: "View responses are not supported for API validation.",
     });
   });
 });
