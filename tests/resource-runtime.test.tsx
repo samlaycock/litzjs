@@ -861,8 +861,9 @@ describe("resource runtime", () => {
         });
       }
 
-      expect(init?.signal).toBeInstanceOf(AbortSignal);
-      (init?.signal as AbortSignal).addEventListener(
+      const signal = init?.signal;
+      expect(signal).toBeInstanceOf(AbortSignal);
+      (signal as AbortSignal).addEventListener(
         "abort",
         () => {
           actionAborted = true;
