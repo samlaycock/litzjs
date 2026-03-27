@@ -16,6 +16,7 @@ import { installClientBindings } from "./bindings";
 import { createLinkComponent } from "./link";
 import { fetchRouteLoadersInParallel, processLoaderResults } from "./loader-fetch";
 import { applySearchParams, shouldPrefetchLink } from "./navigation";
+import { withIdleState } from "./page-state";
 import {
   createResourceComponent,
   createResourceFormComponent,
@@ -418,13 +419,7 @@ function RouteHost(props: {
     const reload = async (mode: "loading" | "revalidating" = "loading") => {
       if (loaderMatches.length === 0) {
         if (!controller.signal.aborted) {
-          setPageState((current) => ({
-            ...current,
-            status: "idle",
-            pending: false,
-            errorInfo: undefined,
-            errorTargetId: undefined,
-          }));
+          setPageState((current) => withIdleState(current));
         }
         return;
       }
@@ -436,6 +431,10 @@ function RouteHost(props: {
         baseRequest,
         signal: controller.signal,
       });
+
+      if (controller.signal.aborted) {
+        return;
+      }
 
       processLoaderResults(settled, loaderMatches, {
         isCancelled: () => controller.signal.aborted,
@@ -845,13 +844,7 @@ async function reloadCurrentRoute(options: {
   const loaderMatches = matches.filter((entry) => Boolean(entry.options?.loader));
 
   if (loaderMatches.length === 0) {
-    options.setPageState((current) => ({
-      ...current,
-      status: "idle",
-      pending: false,
-      errorInfo: undefined,
-      errorTargetId: undefined,
-    }));
+    options.setPageState((current) => withIdleState(current));
     return;
   }
 
@@ -871,6 +864,10 @@ async function reloadCurrentRoute(options: {
     baseRequest,
     signal: options.signal,
   });
+
+  if (options.signal?.aborted) {
+    return;
+  }
 
   processLoaderResults(settled, loaderMatches, {
     isCancelled: () => options.signal?.aborted === true,

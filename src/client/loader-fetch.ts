@@ -52,6 +52,10 @@ export function processLoaderResults(
     resolveHasOfflineFallback?: (matchId: string) => boolean;
   },
 ): void {
+  if (callbacks.isCancelled?.()) {
+    return;
+  }
+
   for (const [index, result] of settled.entries()) {
     if (callbacks.isCancelled?.()) {
       return;
