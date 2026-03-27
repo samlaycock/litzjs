@@ -8,6 +8,11 @@ type IdleResettableState = {
   readonly offlineStaleMatchIds?: ReadonlySet<string>;
 };
 
+type SettledResettableState = IdleResettableState &
+  SettledStatusState & {
+    readonly error: ActionHookResult | LoaderHookResult | null;
+  };
+
 type SettledStatusState = {
   readonly matchStates: Record<
     string,
@@ -68,5 +73,26 @@ export function withIdleState<TState extends IdleResettableState>(
     errorInfo: undefined,
     errorTargetId: undefined,
     offlineStaleMatchIds: undefined,
+  };
+}
+
+export function withSettledPageState<TState extends SettledResettableState>(
+  current: TState,
+): Omit<TState, "status" | "pending" | "errorInfo" | "errorTargetId" | "error"> & {
+  status: "idle" | "offline-stale" | "error";
+  pending: false;
+  error: null;
+  errorInfo: undefined;
+  errorTargetId: undefined;
+} {
+  return {
+    ...current,
+    status: resolveSettledPageStatus(current, {
+      includeActionResult: false,
+    }),
+    pending: false,
+    error: null,
+    errorInfo: undefined,
+    errorTargetId: undefined,
   };
 }
