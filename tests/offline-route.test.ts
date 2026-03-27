@@ -268,5 +268,81 @@ describe("processLoaderResults offline handling", () => {
       expect(redirectLocation).toBe("/login");
       expect(offlineStaleMatchId).toBeUndefined();
     });
+
+    test("preserves offline-stale status across multi-loader chains", () => {
+      const matches = [createMatch("layout"), createMatch("middle"), createMatch("route")];
+      const routeError = {
+        kind: "error",
+        status: 503,
+        message: "unavailable",
+        headers: new Headers(),
+      };
+
+      const settled: LoaderSettledResult[] = [
+        {
+          status: "fulfilled",
+          value: { match: matches[0]!, loaderResult: createDataResult("layout-data") },
+        },
+        { status: "rejected", reason: routeError },
+        {
+          status: "fulfilled",
+          value: { match: matches[2]!, loaderResult: createDataResult("route-data") },
+        },
+      ];
+
+      const offlineStaleIds: string[] = [];
+      const resultIds: string[] = [];
+
+      processLoaderResults(settled, matches, {
+        onResult(match) {
+          resultIds.push(match.id);
+        },
+        onRedirect() {},
+        onRouteError() {},
+        resolveOfflineEligible(matchId) {
+          return matchId === "middle";
+        },
+        onOfflineStale(matchId) {
+          offlineStaleIds.push(matchId);
+        },
+      });
+
+      expect(resultIds).toEqual(["layout", "route"]);
+      expect(offlineStaleIds).toEqual(["middle"]);
+    });
+
+    test("handles multiple offline-stale matches in the same chain", () => {
+      const matches = [createMatch("a"), createMatch("b"), createMatch("c")];
+      const routeError = { kind: "error", status: 500, message: "fail", headers: new Headers() };
+
+      const settled: LoaderSettledResult[] = [
+        { status: "rejected", reason: routeError },
+        { status: "rejected", reason: routeError },
+        {
+          status: "fulfilled",
+          value: { match: matches[2]!, loaderResult: createDataResult("c-data") },
+        },
+      ];
+
+      const offlineStaleIds: string[] = [];
+      const resultIds: string[] = [];
+
+      processLoaderResults(settled, matches, {
+        onResult(match) {
+          resultIds.push(match.id);
+        },
+        onRedirect() {},
+        onRouteError() {},
+        resolveOfflineEligible() {
+          return true;
+        },
+        onOfflineStale(matchId) {
+          offlineStaleIds.push(matchId);
+        },
+      });
+
+      expect(offlineStaleIds).toEqual(["a", "b"]);
+      expect(resultIds).toEqual(["c"]);
+    });
   });
 });
