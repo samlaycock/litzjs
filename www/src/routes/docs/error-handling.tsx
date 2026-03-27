@@ -142,9 +142,18 @@ export const route = defineRoute("/posts/:id", {
           </li>
           <li>
             <code className="text-sky-400">route.useStatus()</code> — returns{" "}
-            <code className="text-sky-400">'error'</code> when in error state
+            <code className="text-sky-400">'error'</code> when the active route/layout chain is in
+            an error state
           </li>
         </ul>
+        <p className="text-neutral-400 mb-4">
+          Status is page-scoped, but <code className="text-sky-400">route.useError()</code> is
+          route-scoped. If a parent layout has an explicit loader error,{" "}
+          <code className="text-sky-400">route.useStatus()</code> can be{" "}
+          <code className="text-sky-400">'error'</code> while{" "}
+          <code className="text-sky-400">route.useError()</code> stays{" "}
+          <code className="text-sky-400">null</code>.
+        </p>
         <CodeBlock
           language="tsx"
           code={`function PostPage() {

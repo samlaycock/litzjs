@@ -16,6 +16,7 @@ import { installClientBindings } from "./bindings";
 import { createLinkComponent } from "./link";
 import { fetchRouteLoadersInParallel, processLoaderResults } from "./loader-fetch";
 import { applySearchParams, shouldPrefetchLink } from "./navigation";
+import { resolveSettledPageStatus } from "./page-state";
 import {
   createResourceComponent,
   createResourceFormComponent,
@@ -768,26 +769,6 @@ function withSettledPageState(current: PageState): PageState {
   };
 }
 
-function resolveSettledPageStatus(
-  current: Pick<PageState, "matchStates" | "actionResult" | "offlineStaleMatchIds">,
-): RouteRuntimeState["status"] {
-  if (current.offlineStaleMatchIds?.size) {
-    return "offline-stale";
-  }
-
-  for (const matchState of Object.values(current.matchStates)) {
-    if (matchState.loaderResult?.kind === "error") {
-      return "error";
-    }
-  }
-
-  if (current.actionResult?.kind === "error" || current.actionResult?.kind === "fault") {
-    return "error";
-  }
-
-  return "idle";
-}
-
 function applyCachedLoaderStateToPageState(
   current: PageState,
   matches: ActiveMatch[],
@@ -872,7 +853,9 @@ function withMatchLoaderResult(
   if (!pending) {
     nextState = {
       ...nextState,
-      status: resolveSettledPageStatus(nextState),
+      status: resolveSettledPageStatus(nextState, {
+        includeActionResult: false,
+      }),
     };
   }
 
