@@ -269,8 +269,8 @@ function NewProjectPage() {
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Route status</h2>
         <p className="text-neutral-400 mb-4">
-          <code className="text-sky-400">route.useStatus()</code> returns the current route
-          lifecycle state:
+          <code className="text-sky-400">route.useStatus()</code> returns the current active
+          route/layout lifecycle state:
         </p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>
@@ -293,6 +293,13 @@ function NewProjectPage() {
             <code className="text-sky-400">'error'</code> &mdash; an error occurred
           </li>
         </ul>
+        <p className="text-neutral-400 mb-4">
+          <code className="text-sky-400">'error'</code> is page-scoped. A parent layout error can
+          put the route in an error status even when{" "}
+          <code className="text-sky-400">route.useError()</code> is{" "}
+          <code className="text-sky-400">null</code>, so use the scoped error hooks when you need
+          the exact source.
+        </p>
         <p className="text-neutral-400 mb-4">
           <code className="text-sky-400">route.usePending()</code> returns a boolean &mdash;{" "}
           <code className="text-sky-400">true</code> whenever the route is loading, submitting, or

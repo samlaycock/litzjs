@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { withIdleState } from "../src/client/page-state";
+import { resolveSettledPageStatus, withIdleState } from "../src/client/page-state";
+import { error, fault } from "../src/index";
 
 describe("withIdleState", () => {
   test("clears stale offline and error state while preserving unrelated data", () => {
@@ -49,5 +50,82 @@ describe("withIdleState", () => {
         loaderResult: null,
       },
     });
+  });
+});
+
+describe("resolveSettledPageStatus", () => {
+  test("ignores stale action errors when a loader settles successfully after reload", () => {
+    const result = resolveSettledPageStatus(
+      {
+        matchStates: {
+          route: {
+            loaderResult: {
+              kind: "data",
+              status: 200,
+              headers: new Headers(),
+              stale: false,
+              data: { ok: true },
+              render() {
+                return null;
+              },
+            },
+          },
+        },
+        actionResult: {
+          ...error(422, "Invalid input"),
+          headers: new Headers(),
+        },
+      },
+      {
+        includeActionResult: false,
+      },
+    );
+
+    expect(result).toBe("idle");
+  });
+
+  test("treats active layout loader errors as page error state", () => {
+    const result = resolveSettledPageStatus({
+      matchStates: {
+        layout: {
+          loaderResult: {
+            ...error(404, "Layout missing"),
+            headers: new Headers(),
+            stale: false,
+          },
+        },
+        route: {
+          loaderResult: {
+            kind: "data",
+            status: 200,
+            headers: new Headers(),
+            stale: false,
+            data: { ok: true },
+            render() {
+              return null;
+            },
+          },
+        },
+      },
+      actionResult: null,
+    });
+
+    expect(result).toBe("error");
+  });
+
+  test("treats explicit action faults as error state by default", () => {
+    const result = resolveSettledPageStatus({
+      matchStates: {
+        route: {
+          loaderResult: null,
+        },
+      },
+      actionResult: {
+        ...fault(500, "Boom"),
+        headers: new Headers(),
+      },
+    });
+
+    expect(result).toBe("error");
   });
 });

@@ -288,6 +288,10 @@ function SaveToolbar() {
 - `offline-stale`
 - `error`
 
+`useStatus()` reflects the active route/layout chain as a whole. If a parent layout has an
+explicit loader error, the route status can be `"error"` even when `route.useError()` is `null`;
+use the scoped error hooks when you need the exact source.
+
 Use the more specific hooks when you know which source you want:
 
 - `useLoaderData()` if you only care about loader `data(...)`
