@@ -762,7 +762,9 @@ function withLatestViewResult(
 function withSettledPageState(current: PageState): PageState {
   return {
     ...current,
-    status: resolveSettledPageStatus(current),
+    status: resolveSettledPageStatus(current, {
+      includeActionResult: false,
+    }),
     pending: false,
     errorInfo: undefined,
     errorTargetId: undefined,

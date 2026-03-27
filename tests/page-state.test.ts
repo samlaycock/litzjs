@@ -129,6 +129,27 @@ describe("resolveSettledPageStatus", () => {
     expect(result).toBe("error");
   });
 
+  test("can ignore stale action faults when reload settles without loaders", () => {
+    const result = resolveSettledPageStatus(
+      {
+        matchStates: {
+          route: {
+            loaderResult: null,
+          },
+        },
+        actionResult: {
+          ...fault(500, "Boom"),
+          headers: new Headers(),
+        },
+      },
+      {
+        includeActionResult: false,
+      },
+    );
+
+    expect(result).toBe("idle");
+  });
+
   test("ignores stale route loader errors when a later action succeeds", () => {
     const result = resolveSettledPageStatus(
       {
