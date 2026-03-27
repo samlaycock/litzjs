@@ -36,12 +36,7 @@ export type LitzClientBindings = {
   useRequiredResourceLocation(resourcePath: string): {
     params: Record<string, string>;
     search: URLSearchParams;
-    setSearch(
-      params: Record<string, string | string[] | null | undefined>,
-      options?: {
-        replace?: boolean;
-      },
-    ): void;
+    setSearch(params: Record<string, string | string[] | null | undefined>): void;
   };
   useRequiredResourceStatus(resourcePath: string): {
     status: unknown;

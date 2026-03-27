@@ -544,6 +544,9 @@ function UserCard() {
 }
 ```
 
+Unlike route-scoped search state, `resource.useSearch()` only updates the resource request.
+It does not push or replace browser history entries.
+
 ### View-Based Resource
 
 Resources can also return `view(...)` from the server and consume it with `resource.useView()`:
@@ -684,6 +687,7 @@ The main split to keep in mind:
 - `useLoaderData()` / `useLoaderView()` / `useLoaderError()` read loader-only state
 - `useActionData()` / `useActionView()` / `useActionError()` / `useInvalid()` read action-only state
 - `useData()` / `useView()` / `useError()` read the latest settled merged value for the resource
+- `useSearch()` updates the resource request only and never mutates browser history
 
 Loader-only hooks keep the last loader result until you call `useReload()`. A later successful
 action can clear merged `useError()` and return `useStatus()` to `idle` while
