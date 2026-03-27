@@ -83,10 +83,10 @@ You can optionally provide a wrapper component around the app root:
 import { StrictMode } from "react";
 import { mountApp } from "litzjs/client";
 
-mountApp(root, StrictMode);
+mountApp(root, { component: StrictMode });
 ```
 
-For providers or wrappers with props, pass a component:
+For providers or wrappers with props, pass your component through the same options object:
 
 ```tsx
 import { mountApp } from "litzjs/client";
@@ -95,7 +95,7 @@ function AppProviders({ children }: React.PropsWithChildren) {
   return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
 }
 
-mountApp(root, AppProviders);
+mountApp(root, { component: AppProviders });
 ```
 
 `index.html`
