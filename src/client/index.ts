@@ -1074,6 +1074,10 @@ function findOfflineFallbackIndex(matches: ActiveMatch[], pageState: PageState):
     return null;
   }
 
+  if (pageState.errorInfo.status !== 0) {
+    return null;
+  }
+
   const targetIndex = matches.findIndex((match) => match.id === pageState.errorTargetId);
 
   if (targetIndex === -1) {
