@@ -151,6 +151,9 @@ export const resource = defineResource("/resource/account/:id", {
             <code className="text-sky-400">{"resource.useLoaderView()"}</code>
           </li>
           <li>
+            <code className="text-sky-400">{"resource.useLoaderError()"}</code>
+          </li>
+          <li>
             <code className="text-sky-400">{"resource.useActionResult()"}</code>
           </li>
           <li>
@@ -188,9 +191,6 @@ export const resource = defineResource("/resource/account/:id", {
           </li>
           <li>
             <code className="text-sky-400">{"resource.useReload()"}</code>
-          </li>
-          <li>
-            <code className="text-sky-400">{"resource.useRetry()"}</code>
           </li>
           <li>
             <code className="text-sky-400">{"resource.useSubmit()"}</code>

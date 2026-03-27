@@ -221,6 +221,10 @@ function NewProjectPage() {
             <code className="text-sky-400">route.useLoaderView()</code> &mdash; RSC view node from
             the loader
           </li>
+          <li>
+            <code className="text-sky-400">route.useLoaderError()</code> &mdash; explicit error
+            result from the loader
+          </li>
         </ul>
         <h3 className="text-xl font-medium text-neutral-100 mb-3">Action-specific hooks</h3>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
@@ -252,8 +256,8 @@ function NewProjectPage() {
             either loader or action
           </li>
           <li>
-            <code className="text-sky-400">route.useError()</code> &mdash; latest settled error from
-            either loader or action
+            <code className="text-sky-400">route.useError()</code> &mdash; latest settled explicit
+            error from either loader or action
           </li>
         </ul>
         <p className="text-neutral-400 mb-4">

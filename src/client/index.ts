@@ -16,7 +16,6 @@ import { installClientBindings } from "./bindings";
 import { createLinkComponent } from "./link";
 import { fetchRouteLoadersInParallel, processLoaderResults } from "./loader-fetch";
 import { applySearchParams, shouldPrefetchLink } from "./navigation";
-import { withIdleState } from "./page-state";
 import {
   createResourceComponent,
   createResourceFormComponent,
@@ -64,8 +63,7 @@ type LoadedRoute = {
     loader?: unknown;
     action?: unknown;
     middleware?: unknown[];
-    pendingComponent?: React.ComponentType;
-    errorComponent?: React.ComponentType<{ error: unknown }>;
+    errorBoundary?: React.ComponentType<{ error: unknown }>;
     offline?: {
       fallbackComponent?: React.ComponentType;
       preserveStaleOnFailure?: boolean;
@@ -81,8 +79,7 @@ type LoadedLayout = {
     layout?: LoadedLayout;
     loader?: unknown;
     middleware?: unknown[];
-    pendingComponent?: React.ComponentType;
-    errorComponent?: React.ComponentType<{ error: unknown }>;
+    errorBoundary?: React.ComponentType<{ error: unknown }>;
     offline?: {
       fallbackComponent?: React.ComponentType;
       preserveStaleOnFailure?: boolean;
@@ -419,7 +416,7 @@ function RouteHost(props: {
     const reload = async (mode: "loading" | "revalidating" = "loading") => {
       if (loaderMatches.length === 0) {
         if (!controller.signal.aborted) {
-          setPageState((current) => withIdleState(current));
+          setPageState((current) => withSettledPageState(current));
         }
         return;
       }
@@ -442,19 +439,12 @@ function RouteHost(props: {
           setCachedLoaderResult(match.cacheKey, withLoaderStaleState(loaderResult, false));
 
           setPageState((current) => {
-            const resolvedStatus =
-              match.id === finalLoaderMatchId
-                ? current.offlineStaleMatchIds?.size
-                  ? ("offline-stale" as RouteRuntimeState["status"])
-                  : "idle"
-                : current.status;
-
             return withMatchLoaderResult(
               current,
               match.id,
               renderedRoute.id,
               loaderResult,
-              resolvedStatus,
+              current.status,
               match.id === finalLoaderMatchId ? false : current.pending,
             );
           });
@@ -584,19 +574,19 @@ function NotFoundPage(): React.ReactElement {
 }
 
 type MatchErrorInfo = {
-  kind: "error" | "fault";
+  kind: "fault";
   status: number;
   headers: Headers;
   message: string;
-  code?: string;
   digest?: string;
-  data?: unknown;
 };
 
 type LoaderDataResult = Extract<LoaderHookResult, { kind: "data" }>;
+type LoaderErrorResult = Extract<LoaderHookResult, { kind: "error" }>;
 type LoaderViewResult = Extract<LoaderHookResult, { kind: "view" }>;
 type ActionResolvedResult = Exclude<ActionHookResult, null>;
 type ActionDataResult = Extract<ActionResolvedResult, { kind: "data" }>;
+type ActionErrorResult = Extract<ActionResolvedResult, { kind: "error" }>;
 type ActionViewResult = Extract<ActionResolvedResult, { kind: "view" }>;
 type ResultSnapshot<TResult> = {
   sequence: number;
@@ -614,8 +604,7 @@ type ActiveMatch = {
     loader?: unknown;
     action?: unknown;
     middleware?: unknown[];
-    pendingComponent?: React.ComponentType;
-    errorComponent?: React.ComponentType<{ error: unknown }>;
+    errorBoundary?: React.ComponentType<{ error: unknown }>;
     offline?: {
       fallbackComponent?: React.ComponentType;
       preserveStaleOnFailure?: boolean;
@@ -636,6 +625,7 @@ type PageState = {
   nextResultSequence: number;
   latestDataResult: ResultSnapshot<LoaderDataResult | ActionDataResult> | null;
   latestViewResult: ResultSnapshot<LoaderViewResult | ActionViewResult> | null;
+  error: LoaderErrorResult | ActionErrorResult | null;
   status: RouteRuntimeState["status"];
   pending: boolean;
   errorInfo?: MatchErrorInfo;
@@ -650,6 +640,7 @@ function createEmptyPageState(): PageState {
     nextResultSequence: 1,
     latestDataResult: null,
     latestViewResult: null,
+    error: null,
     status: "loading",
     pending: true,
   };
@@ -668,6 +659,7 @@ function createBootstrapPageState(
   let nextResultSequence = 1;
   let latestDataResult: PageState["latestDataResult"] = null;
   let latestViewResult: PageState["latestViewResult"] = null;
+  let error: PageState["error"] = null;
 
   for (const match of matches) {
     if (!match.options?.loader) {
@@ -697,6 +689,8 @@ function createBootstrapPageState(
             result: staleCached,
           };
           nextResultSequence += 1;
+        } else if (staleCached.kind === "error") {
+          error = staleCached;
         }
       }
     } else {
@@ -714,6 +708,7 @@ function createBootstrapPageState(
       nextResultSequence,
       latestDataResult,
       latestViewResult,
+      error,
       status: "idle",
       pending: false,
     };
@@ -725,6 +720,7 @@ function createBootstrapPageState(
     nextResultSequence,
     latestDataResult,
     latestViewResult,
+    error,
     status: hasCachedLoader ? "revalidating" : "loading",
     pending: missingLoader || hasCachedLoader,
   };
@@ -762,6 +758,36 @@ function withLatestViewResult(
   };
 }
 
+function withSettledPageState(current: PageState): PageState {
+  return {
+    ...current,
+    status: resolveSettledPageStatus(current),
+    pending: false,
+    errorInfo: undefined,
+    errorTargetId: undefined,
+  };
+}
+
+function resolveSettledPageStatus(
+  current: Pick<PageState, "matchStates" | "actionResult" | "offlineStaleMatchIds">,
+): RouteRuntimeState["status"] {
+  if (current.offlineStaleMatchIds?.size) {
+    return "offline-stale";
+  }
+
+  for (const matchState of Object.values(current.matchStates)) {
+    if (matchState.loaderResult?.kind === "error") {
+      return "error";
+    }
+  }
+
+  if (current.actionResult?.kind === "error" || current.actionResult?.kind === "fault") {
+    return "error";
+  }
+
+  return "idle";
+}
+
 function applyCachedLoaderStateToPageState(
   current: PageState,
   matches: ActiveMatch[],
@@ -792,6 +818,7 @@ function applyCachedLoaderStateToPageState(
     matchStates,
     status: hasResolvedLoader ? "revalidating" : mode,
     pending: true,
+    error: current.error,
     errorInfo: undefined,
     errorTargetId: undefined,
     offlineStaleMatchIds: undefined,
@@ -816,6 +843,7 @@ function withMatchLoaderResult(
     },
     status,
     pending,
+    error: current.error,
     errorInfo: undefined,
     errorTargetId: undefined,
   };
@@ -823,9 +851,29 @@ function withMatchLoaderResult(
   if (matchId === routeId) {
     if (loaderResult.kind === "data") {
       nextState = withLatestDataResult(nextState, loaderResult);
+      nextState = {
+        ...nextState,
+        error: null,
+      };
     } else if (loaderResult.kind === "view") {
       nextState = withLatestViewResult(nextState, loaderResult);
+      nextState = {
+        ...nextState,
+        error: null,
+      };
+    } else if (loaderResult.kind === "error") {
+      nextState = {
+        ...nextState,
+        error: loaderResult,
+      };
     }
+  }
+
+  if (!pending) {
+    nextState = {
+      ...nextState,
+      status: resolveSettledPageStatus(nextState),
+    };
   }
 
   return nextState;
@@ -844,7 +892,7 @@ async function reloadCurrentRoute(options: {
   const loaderMatches = matches.filter((entry) => Boolean(entry.options?.loader));
 
   if (loaderMatches.length === 0) {
-    options.setPageState((current) => withIdleState(current));
+    options.setPageState((current) => withSettledPageState(current));
     return;
   }
 
@@ -874,19 +922,12 @@ async function reloadCurrentRoute(options: {
     onResult(match, loaderResult) {
       setCachedLoaderResult(match.cacheKey, withLoaderStaleState(loaderResult, false));
       options.setPageState((current) => {
-        const resolvedStatus =
-          match === finalLoaderMatch
-            ? current.offlineStaleMatchIds?.size
-              ? ("offline-stale" as RouteRuntimeState["status"])
-              : "idle"
-            : current.status;
-
         return withMatchLoaderResult(
           current,
           match.id,
           options.route.id,
           loaderResult,
-          resolvedStatus,
+          current.status,
           match === finalLoaderMatch ? false : current.pending,
         );
       });
@@ -948,21 +989,6 @@ function renderMatchChain(
   const offlineFallbackIndex = findOfflineFallbackIndex(matches, pageState);
   const errorBoundaryIndex =
     offlineFallbackIndex === null ? findErrorBoundaryIndex(matches, pageState) : null;
-  const pendingBoundaryIndex =
-    errorBoundaryIndex === null && offlineFallbackIndex === null
-      ? findPendingBoundaryIndex(matches, pageState)
-      : null;
-
-  if (
-    offlineFallbackIndex === null &&
-    errorBoundaryIndex === null &&
-    pendingBoundaryIndex === null &&
-    matches.some(
-      (match) => Boolean(match.options?.loader) && !pageState.matchStates[match.id]?.loaderResult,
-    )
-  ) {
-    return React.createElement(React.Fragment);
-  }
 
   let node: React.ReactElement | null = null;
 
@@ -982,15 +1008,11 @@ function renderMatchChain(
     } else if (offlineFallbackIndex !== null && index > offlineFallbackIndex) {
       continue;
     } else if (errorBoundaryIndex !== null && index === errorBoundaryIndex) {
-      const ErrorComponent = match.options?.errorComponent ?? DefaultRouteErrorPage;
+      const ErrorComponent = match.options?.errorBoundary ?? DefaultRouteErrorPage;
       content = React.createElement(ErrorComponent as React.ComponentType<any>, {
         error: pageState.errorInfo,
       });
-    } else if (pendingBoundaryIndex !== null && index === pendingBoundaryIndex) {
-      content = React.createElement(match.options?.pendingComponent as React.ComponentType);
     } else if (errorBoundaryIndex !== null && index > errorBoundaryIndex) {
-      continue;
-    } else if (pendingBoundaryIndex !== null && index > pendingBoundaryIndex) {
       continue;
     } else if (match.kind === "route") {
       content = React.createElement(match.component as React.ComponentType);
@@ -1035,36 +1057,12 @@ function findErrorBoundaryIndex(matches: ActiveMatch[], pageState: PageState): n
   for (let index = targetIndex; index >= 0; index -= 1) {
     const match = matches[index];
 
-    if (match && match.options?.errorComponent) {
+    if (match && match.options?.errorBoundary) {
       return index;
     }
   }
 
   return targetIndex;
-}
-
-function findPendingBoundaryIndex(matches: ActiveMatch[], pageState: PageState): number | null {
-  if (!pageState.pending) {
-    return null;
-  }
-
-  const targetIndex = matches.findIndex(
-    (match) => Boolean(match.options?.loader) && !pageState.matchStates[match.id]?.loaderResult,
-  );
-
-  if (targetIndex === -1) {
-    return null;
-  }
-
-  for (let index = targetIndex; index >= 0; index -= 1) {
-    const match = matches[index];
-
-    if (match && match.options?.pendingComponent) {
-      return index;
-    }
-  }
-
-  return null;
 }
 
 function findOfflineFallbackIndex(matches: ActiveMatch[], pageState: PageState): number | null {
@@ -1095,7 +1093,7 @@ function findOfflineFallbackIndex(matches: ActiveMatch[], pageState: PageState):
 
 function DefaultRouteErrorPage(props: {
   error: {
-    kind: "error" | "fault";
+    kind: "fault";
     status: number;
     message: string;
   };
@@ -1157,6 +1155,8 @@ function useMatchRuntime(options: {
       : loaderResult?.kind === "view"
         ? loaderResult.node
         : null;
+  const error =
+    match.kind === "route" ? pageState.error : loaderResult?.kind === "error" ? loaderResult : null;
 
   const setSearch = React.useCallback<RouteRuntimeState["setSearch"]>(
     (updates, submitOptions) => {
@@ -1206,7 +1206,11 @@ function useMatchRuntime(options: {
             {
               ...current,
               actionResult: result,
-              status: "idle",
+              error: null,
+              status: resolveSettledPageStatus({
+                ...current,
+                actionResult: result,
+              }),
               pending: false,
             },
             result,
@@ -1218,7 +1222,11 @@ function useMatchRuntime(options: {
             {
               ...current,
               actionResult: result,
-              status: "idle",
+              error: null,
+              status: resolveSettledPageStatus({
+                ...current,
+                actionResult: result,
+              }),
               pending: false,
             },
             result,
@@ -1228,14 +1236,17 @@ function useMatchRuntime(options: {
         setPageState((current) => ({
           ...current,
           actionResult: result,
-          status: result.kind === "error" || result.kind === "fault" ? "error" : "idle",
+          error: result.kind === "error" ? result : null,
+          status:
+            result.kind === "fault"
+              ? "error"
+              : resolveSettledPageStatus({
+                  ...current,
+                  actionResult: result,
+                }),
           pending: false,
-          errorInfo:
-            result.kind === "error" || result.kind === "fault"
-              ? (result as MatchErrorInfo)
-              : current.errorInfo,
-          errorTargetId:
-            result.kind === "error" || result.kind === "fault" ? route.id : current.errorTargetId,
+          errorInfo: result.kind === "fault" ? (result as MatchErrorInfo) : current.errorInfo,
+          errorTargetId: result.kind === "fault" ? route.id : current.errorTargetId,
         }));
       }
 
@@ -1256,10 +1267,6 @@ function useMatchRuntime(options: {
     void reloadImpl("revalidating");
   }, [reloadImpl]);
 
-  const retry = React.useCallback(() => {
-    void reloadImpl("loading");
-  }, [reloadImpl]);
-
   return React.useMemo(
     () => ({
       id: match.id,
@@ -1272,13 +1279,14 @@ function useMatchRuntime(options: {
       actionResult,
       data,
       view,
+      error,
       submit,
       reload,
-      retry,
     }),
     [
       actionResult,
       data,
+      error,
       loaderResult,
       match.id,
       match.params,
@@ -1286,7 +1294,6 @@ function useMatchRuntime(options: {
       pageState.pending,
       pageState.status,
       reload,
-      retry,
       setSearch,
       submit,
       view,
@@ -1535,7 +1542,7 @@ function withLoaderStaleState(result: LoaderHookResult, stale: boolean): LoaderH
     return result;
   }
 
-  if (result.kind === "data") {
+  if (result.kind === "data" || result.kind === "error") {
     return {
       ...result,
       stale,

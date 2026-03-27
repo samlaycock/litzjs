@@ -56,7 +56,15 @@ export async function parseLoaderResponse(response: Response): Promise<LoaderHoo
   }
 
   if (body.kind === "error") {
-    throw createRouteLikeError(response.status, publicHeaders, body);
+    return {
+      kind: "error",
+      status: response.status,
+      headers: publicHeaders,
+      stale: false,
+      message: body.message,
+      code: body.code,
+      data: body.data,
+    };
   }
 
   if (body.kind === "fault") {

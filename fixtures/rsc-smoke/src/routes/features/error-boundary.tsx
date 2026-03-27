@@ -1,22 +1,16 @@
-import { defineRoute, error, server } from "litzjs";
+import { defineRoute, fault, server, type RouteFaultLike } from "litzjs";
 
 export const route = defineRoute("/features/error-boundary", {
   component: BrokenBoundaryPage,
-  loader: server(async () => error(503, "Broken route with explicit boundary")),
-  errorComponent: BrokenBoundaryFallback,
+  loader: server(async () => fault(503, "Broken route with explicit boundary")),
+  errorBoundary: BrokenBoundaryFallback,
 });
 
 function BrokenBoundaryPage() {
   return <main>This should not render.</main>;
 }
 
-function BrokenBoundaryFallback(props: {
-  error: {
-    kind: "error" | "fault";
-    status: number;
-    message: string;
-  };
-}) {
+function BrokenBoundaryFallback(props: { error: RouteFaultLike }) {
   return (
     <>
       <title>Boundary Error | Litz RSC Smoke</title>

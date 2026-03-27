@@ -72,12 +72,8 @@ function HomePage() {
             functions that run before the loader or action.
           </li>
           <li>
-            <code className="text-sky-400">pendingComponent</code> &mdash; shown while the loader is
-            in flight.
-          </li>
-          <li>
-            <code className="text-sky-400">errorComponent</code> &mdash; rendered when the route
-            errors.
+            <code className="text-sky-400">errorBoundary</code> &mdash; rendered when the route
+            faults.
           </li>
           <li>
             <code className="text-sky-400">offline</code> &mdash; marks the route as available

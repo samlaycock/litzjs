@@ -41,9 +41,9 @@ function createRuntimeState(): RouteRuntimeState {
     actionResult: null,
     data: null,
     view: null,
+    error: null,
     async submit() {},
     reload() {},
-    retry() {},
   };
 }
 

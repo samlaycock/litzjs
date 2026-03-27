@@ -167,11 +167,11 @@ describe("route search runtime", () => {
           actionResult: null,
           data: null,
           view: null,
+          error: null,
           async submit() {
             throw new Error("submit() is not used in this test.");
           },
           reload() {},
-          retry() {},
         }),
         [search, setSearch],
       );

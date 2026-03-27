@@ -27,9 +27,9 @@ export type LitzClientBindings = {
     actionResult: unknown;
     data: unknown;
     view: React.ReactNode | null;
+    error: unknown;
   };
   useRequiredRouteActions(routeId: string): {
-    retry(): void;
     reload(): void;
     submit(payload: FormData | Record<string, unknown>, options?: unknown): Promise<void>;
   };
@@ -52,9 +52,9 @@ export type LitzClientBindings = {
     actionResult: unknown;
     data: unknown;
     view: React.ReactNode | null;
+    error: unknown;
   };
   useRequiredResourceActions(resourcePath: string): {
-    retry(): void;
     reload(): void;
     submit(payload: FormData | Record<string, unknown>, options?: unknown): Promise<void>;
   };

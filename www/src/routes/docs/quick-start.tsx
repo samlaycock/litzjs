@@ -140,7 +140,8 @@ function ProfilePage() {
           </li>
           <li>
             <code className="text-sky-400">useLoaderData()</code> and{" "}
-            <code className="text-sky-400">useLoaderView()</code> for loader-specific values
+            <code className="text-sky-400">useLoaderView()</code> and{" "}
+            <code className="text-sky-400">useLoaderError()</code> for loader-specific values
           </li>
           <li>
             <code className="text-sky-400">useActionData()</code>,{" "}
@@ -150,8 +151,7 @@ function ProfilePage() {
           <li>
             <code className="text-sky-400">useData()</code>,{" "}
             <code className="text-sky-400">useView()</code>, and{" "}
-            <code className="text-sky-400">useError()</code> for the latest settled value regardless
-            of source
+            <code className="text-sky-400">useError()</code> for the latest settled merged value
           </li>
         </ul>
       </section>

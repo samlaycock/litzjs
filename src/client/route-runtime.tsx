@@ -33,6 +33,7 @@ export type RouteDataState = {
   actionResult: ActionHookResult;
   data: unknown;
   view: React.ReactNode | null;
+  error: import("../index").RouteExplicitErrorLike | null;
 };
 
 export type RouteActionsState = {
@@ -43,7 +44,6 @@ export type RouteActionsState = {
     options?: SubmitOptions,
   ): Promise<void>;
   reload(this: void): void;
-  retry(this: void): void;
 };
 
 export type RouteRuntimeState = RouteLocationState &
@@ -135,10 +135,12 @@ export function RouteRuntimeProvider(props: {
       actionResult: props.value.actionResult,
       data: props.value.data,
       view: props.value.view,
+      error: props.value.error,
     }),
     [
       props.value.actionResult,
       props.value.data,
+      props.value.error,
       props.value.id,
       props.value.loaderResult,
       props.value.view,
@@ -149,9 +151,8 @@ export function RouteRuntimeProvider(props: {
       id: props.value.id,
       submit: props.value.submit,
       reload: props.value.reload,
-      retry: props.value.retry,
     }),
-    [props.value.id, props.value.reload, props.value.retry, props.value.submit],
+    [props.value.id, props.value.reload, props.value.submit],
   );
 
   return (

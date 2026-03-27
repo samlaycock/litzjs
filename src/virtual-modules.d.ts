@@ -10,8 +10,7 @@ declare module "virtual:litzjs:route-manifest" {
         options?: {
           loader?: unknown;
           action?: unknown;
-          pendingComponent?: import("react").ComponentType;
-          errorComponent?: import("react").ComponentType<{ error: unknown }>;
+          errorBoundary?: import("react").ComponentType<{ error: unknown }>;
         };
       };
     }>;
