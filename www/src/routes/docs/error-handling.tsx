@@ -154,6 +154,14 @@ export const route = defineRoute("/posts/:id", {
           <code className="text-sky-400">route.useError()</code> stays{" "}
           <code className="text-sky-400">null</code>.
         </p>
+        <p className="text-neutral-400 mb-4">
+          Loader-specific hooks are source-scoped. A later successful action can clear merged{" "}
+          <code className="text-sky-400">route.useError()</code> and return{" "}
+          <code className="text-sky-400">route.useStatus()</code> to{" "}
+          <code className="text-sky-400">'idle'</code> while{" "}
+          <code className="text-sky-400">route.useLoaderError()</code> still reflects the earlier
+          loader error until you reload.
+        </p>
         <CodeBlock
           language="tsx"
           code={`function PostPage() {

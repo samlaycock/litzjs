@@ -299,6 +299,10 @@ Use the more specific hooks when you know which source you want:
 - `useActionError()` if you only care about explicit action `error(...)`
 - `useView()` if you want the latest settled `view(...)` from either side
 
+Loader-only hooks keep the last loader result until you call `useReload()`. A later successful
+action can clear merged `useError()` and return `useStatus()` to `idle` while
+`useLoaderError()` still reflects the earlier loader error.
+
 ## Actions
 
 Actions handle writes. They can return `data(...)`, `invalid(...)`, `redirect(...)`,
