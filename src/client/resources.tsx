@@ -18,6 +18,7 @@ import {
   createSearchParams,
   type SearchParamRecord,
 } from "../search-params";
+import { isAbortError } from "./abort-error";
 import { applySearchParams } from "./navigation";
 import { sortRecord } from "./sort-record";
 import {
@@ -76,7 +77,6 @@ type ResourceStoreEntry = {
   listeners: Set<() => void>;
   loaderInFlight?: Promise<LoaderHookResult | void>;
   loaderMode?: "loading" | "revalidating";
-  actionInFlightCount: number;
   actionController?: AbortController;
   actionSequence: number;
 };
@@ -459,7 +459,6 @@ async function performPreparedResourceRequest(
     entry.actionController?.abort();
     entry.actionController = actionController;
     entry.actionSequence = actionSequence!;
-    entry.actionInFlightCount += 1;
   }
 
   const request = (async () => {
@@ -578,8 +577,6 @@ async function performPreparedResourceRequest(
         entry.loaderInFlight = undefined;
         entry.loaderMode = undefined;
       } else {
-        entry.actionInFlightCount -= 1;
-
         if (entry.actionController === actionController) {
           entry.actionController = undefined;
         }
@@ -674,7 +671,6 @@ function getEntry(key: string): ResourceStoreEntry {
     entry = {
       snapshot: getInitialSnapshot(),
       listeners: new Set(),
-      actionInFlightCount: 0,
       actionSequence: 0,
     };
     resourceStore.set(key, entry);
@@ -755,14 +751,6 @@ function shouldIgnoreResourceAction(
   }
 
   return isAbortError(error);
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException
-    ? error.name === "AbortError"
-    : error instanceof Error
-      ? error.name === "AbortError"
-      : false;
 }
 
 function pruneResourceStore(): void {

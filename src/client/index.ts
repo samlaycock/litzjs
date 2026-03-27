@@ -13,6 +13,7 @@ import {
   sortByPathSpecificity,
 } from "../path-matching";
 import { createSearchParamRecord, type SearchParamRecord } from "../search-params";
+import { isAbortError } from "./abort-error";
 import { installClientBindings } from "./bindings";
 import { createLinkComponent } from "./link";
 import { processLoaderResults, type LoaderSettledResult } from "./loader-fetch";
@@ -1150,6 +1151,8 @@ function useMatchRuntime(options: {
   const submitControllerRef = React.useRef<AbortController | null>(null);
 
   React.useEffect(() => {
+    // Route-host state is replaced when params/search changes, so aborting here intentionally
+    // leaves pending/status cleanup to that bootstrap transition instead of mutating stale state.
     submitSequenceRef.current += 1;
     submitControllerRef.current?.abort();
     submitControllerRef.current = null;
@@ -1368,14 +1371,6 @@ function shouldIgnoreRouteSubmit(
   }
 
   return isAbortError(error);
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException
-    ? error.name === "AbortError"
-    : error instanceof Error
-      ? error.name === "AbortError"
-      : false;
 }
 
 function getLayoutChain(layout: LoadedLayout | undefined): LoadedLayout[] {
