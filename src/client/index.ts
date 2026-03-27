@@ -491,6 +491,17 @@ function RouteHost(props: {
             };
           });
         },
+        resolveHasOfflineFallback(matchId) {
+          const matchIndex = loaderMatches.findIndex((entry) => entry.id === matchId);
+
+          for (let i = matchIndex; i >= 0; i -= 1) {
+            if (loaderMatches[i]?.options?.offline?.fallbackComponent) {
+              return true;
+            }
+          }
+
+          return false;
+        },
       });
     };
 
@@ -912,6 +923,17 @@ async function reloadCurrentRoute(options: {
           offlineStaleMatchIds: staleIds,
         };
       });
+    },
+    resolveHasOfflineFallback(matchId) {
+      const matchIndex = loaderMatches.findIndex((entry) => entry.id === matchId);
+
+      for (let i = matchIndex; i >= 0; i -= 1) {
+        if (loaderMatches[i]?.options?.offline?.fallbackComponent) {
+          return true;
+        }
+      }
+
+      return false;
     },
   });
 }
