@@ -1,6 +1,6 @@
 {
   "name": "litzjs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Client-first React framework with RSC support built on Vite",
   "keywords": [
     "framework",

@@ -1,5 +1,27 @@
 # litzjs
 
+## 0.2.0
+
+### Minor Changes
+
+- be2e0f5: Remove the legacy `pendingComponent` API, rename route and layout `errorComponent` to `errorBoundary`, and align route, layout, and resource error hooks around explicit `error()` results and fault-only boundaries.
+
+  Routes and layouts now render immediately while loaders settle, explicit loader `error()` results are exposed through `useLoaderError()` and merged `useError()`, and uncaught loader or action throws now consistently surface as sanitized `fault` results in production so `errorBoundary` handling matches development.
+
+- 3082e58: Add first-class `input` parsing hooks for routes, layouts, resources, and API routes so handlers can receive validated params, search params, headers, and request bodies through `context.input`.
+- 8fb9d5a: Add configurable link prefetch strategies with optional route loader data warmup.
+- bf38f7b: Add an explicit `formJson(...)` helper for structured submit payload fields and reject implicit object/null coercion in `FormData` submissions.
+
+### Patch Changes
+
+- c586872: Warn when `mountApp(...)` receives the removed positional wrapper API and update the README wrapper examples to the current options-object form.
+- 769ad56: Preserve repeated query parameters across API fetches, internal route/resource transport, and cache keys.
+- d9cdc89: Remove the unused `replace` option from resource-scoped `useSearch()` so its public signature matches the request-local behavior implemented by the runtime.
+- bc1957d: Fix client-side matching and prefetch for wildcard routes in the route manifest.
+- 1a69346: Implement the documented `offline` route option in the client runtime. Routes with `preserveStaleOnFailure: true` now preserve stale cached data and report an `offline-stale` status when loader requests fail, and routes with a `fallbackComponent` render it when no cached data is available during a failure.
+- c6599e5: Fix wildcard path interpolation for internal route and resource requests, plus `defineApiRoute(...).fetch()`.
+- 887a9f4: Keep resource loader revalidation and action submits isolated when they overlap for the same cache key.
+
 ## 0.1.0
 
 ### Minor Changes
