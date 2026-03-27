@@ -82,6 +82,10 @@ type LoadedLayout = {
     middleware?: unknown[];
     pendingComponent?: React.ComponentType;
     errorComponent?: React.ComponentType<{ error: unknown }>;
+    offline?: {
+      fallbackComponent?: React.ComponentType;
+      preserveStaleOnFailure?: boolean;
+    };
   };
 };
 
@@ -438,16 +442,23 @@ function RouteHost(props: {
         onResult(match, loaderResult) {
           setCachedLoaderResult(match.cacheKey, withLoaderStaleState(loaderResult, false));
 
-          setPageState((current) =>
-            withMatchLoaderResult(
+          setPageState((current) => {
+            const resolvedStatus =
+              match.id === finalLoaderMatchId
+                ? current.offlineStaleMatchIds?.size
+                  ? ("offline-stale" as RouteRuntimeState["status"])
+                  : "idle"
+                : current.status;
+
+            return withMatchLoaderResult(
               current,
               match.id,
               renderedRoute.id,
               loaderResult,
-              match.id === finalLoaderMatchId ? "idle" : current.status,
+              resolvedStatus,
               match.id === finalLoaderMatchId ? false : current.pending,
-            ),
-          );
+            );
+          });
         },
         onRedirect(location) {
           navigate(location, true);
@@ -772,6 +783,7 @@ function applyCachedLoaderStateToPageState(
     pending: true,
     errorInfo: undefined,
     errorTargetId: undefined,
+    offlineStaleMatchIds: undefined,
   };
 }
 
@@ -852,16 +864,23 @@ async function reloadCurrentRoute(options: {
     isCancelled: () => options.signal?.aborted === true,
     onResult(match, loaderResult) {
       setCachedLoaderResult(match.cacheKey, withLoaderStaleState(loaderResult, false));
-      options.setPageState((current) =>
-        withMatchLoaderResult(
+      options.setPageState((current) => {
+        const resolvedStatus =
+          match === finalLoaderMatch
+            ? current.offlineStaleMatchIds?.size
+              ? ("offline-stale" as RouteRuntimeState["status"])
+              : "idle"
+            : current.status;
+
+        return withMatchLoaderResult(
           current,
           match.id,
           options.route.id,
           loaderResult,
-          match === finalLoaderMatch ? "idle" : current.status,
+          resolvedStatus,
           match === finalLoaderMatch ? false : current.pending,
-        ),
-      );
+        );
+      });
     },
     onRedirect(location) {
       options.navigate(location, true);
