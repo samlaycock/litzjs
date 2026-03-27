@@ -32,6 +32,8 @@ export type LitzJsonBody =
       digest?: string;
     };
 
+type LitzJsonKind = LitzJsonBody["kind"];
+
 export async function parseLoaderResponse(response: Response): Promise<LoaderHookResult> {
   const contentType = response.headers.get("content-type") ?? "";
   const publicHeaders = createPublicResultHeaders(response.headers);
@@ -40,7 +42,16 @@ export async function parseLoaderResponse(response: Response): Promise<LoaderHoo
     return createViewResult(response, publicHeaders);
   }
 
-  const body = (await response.json()) as LitzJsonBody;
+  const body = await parseLitzJsonResponse(response, [
+    "data",
+    "error",
+    "fault",
+    "redirect",
+  ] as const);
+
+  if (body.kind === "fault") {
+    throw createRouteLikeError(response.status, publicHeaders, body);
+  }
 
   if (body.kind === "data") {
     return {
@@ -67,15 +78,11 @@ export async function parseLoaderResponse(response: Response): Promise<LoaderHoo
     };
   }
 
-  if (body.kind === "fault") {
-    throw createRouteLikeError(response.status, publicHeaders, body);
-  }
-
   if (body.kind === "redirect") {
     throw createRedirectSignal(response.status, publicHeaders, body);
   }
 
-  throw new Error(`Unsupported loader response kind "${body.kind}".`);
+  throw createRouteLikeError(response.status, publicHeaders, body);
 }
 
 export async function parseActionResponse(response: Response): Promise<ActionHookResult> {
@@ -86,7 +93,13 @@ export async function parseActionResponse(response: Response): Promise<ActionHoo
     return createViewResult(response, publicHeaders);
   }
 
-  const body = (await response.json()) as LitzJsonBody;
+  const body = await parseLitzJsonResponse(response, [
+    "data",
+    "invalid",
+    "redirect",
+    "error",
+    "fault",
+  ] as const);
 
   switch (body.kind) {
     case "data":
@@ -130,10 +143,6 @@ export async function parseActionResponse(response: Response): Promise<ActionHoo
         message: body.message,
         digest: body.digest,
       };
-    default:
-      throw new Error(
-        `Unsupported action response kind "${String((body as { kind?: unknown }).kind)}".`,
-      );
   }
 }
 
@@ -207,6 +216,30 @@ export function getRevalidateTargets(headers: Headers): string[] {
     .filter(Boolean);
 }
 
+async function parseLitzJsonResponse<const TAllowedKinds extends readonly LitzJsonKind[]>(
+  response: Response,
+  allowedKinds: TAllowedKinds,
+): Promise<Extract<LitzJsonBody, { kind: TAllowedKinds[number] | "fault" }>> {
+  const contentType = response.headers.get("content-type") ?? "";
+  const bodyText = await response.text();
+
+  if (!isJsonContentType(contentType)) {
+    return createInvalidTransportFault(response.status, contentType, bodyText, "non-json");
+  }
+
+  try {
+    const parsedBody = JSON.parse(bodyText) as unknown;
+
+    if (isLitzJsonBody(parsedBody) && allowedKinds.includes(parsedBody.kind)) {
+      return parsedBody as Extract<LitzJsonBody, { kind: TAllowedKinds[number] | "fault" }>;
+    }
+
+    return createInvalidTransportFault(response.status, contentType, bodyText, "unsupported-kind");
+  } catch {
+    return createInvalidTransportFault(response.status, contentType, bodyText, "malformed-json");
+  }
+}
+
 function createRouteLikeError(
   status: number,
   headers: Headers,
@@ -221,6 +254,84 @@ function createRouteLikeError(
     digest: "digest" in body ? body.digest : undefined,
     data: "data" in body ? body.data : undefined,
   };
+}
+
+function createInvalidTransportFault(
+  status: number,
+  contentType: string,
+  bodyText: string,
+  reason: "malformed-json" | "non-json" | "unsupported-kind",
+): Extract<LitzJsonBody, { kind: "fault" }> {
+  const detail = describeInvalidTransportResponse(status, contentType, bodyText, reason);
+
+  return {
+    kind: "fault",
+    message: detail,
+  };
+}
+
+function describeInvalidTransportResponse(
+  status: number,
+  contentType: string,
+  bodyText: string,
+  reason: "malformed-json" | "non-json" | "unsupported-kind",
+): string {
+  if (!isDevelopmentEnvironment()) {
+    return "[litzjs] The server returned an invalid response.";
+  }
+
+  const responseType =
+    reason === "malformed-json"
+      ? "malformed JSON"
+      : reason === "unsupported-kind"
+        ? "an unsupported result payload"
+        : "a non-JSON payload";
+  const normalizedContentType = contentType || "unknown content-type";
+  const preview = createResponsePreview(bodyText);
+
+  return `[litzjs] The server returned ${responseType} with status ${status} and content-type "${normalizedContentType}". Preview: ${preview}`;
+}
+
+function isJsonContentType(contentType: string): boolean {
+  const mimeType = contentType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+
+  return mimeType === "application/json" || mimeType.endsWith("+json");
+}
+
+function isLitzJsonBody(value: unknown): value is LitzJsonBody {
+  if (typeof value !== "object" || value === null || !("kind" in value)) {
+    return false;
+  }
+
+  const kind = (value as { kind?: unknown }).kind;
+
+  if (kind === "data" || kind === "invalid") {
+    return true;
+  }
+
+  if (kind === "redirect") {
+    return typeof (value as { location?: unknown }).location === "string";
+  }
+
+  if (kind === "error" || kind === "fault") {
+    return typeof (value as { message?: unknown }).message === "string";
+  }
+
+  return false;
+}
+
+function createResponsePreview(bodyText: string): string {
+  const normalized = bodyText.replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return "<empty>";
+  }
+
+  return normalized.length > 120 ? `${normalized.slice(0, 117)}...` : normalized;
+}
+
+function isDevelopmentEnvironment(): boolean {
+  return process.env.NODE_ENV !== "production";
 }
 
 function createRedirectSignal(
