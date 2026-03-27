@@ -652,6 +652,36 @@ describe("dev server error masking", () => {
     expect(response.getBody()).not.toContain("s3cret");
     expect(response.getBody()).toContain("API route failed.");
   });
+
+  test("treats malformed percent-encoding in API route pathnames as bad requests", async () => {
+    const server = createMockViteDevServer(async () => ({
+      api: {
+        methods: {
+          GET() {
+            return new Response("ok");
+          },
+        },
+      },
+    }));
+    const request = createMockRequest({
+      url: "/api/projects/%E0%A4%A",
+      method: "GET",
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzApiRequest(
+      server,
+      [{ path: "/api/projects/:id", modulePath: "src/api/projects/[id].ts" }],
+      request,
+      response,
+      next,
+    );
+
+    expect(response.statusCode).toBe(400);
+    expect(response.getBody()).toBe("Bad Request");
+    expect(next).not.toHaveBeenCalled();
+  });
 });
 
 describe("manifest discovery", () => {

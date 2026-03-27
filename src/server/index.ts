@@ -8,6 +8,7 @@ import {
 } from "../input-validation";
 import {
   extractRouteLikeParams,
+  hasMalformedPathnameEncoding,
   interpolatePath,
   matchPathname,
   trimPathSegments,
@@ -122,6 +123,10 @@ export function createServer<TContext = unknown>(
     const url = new URL(request.url);
     let contextLoaded = false;
     let contextValue: TContext | undefined;
+
+    if (hasMalformedPathnameEncoding(url.pathname)) {
+      return createBadRequestResponse();
+    }
 
     async function getContext(): Promise<TContext | undefined> {
       if (contextLoaded) {
@@ -705,6 +710,15 @@ function createUnhandledFaultResponse(): Response {
   return createLitzJsonResponse(500, {
     kind: "fault",
     message: "Internal server error.",
+  });
+}
+
+function createBadRequestResponse(): Response {
+  return new Response("Bad Request", {
+    status: 400,
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+    },
   });
 }
 

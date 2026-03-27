@@ -29,6 +29,7 @@ import {
 } from "./input-validation";
 import {
   extractRouteLikeParams,
+  hasMalformedPathnameEncoding,
   interpolatePath,
   matchPathname,
   sortByPathSpecificity,
@@ -1514,6 +1515,7 @@ async function handleLitzDocumentRequest(
   next: Connect.NextFunction,
 ): Promise<void> {
   const url = request.url ?? "/";
+  const requestUrl = new URL(url, "http://litzjs.local");
 
   if (request.method !== "GET" && request.method !== "HEAD") {
     next();
@@ -1534,6 +1536,11 @@ async function handleLitzDocumentRequest(
 
   if (!accept.includes("text/html") && !accept.includes("*/*")) {
     next();
+    return;
+  }
+
+  if (hasMalformedPathnameEncoding(requestUrl.pathname)) {
+    sendBadRequest(response);
     return;
   }
 
@@ -1561,6 +1568,11 @@ export async function handleLitzApiRequest(
 
   if (!requestUrl) {
     next();
+    return;
+  }
+
+  if (hasMalformedPathnameEncoding(requestUrl.pathname)) {
+    sendBadRequest(response);
     return;
   }
 
@@ -1902,6 +1914,12 @@ function sendLitzJson(
   response.statusCode = status;
   response.setHeader("content-type", "application/vnd.litzjs.result+json");
   response.end(JSON.stringify(body));
+}
+
+function sendBadRequest(response: ServerResponse): void {
+  response.statusCode = 400;
+  response.setHeader("content-type", "text/plain; charset=utf-8");
+  response.end("Bad Request");
 }
 
 function applyHeaders(response: ServerResponse, headers?: HeadersInit): void {

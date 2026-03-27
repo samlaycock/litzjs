@@ -14,6 +14,10 @@ describe("path matching", () => {
     expect(matchPathname("/users/:id", "/users")).toBeNull();
   });
 
+  test("treats malformed percent-encoding in dynamic segments as an unmatched route", () => {
+    expect(matchPathname("/users/:id", "/users/%E0%A4%A")).toBeNull();
+  });
+
   test("matches prefix params for layouts", () => {
     expect(extractRouteLikeParams("/teams/:teamId", "/teams/core/settings")).toEqual({
       teamId: "core",
@@ -82,10 +86,18 @@ describe("path matching", () => {
       });
     });
 
+    test("treats malformed percent-encoding in wildcard captures as an unmatched route", () => {
+      expect(matchPathname("/files/*path", "/files/%E0%A4%A")).toBeNull();
+    });
+
     test("prefix matching delegates to matchPathname for wildcard routes", () => {
       expect(matchPrefixPathname("/docs/*slug", "/docs/a/b")).toEqual({
         slug: "a/b",
       });
+    });
+
+    test("treats malformed percent-encoding in prefix params as an unmatched route", () => {
+      expect(matchPrefixPathname("/teams/:teamId", "/teams/%E0%A4%A/settings")).toBeNull();
     });
 
     test("sorts wildcard routes below static and dynamic routes", () => {
