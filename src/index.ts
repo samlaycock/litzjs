@@ -90,6 +90,8 @@ export type SetSearchParams = (
   },
 ) => void;
 
+export type SetResourceSearchParams = (params: SearchParamsUpdate) => void;
+
 export type RouteFormProps = Omit<React.ComponentPropsWithoutRef<"form">, "action" | "method"> & {
   replace?: boolean;
   revalidate?: boolean | string[];
@@ -750,7 +752,7 @@ export type LitzResource<
     component: TComponent;
     Component: React.ComponentType<ResourceComponentProps<TPath>>;
     useParams(): PathParams<TPath>;
-    useSearch(): [URLSearchParams, SetSearchParams];
+    useSearch(): [URLSearchParams, SetResourceSearchParams];
     useStatus(): RouteStatus;
     usePending(): boolean;
   } & ([TLoaderResult] extends [never]
@@ -1318,9 +1320,9 @@ export function defineResource(path: any, options: any): any {
     useParams: () => getRequiredResourceLocation(path).params as PathParams<string>,
     useSearch: () => {
       const location = getRequiredResourceLocation(path);
-      return [location.search, (params, options) => location.setSearch(params, options)] as [
+      return [location.search, (params) => location.setSearch(params)] as [
         URLSearchParams,
-        SetSearchParams,
+        SetResourceSearchParams,
       ];
     },
     useReload: () => {

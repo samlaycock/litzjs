@@ -7,7 +7,7 @@ import type {
   ResourceRequest,
   RouteFormProps,
   RouteStatus,
-  SetSearchParams,
+  SetResourceSearchParams,
   SubmitOptions,
 } from "../index";
 
@@ -31,11 +31,7 @@ export type ResourceLocationState = {
   id: string;
   params: Record<string, string>;
   search: URLSearchParams;
-  setSearch(
-    this: void,
-    params: Parameters<SetSearchParams>[0],
-    options?: Parameters<SetSearchParams>[1],
-  ): void;
+  setSearch(this: void, params: Parameters<SetResourceSearchParams>[0]): void;
 };
 
 export type ResourceStatusState = {
@@ -368,7 +364,7 @@ function useResourceRuntime(resourcePath: string, request?: ResourceRequest): Re
         return;
       }
 
-      const nextUrl = new URL(result.href);
+      const nextUrl = new URL(result.href, "https://litz.local");
       React.startTransition(() => {
         setSearchState(new URLSearchParams(nextUrl.search));
       });

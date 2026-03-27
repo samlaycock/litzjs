@@ -20,13 +20,20 @@ import {
   useRequiredRouteLocation,
   useRequiredRouteStatus,
 } from "../src/client/route-runtime";
-import { data, defineResource, server } from "../src/index";
+import { data, defineResource, server, type SetResourceSearchParams } from "../src/index";
 import { flushDom, installTestDom } from "./test-dom";
 
 type Deferred<T> = {
   promise: Promise<T>;
   resolve(value: T): void;
 };
+
+type IsExact<T, U> =
+  (<Value>() => Value extends T ? 1 : 2) extends <Value>() => Value extends U ? 1 : 2
+    ? (<Value>() => Value extends U ? 1 : 2) extends <Value>() => Value extends T ? 1 : 2
+      ? true
+      : false
+    : false;
 
 function createDeferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void;
@@ -122,6 +129,33 @@ const overlapResource = defineResource("/resource/overlap/:id", {
   loader: server(async ({ params }) => data({ id: params.id, count: 1 })),
   action: server(async ({ params }) => data({ id: params.id, count: 2 })),
 });
+
+const searchResource = defineResource("/resource/search/:id", {
+  component: function SearchResource() {
+    const [searchParams, setSearch] = searchResource.useSearch();
+    const details = searchResource.useData() as { id: string; tab: string } | null;
+
+    return (
+      <section>
+        <div className="search-resource-tab" data-value={searchParams.get("tab") ?? "(none)"} />
+        <div className="search-resource-data-tab" data-value={details?.tab ?? "(none)"} />
+        <button
+          type="button"
+          className="search-resource-update"
+          onClick={() => setSearch({ tab: "security" })}
+        >
+          Update search
+        </button>
+      </section>
+    );
+  },
+  loader: server(async ({ params }) => data({ id: params.id, tab: params.id })),
+});
+
+const _resourceSearchSetterMatchesPublicType: IsExact<
+  ReturnType<typeof searchResource.useSearch>[1],
+  SetResourceSearchParams
+> = true;
 
 const loaderErrorActionResource = defineResource("/resource/error-action/:id", {
   component: function LoaderErrorActionResource() {
@@ -393,6 +427,73 @@ describe("resource runtime", () => {
     expect(loaderBodies.map((body) => JSON.parse(body).request.search)).toEqual([
       { tag: ["framework", "bun"] },
       { tag: "bun" },
+    ]);
+  });
+
+  test("resource.useSearch() updates request-scoped search state without touching browser history", async () => {
+    const loaderBodies: string[] = [];
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = init?.body as string;
+
+      if (!body) {
+        throw new Error("Expected loader request body.");
+      }
+
+      loaderBodies.push(body);
+      const request = JSON.parse(body).request as {
+        params: { id: string };
+        search: { tab?: string };
+      };
+
+      return Response.json({
+        kind: "data",
+        data: {
+          id: request.params.id,
+          tab: request.search.tab ?? "profile",
+        },
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(
+        <searchResource.Component params={{ id: "user-004" }} search={{ tab: "profile" }} />,
+      );
+      await flushDom();
+    });
+
+    const updateButton = document.querySelector(".search-resource-update");
+
+    expect(window.location.pathname).toBe("/dashboard");
+    expect(window.location.search).toBe("");
+    expect(window.history.length).toBe(1);
+    expect(document.querySelector(".search-resource-tab")?.getAttribute("data-value")).toBe(
+      "profile",
+    );
+    expect(document.querySelector(".search-resource-data-tab")?.getAttribute("data-value")).toBe(
+      "profile",
+    );
+    expect(loaderBodies.map((body) => JSON.parse(body).request.search)).toEqual([
+      { tab: "profile" },
+    ]);
+
+    await act(async () => {
+      (updateButton as HTMLButtonElement).click();
+      await flushDom();
+    });
+
+    expect(window.location.pathname).toBe("/dashboard");
+    expect(window.location.search).toBe("");
+    expect(window.history.length).toBe(1);
+    expect(document.querySelector(".search-resource-tab")?.getAttribute("data-value")).toBe(
+      "security",
+    );
+    expect(document.querySelector(".search-resource-data-tab")?.getAttribute("data-value")).toBe(
+      "security",
+    );
+    expect(loaderBodies.map((body) => JSON.parse(body).request.search)).toEqual([
+      { tab: "profile" },
+      { tab: "security" },
     ]);
   });
 
