@@ -67,8 +67,8 @@ export function processLoaderResults(
 
       const matchId = matches[index]!.id;
 
-      if (callbacks.resolveOfflineEligible?.(matchId) && callbacks.onOfflineStale) {
-        callbacks.onOfflineStale(matchId);
+      if (callbacks.resolveOfflineEligible?.(matchId)) {
+        callbacks.onOfflineStale?.(matchId);
         continue;
       }
 
