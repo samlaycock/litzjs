@@ -434,6 +434,74 @@ describe("resource runtime", () => {
     expect(document.querySelector(".resource-count")?.getAttribute("data-value")).toBe("1");
   });
 
+  test("resource store preserves settled entries across remounts after a later tick", async () => {
+    const resourceId = "user-004";
+    let loaderCalls = 0;
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      loaderCalls += 1;
+      return Response.json({
+        kind: "data",
+        data: { id: resourceId, count: 1 },
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<accountResource.Component params={{ id: resourceId }} />);
+      await flushDom();
+    });
+
+    expect(loaderCalls).toBe(1);
+
+    await act(async () => {
+      root?.render(<></>);
+      await flushDom();
+    });
+
+    await act(async () => {
+      root?.render(<accountResource.Component params={{ id: resourceId }} />);
+      await flushDom();
+    });
+
+    expect(loaderCalls).toBe(1);
+    expect(document.querySelector(".resource-count")?.getAttribute("data-value")).toBe("1");
+  });
+
+  test("resource store keeps settled entries warm across navigation away and back", async () => {
+    const resourceId = "user-005";
+    let loaderCalls = 0;
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      loaderCalls += 1;
+      return Response.json({
+        kind: "data",
+        data: { id: resourceId, count: 1 },
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<accountResource.Component params={{ id: resourceId }} />);
+      await flushDom();
+    });
+
+    expect(loaderCalls).toBe(1);
+
+    await act(async () => {
+      root?.render(<section className="other-screen" />);
+      await flushDom();
+    });
+
+    expect(document.querySelector(".other-screen")).not.toBeNull();
+
+    await act(async () => {
+      root?.render(<accountResource.Component params={{ id: resourceId }} />);
+      await flushDom();
+    });
+
+    expect(loaderCalls).toBe(1);
+    expect(document.querySelector(".resource-count")?.getAttribute("data-value")).toBe("1");
+  });
+
   test("treats repeated query params as part of the resource cache key", async () => {
     const loaderBodies: string[] = [];
 

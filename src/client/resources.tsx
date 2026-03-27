@@ -665,19 +665,21 @@ function getInitialSnapshot(): ResourceSnapshot {
 }
 
 function getEntry(key: string): ResourceStoreEntry {
-  let entry = resourceStore.get(key);
+  const cachedEntry = resourceStore.get(key);
 
-  if (!entry) {
-    entry = {
+  if (!cachedEntry) {
+    const entry: ResourceStoreEntry = {
       snapshot: getInitialSnapshot(),
-      listeners: new Set(),
+      listeners: new Set<() => void>(),
       actionSequence: 0,
     };
     resourceStore.set(key, entry);
     pruneResourceStore();
+    return entry;
   }
 
-  return entry;
+  touchResourceEntry(key, cachedEntry);
+  return cachedEntry;
 }
 
 function notify(entry: ResourceStoreEntry): void {
@@ -712,8 +714,25 @@ function syncEntryPendingState(entry: ResourceStoreEntry): void {
   };
 }
 
+function hasSettledResourceEntry(entry: ResourceStoreEntry): boolean {
+  return entry.snapshot.loaderResult !== null || entry.snapshot.actionResult !== null;
+}
+
+function touchResourceEntry(key: string, entry: ResourceStoreEntry): void {
+  if (resourceStore.get(key) !== entry) {
+    return;
+  }
+
+  resourceStore.delete(key);
+  resourceStore.set(key, entry);
+}
+
 function cleanupResourceEntry(key: string, entry: ResourceStoreEntry): void {
   if (entry.listeners.size > 0 || hasActiveEntryRequests(entry) || entry.snapshot.pending) {
+    return;
+  }
+
+  if (hasSettledResourceEntry(entry)) {
     return;
   }
 
@@ -727,6 +746,10 @@ function deferredCleanupResourceEntry(key: string, entry: ResourceStoreEntry): v
 
   queueMicrotask(() => {
     if (entry.listeners.size > 0 || hasActiveEntryRequests(entry) || entry.snapshot.pending) {
+      return;
+    }
+
+    if (hasSettledResourceEntry(entry)) {
       return;
     }
 
@@ -763,7 +786,11 @@ function pruneResourceStore(): void {
       return;
     }
 
-    cleanupResourceEntry(key, entry);
+    if (entry.listeners.size > 0 || hasActiveEntryRequests(entry) || entry.snapshot.pending) {
+      continue;
+    }
+
+    resourceStore.delete(key);
   }
 }
 
