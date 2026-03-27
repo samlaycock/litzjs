@@ -324,4 +324,26 @@ describe("processLoaderResults", () => {
 
     expect(callCount).toBe(1);
   });
+
+  test("does not enter callbacks when already cancelled before processing starts", () => {
+    const matches = [createMatch("a")];
+    const onResult = mock();
+    const onRedirect = mock();
+    const onRouteError = mock();
+
+    processLoaderResults(
+      [{ status: "fulfilled", value: { match: matches[0]!, loaderResult: createDataResult("a") } }],
+      matches,
+      {
+        isCancelled: () => true,
+        onResult,
+        onRedirect,
+        onRouteError,
+      },
+    );
+
+    expect(onResult).not.toHaveBeenCalled();
+    expect(onRedirect).not.toHaveBeenCalled();
+    expect(onRouteError).not.toHaveBeenCalled();
+  });
 });
