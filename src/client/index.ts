@@ -574,13 +574,7 @@ function NotFoundPage(): React.ReactElement {
   return React.createElement("main", null, React.createElement("h1", null, "Not Found"));
 }
 
-type MatchErrorInfo = {
-  kind: "fault";
-  status: number;
-  headers: Headers;
-  message: string;
-  digest?: string;
-};
+type MatchErrorInfo = Extract<ActionHookResult, { kind: "fault" }>;
 
 type LoaderDataResult = Extract<LoaderHookResult, { kind: "data" }>;
 type LoaderErrorResult = Extract<LoaderHookResult, { kind: "error" }>;
