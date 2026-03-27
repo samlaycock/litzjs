@@ -56,6 +56,7 @@ function HomeRoute(): React.ReactElement {
   }
 
   const Link = clientModule.Link;
+  const navigate = clientModule.useNavigate();
 
   return (
     <main>
@@ -65,6 +66,9 @@ function HomeRoute(): React.ReactElement {
         Open project route
       </Link>
       <Link href="/broken">Open broken route</Link>
+      <button id="navigate-missing" type="button" onClick={() => navigate("/missing")}>
+        Open missing route
+      </button>
     </main>
   );
 }
@@ -75,6 +79,24 @@ function DocsRoute(): React.ReactElement {
 
 function BrokenRoute(): React.ReactElement {
   return <div id="route-state" data-value="broken-route" />;
+}
+
+function CustomNotFound(): React.ReactElement {
+  if (!clientModule) {
+    throw new Error("Client runtime has not been loaded.");
+  }
+
+  const location = clientModule.useLocation();
+  const navigate = clientModule.useNavigate();
+
+  return (
+    <main data-not-found="custom">
+      <div id="not-found-path" data-value={location.pathname} />
+      <button id="not-found-home" type="button" onClick={() => navigate("/")}>
+        Go home
+      </button>
+    </main>
+  );
 }
 
 function ProjectRoute(): React.ReactElement {
@@ -561,6 +583,42 @@ describe("client wildcard route runtime", () => {
     });
 
     expect(container?.querySelector('[data-wrapper="options-object"]')).not.toBeNull();
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe("home-route");
+  });
+
+  test("renders custom not-found UI for unmatched client navigations", async () => {
+    clientModule = await import("../src/client/index");
+
+    function TestWrapper({ children }: React.PropsWithChildren): React.ReactElement {
+      return <div data-wrapper="not-found">{children}</div>;
+    }
+
+    await act(async () => {
+      clientModule?.mountApp(container!, {
+        component: TestWrapper,
+        notFound: CustomNotFound,
+      });
+      await flushApp();
+    });
+
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe("home-route");
+
+    await act(async () => {
+      (document.getElementById("navigate-missing") as HTMLButtonElement | null)?.click();
+      await flushApp();
+    });
+
+    expect(window.location.pathname).toBe("/missing");
+    expect(container?.querySelector('[data-wrapper="not-found"]')).not.toBeNull();
+    expect(container?.querySelector('[data-not-found="custom"]')).not.toBeNull();
+    expect(document.getElementById("not-found-path")?.getAttribute("data-value")).toBe("/missing");
+
+    await act(async () => {
+      (document.getElementById("not-found-home") as HTMLButtonElement | null)?.click();
+      await flushApp();
+    });
+
+    expect(window.location.pathname).toBe("/");
     expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe("home-route");
   });
 

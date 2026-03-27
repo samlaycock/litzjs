@@ -98,6 +98,19 @@ function AppProviders({ children }: React.PropsWithChildren) {
 mountApp(root, { component: AppProviders });
 ```
 
+You can also customize the unmatched client screen:
+
+```tsx
+import { mountApp, useLocation } from "litzjs/client";
+
+function NotFoundPage() {
+  const location = useLocation();
+  return <h1>Missing: {location.pathname}</h1>;
+}
+
+mountApp(root, { notFound: NotFoundPage });
+```
+
 `index.html`
 
 ```html
@@ -862,6 +875,7 @@ export default createServer({
       requestId: request.headers.get("x-request-id"),
     };
   },
+  notFound: "<!doctype html><html><body><h1>Not found</h1></body></html>",
   onError(error, context) {
     console.error("Litz server error", { error, context });
   },

@@ -78,6 +78,20 @@ export default createServer();`}
       </section>
 
       <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">notFound</h2>
+        <p className="text-neutral-400 mb-4">
+          Use <code className="text-sky-400">notFound</code> to return a custom 404 document for
+          unmatched route-like requests while leaving asset handling alone.
+        </p>
+        <CodeBlock
+          language="tsx"
+          code={`export default createServer({
+  notFound: "<!doctype html><html><body><h1>Missing</h1></body></html>",
+});`}
+        />
+      </section>
+
+      <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Production output</h2>
         <p className="text-neutral-400 mb-4">
           When you run <code className="text-sky-400">vite build</code>, Litz writes browser assets
