@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import type { SubmitPayload } from "../form-data";
 import type { ActionHookResult, LoaderHookResult, ResourceRequest } from "../index";
 
 import { createInternalActionRequestInit, LITZ_RESULT_ACCEPT } from "../internal-transport";
@@ -42,7 +43,7 @@ export async function fetchRouteLoader(
 export async function fetchRouteAction(
   path: string,
   request: ResourceRequest,
-  payload: FormData | Record<string, unknown>,
+  payload: SubmitPayload,
 ): Promise<ActionHookResult> {
   const actionRequest = createInternalActionRequestInit(
     {

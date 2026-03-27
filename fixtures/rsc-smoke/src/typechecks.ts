@@ -1,4 +1,4 @@
-import { data, defineApiRoute, defineResource, defineRoute, fault, server } from "litzjs";
+import { data, defineApiRoute, defineResource, defineRoute, fault, formJson, server } from "litzjs";
 
 const clientOnlyRoute = defineRoute("/typechecks/client-only", {
   component: ClientOnlyRoute,
@@ -45,10 +45,13 @@ function ActionRoute() {
 
 const submit = actionRoute.useSubmit();
 void submit;
+void submit({ metadata: formJson({ ok: true }) });
 // @ts-expect-error action-only routes should not expose loader hooks
 void actionRoute.useLoaderResult;
 // @ts-expect-error action-only routes should not expose loader error hooks
 void actionRoute.useLoaderError;
+// @ts-expect-error structured payload values must be wrapped explicitly
+void submit({ metadata: { ok: true } });
 
 const loaderResource = defineResource("/typechecks/resource/:id", {
   component() {

@@ -1,5 +1,7 @@
 import type * as React from "react";
 
+import type { SubmitPayload } from "../form-data";
+
 export type LitzClientBindings = {
   usePathname(): string;
   useLocation(): {
@@ -31,7 +33,7 @@ export type LitzClientBindings = {
   };
   useRequiredRouteActions(routeId: string): {
     reload(): void;
-    submit(payload: FormData | Record<string, unknown>, options?: unknown): Promise<void>;
+    submit(payload: SubmitPayload, options?: unknown): Promise<void>;
   };
   useRequiredResourceLocation(resourcePath: string): {
     params: Record<string, string>;
@@ -51,7 +53,7 @@ export type LitzClientBindings = {
   };
   useRequiredResourceActions(resourcePath: string): {
     reload(): void;
-    submit(payload: FormData | Record<string, unknown>, options?: unknown): Promise<void>;
+    submit(payload: SubmitPayload, options?: unknown): Promise<void>;
   };
   useMatches(): Array<{
     id: string;

@@ -1,6 +1,6 @@
 import type { SearchParamRecord } from "./search-params";
 
-import { createFormDataPayload } from "./form-data";
+import { createFormDataPayload, type SubmitPayload } from "./form-data";
 
 export type InternalPayloadEntry = [string, FormDataEntryValue];
 
@@ -33,7 +33,7 @@ export const LITZ_RESULT_ACCEPT = "application/vnd.litzjs.result+json, text/x-co
 
 export function createInternalActionRequestInit(
   metadata: InternalRequestMetadata,
-  payload?: FormData | Record<string, unknown>,
+  payload?: SubmitPayload,
 ): { headers: Headers; body: FormData } {
   return {
     headers: new Headers({

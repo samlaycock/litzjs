@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import type { SubmitPayload } from "../form-data";
 import type {
   ActionHookResult,
   LoaderHookResult,
@@ -38,11 +39,7 @@ export type RouteDataState = {
 
 export type RouteActionsState = {
   id: string;
-  submit(
-    this: void,
-    payload: FormData | Record<string, unknown>,
-    options?: SubmitOptions,
-  ): Promise<void>;
+  submit(this: void, payload: SubmitPayload, options?: SubmitOptions): Promise<void>;
   reload(this: void): void;
 };
 
@@ -194,13 +191,12 @@ export function createRouteFormComponent(routeId: string): React.ComponentType<R
   const LitzRouteForm = function LitzRouteForm(props: RouteFormProps): React.ReactElement {
     const actions = useRequiredRouteActions(routeId);
     const { children, onSubmit, replace, revalidate, ...rest } = props;
-    const submitRef = React.useRef(
-      (payload: FormData | Record<string, unknown>, options?: SubmitOptions) =>
-        actions.submit(payload, options),
+    const submitRef = React.useRef((payload: SubmitPayload, options?: SubmitOptions) =>
+      actions.submit(payload, options),
     );
 
     React.useEffect(() => {
-      submitRef.current = (payload: FormData | Record<string, unknown>, options?: SubmitOptions) =>
+      submitRef.current = (payload: SubmitPayload, options?: SubmitOptions) =>
         actions.submit(payload, options);
     }, [actions.submit]);
 

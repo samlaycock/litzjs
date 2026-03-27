@@ -11,7 +11,7 @@ import type {
   SubmitOptions,
 } from "../index";
 
-import { createFormDataPayload } from "../form-data";
+import { createFormDataPayload, type SubmitPayload } from "../form-data";
 import { createInternalActionRequestInit, LITZ_RESULT_ACCEPT } from "../internal-transport";
 import {
   createSearchParamRecord,
@@ -51,11 +51,7 @@ export type ResourceDataState = {
 
 export type ResourceActionsState = {
   id: string;
-  submit(
-    this: void,
-    payload: FormData | Record<string, unknown>,
-    options?: SubmitOptions,
-  ): Promise<void>;
+  submit(this: void, payload: SubmitPayload, options?: SubmitOptions): Promise<void>;
   reload(this: void): void;
 };
 
@@ -247,13 +243,12 @@ export function createResourceFormComponent(
   const LitzResourceForm = function LitzResourceForm(props: RouteFormProps): React.ReactElement {
     const actions = useRequiredResourceActions(resourcePath);
     const { children, onSubmit, replace, revalidate, ...rest } = props;
-    const submitRef = React.useRef(
-      (payload: FormData | Record<string, unknown>, options?: SubmitOptions) =>
-        actions.submit(payload, options),
+    const submitRef = React.useRef((payload: SubmitPayload, options?: SubmitOptions) =>
+      actions.submit(payload, options),
     );
 
     React.useEffect(() => {
-      submitRef.current = (payload: FormData | Record<string, unknown>, options?: SubmitOptions) =>
+      submitRef.current = (payload: SubmitPayload, options?: SubmitOptions) =>
         actions.submit(payload, options);
     }, [actions.submit]);
 
@@ -444,7 +439,7 @@ async function performPreparedResourceRequest(
   resourcePath: string,
   operation: "loader" | "action",
   preparedRequest: PreparedResourceRequest,
-  payload?: FormData | Record<string, unknown>,
+  payload?: SubmitPayload,
   mode: "loading" | "revalidating" | "submitting" = "loading",
 ): Promise<NonNullable<ActionHookResult> | LoaderHookResult | void> {
   const { key, normalizedRequest } = preparedRequest;
