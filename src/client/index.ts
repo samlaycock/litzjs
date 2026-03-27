@@ -5,6 +5,7 @@ import type { ActionHookResult, LayoutReference, LoaderHookResult, SubmitOptions
 import type { RouteRuntimeState } from "./runtime";
 
 import { createFormDataPayload } from "../form-data";
+import { LITZ_RESULT_ACCEPT } from "../internal-transport";
 import {
   extractRouteLikeParams,
   hasPatternSegments,
@@ -14,7 +15,7 @@ import {
 import { createSearchParamRecord, type SearchParamRecord } from "../search-params";
 import { installClientBindings } from "./bindings";
 import { createLinkComponent } from "./link";
-import { fetchRouteLoadersInParallel, processLoaderResults } from "./loader-fetch";
+import { processLoaderResults, type LoaderSettledResult } from "./loader-fetch";
 import { applySearchParams, shouldPrefetchLink } from "./navigation";
 import { resolveSettledPageStatus, withSettledPageState } from "./page-state";
 import {
@@ -36,7 +37,7 @@ import {
   useRequiredRouteStatus,
 } from "./runtime";
 import { sortRecord } from "./sort-record";
-import { getRevalidateTargets } from "./transport";
+import { getRevalidateTargets, parseLoaderResponse } from "./transport";
 
 installClientBindings({
   usePathname,
@@ -120,7 +121,8 @@ let matchesContext: React.Context<
 > | null = null;
 const routeCache = new Map<string, LoaderHookResult>();
 const routeModuleCache = new Map<string, LoadedRoute>();
-const routeModulePrefetchCache = new Map<string, Promise<void>>();
+const routeModulePrefetchCache = new Map<string, Promise<LoadedRoute | null>>();
+const routeDataPrefetchCache = new Map<string, Promise<void>>();
 const layoutChainCache = new WeakMap<LoadedLayout, LoadedLayout[]>();
 const pathParamNamesCache = new Map<string, string[]>();
 
@@ -290,7 +292,7 @@ export function useLocation(): {
 
 export const Link = createLinkComponent({
   useNavigate,
-  prefetchRouteModuleForHref,
+  prefetchRouteForHref,
 });
 
 function LitzApp(props: {
@@ -436,7 +438,7 @@ function RouteHost(props: {
 
       setPageState((current) => applyCachedLoaderStateToPageState(current, loaderMatches, mode));
 
-      const settled = await fetchRouteLoadersInParallel(loaderMatches, {
+      const settled = await fetchLoaderSettledResults(loaderMatches, {
         routePath: renderedRoute.path,
         baseRequest,
         signal: controller.signal,
@@ -886,7 +888,7 @@ async function reloadCurrentRoute(options: {
 
   const finalLoaderMatch = loaderMatches[loaderMatches.length - 1];
 
-  const settled = await fetchRouteLoadersInParallel(loaderMatches, {
+  const settled = await fetchLoaderSettledResults(loaderMatches, {
     routePath: options.route.path,
     baseRequest,
     signal: options.signal,
@@ -1483,18 +1485,21 @@ function setCachedRouteModule(id: string, route: LoadedRoute): void {
   }
 }
 
-function prefetchRouteModuleForHref(
+function prefetchRouteForHref(
   href: string,
-  target?: string,
-  download?: string | boolean,
+  options?: {
+    target?: string | null;
+    download?: string | boolean | null;
+    includeData?: boolean;
+  },
 ): void {
   const currentUrl = new URL(window.location.href);
   const nextUrl = new URL(href, currentUrl);
 
   if (
     !shouldPrefetchLink({
-      target,
-      download,
+      target: options?.target,
+      download: options?.download,
       currentUrl,
       nextUrl,
     })
@@ -1504,31 +1509,149 @@ function prefetchRouteModuleForHref(
 
   const matched = findMatch(nextUrl.pathname);
 
-  if (!matched || routeModuleCache.has(matched.entry.id)) {
+  if (!matched) {
     return;
   }
 
-  const inFlight = routeModulePrefetchCache.get(matched.entry.id);
+  if (!options?.includeData) {
+    void prefetchMatchedRouteModule(matched);
+    return;
+  }
+
+  const dataPrefetchKey = createRouteDataPrefetchKey(nextUrl);
+  const inFlight = routeDataPrefetchCache.get(dataPrefetchKey);
 
   if (inFlight) {
     return;
   }
 
+  const prefetch = prefetchMatchedRouteModule(matched)
+    .then(async (route) => {
+      if (!route) {
+        return;
+      }
+
+      await prefetchRouteLoaderData(route, nextUrl);
+    })
+    .finally(() => {
+      routeDataPrefetchCache.delete(dataPrefetchKey);
+    });
+
+  routeDataPrefetchCache.set(dataPrefetchKey, prefetch);
+}
+
+function createRouteDataPrefetchKey(nextUrl: URL): string {
+  return `${nextUrl.pathname}${nextUrl.search}`;
+}
+
+function prefetchMatchedRouteModule(
+  matched: Exclude<ReturnType<typeof findMatch>, null>,
+): Promise<LoadedRoute | null> {
+  const cached = getCachedRouteModule(matched.entry.id);
+
+  if (cached) {
+    return Promise.resolve(cached);
+  }
+
+  const inFlight = routeModulePrefetchCache.get(matched.entry.id);
+
+  if (inFlight) {
+    return inFlight;
+  }
+
   const prefetch = matched.entry
     .load()
     .then((loaded) => {
-      if (loaded.route) {
-        setCachedRouteModule(matched.entry.id, loaded.route);
+      if (!loaded.route) {
+        return null;
       }
+
+      setCachedRouteModule(matched.entry.id, loaded.route);
+      return loaded.route;
     })
     .catch(() => {
-      return;
+      return null;
     })
     .finally(() => {
       routeModulePrefetchCache.delete(matched.entry.id);
     });
 
   routeModulePrefetchCache.set(matched.entry.id, prefetch);
+  return prefetch;
+}
+
+async function prefetchRouteLoaderData(route: LoadedRoute, nextUrl: URL): Promise<void> {
+  const search = new URLSearchParams(nextUrl.search);
+  const loaderMatches = buildActiveMatches(route, nextUrl.pathname, search).filter(
+    (entry) => Boolean(entry.options?.loader) && !getCachedLoaderResult(entry.cacheKey),
+  );
+
+  if (loaderMatches.length === 0) {
+    return;
+  }
+
+  const settled = await fetchLoaderSettledResults(loaderMatches, {
+    routePath: route.path,
+    baseRequest: {
+      params: extractRouteParams(route.path, nextUrl.pathname) ?? {},
+      search,
+    },
+  });
+
+  for (const result of settled) {
+    if (result.status !== "fulfilled") {
+      continue;
+    }
+
+    setCachedLoaderResult(
+      result.value.match.cacheKey,
+      withLoaderStaleState(result.value.loaderResult, false),
+    );
+  }
+}
+
+async function fetchLoaderSettledResults(
+  matches: readonly {
+    readonly id: string;
+    readonly cacheKey: string;
+  }[],
+  context: {
+    routePath: string;
+    baseRequest: {
+      params: Record<string, string>;
+      search: URLSearchParams;
+    };
+    signal?: AbortSignal;
+  },
+): Promise<readonly LoaderSettledResult[]> {
+  const search = createSearchParamRecord(context.baseRequest.search);
+
+  return Promise.allSettled(
+    matches.map(async (match) => {
+      const response = await fetch("/_litzjs/route", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: LITZ_RESULT_ACCEPT,
+        },
+        body: JSON.stringify({
+          path: context.routePath,
+          target: match.id,
+          operation: "loader",
+          request: {
+            params: context.baseRequest.params,
+            search,
+          },
+        }),
+        signal: context.signal,
+      });
+
+      return {
+        match,
+        loaderResult: await parseLoaderResponse(response),
+      };
+    }),
+  );
 }
 
 function withLoaderStaleState(result: LoaderHookResult, stale: boolean): LoaderHookResult {

@@ -2,20 +2,33 @@ import * as React from "react";
 
 import { shouldInterceptLinkNavigation, toNavigationHref } from "./navigation";
 
-export type LinkProps = Omit<React.ComponentPropsWithoutRef<"a">, "href"> & {
-  href: string;
-  replace?: boolean;
-};
+export type LinkPrefetchMode = "none" | "intent" | "render";
+
+export interface LinkProps extends Omit<React.ComponentPropsWithoutRef<"a">, "href"> {
+  readonly href: string;
+  readonly replace?: boolean;
+  readonly prefetch?: LinkPrefetchMode;
+  readonly prefetchData?: boolean;
+}
 
 export function createLinkComponent(dependencies: {
   useNavigate(): (href: string, options?: { replace?: boolean }) => void;
-  prefetchRouteModuleForHref(href: string, target?: string, download?: string | boolean): void;
+  prefetchRouteForHref(
+    href: string,
+    options?: {
+      target?: string | null;
+      download?: string | boolean | null;
+      includeData?: boolean;
+    },
+  ): void;
 }): React.ComponentType<LinkProps> {
   return function LitzLink(props: LinkProps): React.ReactElement {
     const navigate = dependencies.useNavigate();
     const {
       href,
       replace = false,
+      prefetch = "intent",
+      prefetchData = false,
       onClick,
       onMouseEnter,
       onFocus,
@@ -25,6 +38,18 @@ export function createLinkComponent(dependencies: {
       rel,
       ...rest
     } = props;
+
+    React.useEffect(() => {
+      if (prefetch !== "render") {
+        return;
+      }
+
+      dependencies.prefetchRouteForHref(href, {
+        target,
+        download,
+        includeData: prefetchData,
+      });
+    }, [dependencies, download, href, prefetch, prefetchData, target]);
 
     return React.createElement("a", {
       ...rest,
@@ -39,7 +64,15 @@ export function createLinkComponent(dependencies: {
           return;
         }
 
-        dependencies.prefetchRouteModuleForHref(href, target, download);
+        if (prefetch !== "intent") {
+          return;
+        }
+
+        dependencies.prefetchRouteForHref(href, {
+          target,
+          download,
+          includeData: prefetchData,
+        });
       },
       onFocus(event: React.FocusEvent<HTMLAnchorElement>) {
         onFocus?.(event);
@@ -48,7 +81,15 @@ export function createLinkComponent(dependencies: {
           return;
         }
 
-        dependencies.prefetchRouteModuleForHref(href, target, download);
+        if (prefetch !== "intent") {
+          return;
+        }
+
+        dependencies.prefetchRouteForHref(href, {
+          target,
+          download,
+          includeData: prefetchData,
+        });
       },
       onTouchStart(event: React.TouchEvent<HTMLAnchorElement>) {
         onTouchStart?.(event);
@@ -57,7 +98,15 @@ export function createLinkComponent(dependencies: {
           return;
         }
 
-        dependencies.prefetchRouteModuleForHref(href, target, download);
+        if (prefetch !== "intent") {
+          return;
+        }
+
+        dependencies.prefetchRouteForHref(href, {
+          target,
+          download,
+          includeData: prefetchData,
+        });
       },
       onClick(event: React.MouseEvent<HTMLAnchorElement>) {
         onClick?.(event);
