@@ -1491,6 +1491,7 @@ function prefetchRouteForHref(
     target?: string | null;
     download?: string | boolean | null;
     includeData?: boolean;
+    signal?: AbortSignal;
   },
 ): void {
   const currentUrl = new URL(window.location.href);
@@ -1531,7 +1532,7 @@ function prefetchRouteForHref(
         return;
       }
 
-      await prefetchRouteLoaderData(route, nextUrl);
+      await prefetchRouteLoaderData(route, nextUrl, options?.signal);
     })
     .finally(() => {
       routeDataPrefetchCache.delete(dataPrefetchKey);
@@ -1580,7 +1581,11 @@ function prefetchMatchedRouteModule(
   return prefetch;
 }
 
-async function prefetchRouteLoaderData(route: LoadedRoute, nextUrl: URL): Promise<void> {
+async function prefetchRouteLoaderData(
+  route: LoadedRoute,
+  nextUrl: URL,
+  signal?: AbortSignal,
+): Promise<void> {
   const search = new URLSearchParams(nextUrl.search);
   const loaderMatches = buildActiveMatches(route, nextUrl.pathname, search).filter(
     (entry) => Boolean(entry.options?.loader) && !getCachedLoaderResult(entry.cacheKey),
@@ -1596,6 +1601,7 @@ async function prefetchRouteLoaderData(route: LoadedRoute, nextUrl: URL): Promis
       params: extractRouteParams(route.path, nextUrl.pathname) ?? {},
       search,
     },
+    signal,
   });
 
   for (const result of settled) {
