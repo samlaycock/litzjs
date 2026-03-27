@@ -1,29 +1,7 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 import type { LoaderSettledResult } from "../src/client/loader-fetch";
 import type { LoaderHookResult } from "../src/index";
-
-const mockFetchRouteLoader = mock();
-
-void mock.module("../src/client/runtime", () => ({
-  fetchRouteLoader: mockFetchRouteLoader,
-  isRedirectSignal(value: unknown): boolean {
-    return (
-      typeof value === "object" &&
-      value !== null &&
-      "kind" in value &&
-      (value as { kind: string }).kind === "redirect"
-    );
-  },
-  isRouteLikeError(value: unknown): boolean {
-    return (
-      typeof value === "object" &&
-      value !== null &&
-      "kind" in value &&
-      ((value as { kind: string }).kind === "error" || (value as { kind: string }).kind === "fault")
-    );
-  },
-}));
 
 import { processLoaderResults } from "../src/client/loader-fetch";
 
@@ -40,10 +18,6 @@ function createDataResult(data: unknown): LoaderHookResult {
     stale: false,
   } as LoaderHookResult;
 }
-
-beforeEach(() => {
-  mockFetchRouteLoader.mockReset();
-});
 
 describe("processLoaderResults offline handling", () => {
   describe("resolveOfflineEligible + onOfflineStale", () => {

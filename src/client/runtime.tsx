@@ -13,6 +13,7 @@ import {
   isRedirectSignal,
   isRouteLikeError,
   parseActionResponse,
+  parseLoaderBatchResponse,
   parseLoaderResponse,
 } from "./transport";
 
@@ -38,6 +39,30 @@ export async function fetchRouteLoader(
   });
 
   return parseLoaderResponse(response);
+}
+
+export async function fetchRouteLoaders(
+  path: string,
+  request: ResourceRequest,
+  targets: readonly string[],
+  signal?: AbortSignal,
+): Promise<readonly PromiseSettledResult<LoaderHookResult>[]> {
+  const response = await fetch("/_litzjs/route", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: LITZ_RESULT_ACCEPT,
+    },
+    body: JSON.stringify({
+      path,
+      targets,
+      operation: "loader",
+      request: normalizeRequest(request),
+    }),
+    signal,
+  });
+
+  return parseLoaderBatchResponse(response);
 }
 
 export async function fetchRouteAction(

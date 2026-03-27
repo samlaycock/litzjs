@@ -1,6 +1,7 @@
 import type { LoaderHookResult } from "../index";
 
-import { fetchRouteLoader, isRedirectSignal, isRouteLikeError } from "./runtime";
+import { isAbortError } from "./abort-error";
+import { fetchRouteLoader, fetchRouteLoaders, isRedirectSignal, isRouteLikeError } from "./runtime";
 
 interface LoaderMatch {
   readonly id: string;
@@ -24,6 +25,53 @@ interface LoaderSettledEntry {
 export type LoaderSettledResult = PromiseSettledResult<LoaderSettledEntry>;
 
 export async function fetchRouteLoadersInParallel(
+  matches: readonly LoaderMatch[],
+  context: LoaderFetchContext,
+): Promise<readonly LoaderSettledResult[]> {
+  if (matches.length <= 1) {
+    return fetchRouteLoadersIndividually(matches, context);
+  }
+
+  try {
+    const settled = await fetchRouteLoaders(
+      context.routePath,
+      context.baseRequest,
+      matches.map((match) => match.id),
+      context.signal,
+    );
+
+    if (settled.length !== matches.length) {
+      throw new Error("Batched route loader response length did not match the requested targets.");
+    }
+
+    return settled.map((result, index) => {
+      if (result.status === "rejected") {
+        return result;
+      }
+
+      return {
+        status: "fulfilled",
+        value: {
+          match: matches[index]!,
+          loaderResult: result.value,
+        },
+      } satisfies PromiseFulfilledResult<LoaderSettledEntry>;
+    });
+  } catch (error) {
+    if (isAbortError(error)) {
+      return matches.map(() => {
+        return {
+          status: "rejected",
+          reason: error,
+        } satisfies PromiseRejectedResult;
+      });
+    }
+
+    return fetchRouteLoadersIndividually(matches, context);
+  }
+}
+
+async function fetchRouteLoadersIndividually(
   matches: readonly LoaderMatch[],
   context: LoaderFetchContext,
 ): Promise<readonly LoaderSettledResult[]> {

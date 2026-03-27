@@ -59,6 +59,29 @@ type RouteModule = {
   };
 };
 
+type RouteMatchEntry = {
+  id: string;
+  path: string;
+  loader?: (context: unknown) => Awaitable<unknown>;
+  input?: RuntimeInputValidation;
+  middleware: MiddlewareHandler<unknown, unknown>[];
+};
+
+type BatchedLoaderResponseEntry = {
+  status: number;
+  headers?: Array<[string, string]>;
+  body: {
+    kind: "data" | "redirect" | "error" | "fault";
+    data?: unknown;
+    revalidate?: string[];
+    location?: string;
+    replace?: boolean;
+    message?: string;
+    code?: string;
+    digest?: string;
+  };
+};
+
 type ResourceModule = {
   path: string;
   resource?: {
@@ -326,6 +349,7 @@ async function handleRouteRequest<TContext>(
     const body = await parseInternalRequestBody(request);
     const routePath = body.path;
     const targetId = body.target;
+    const targetIds = body.targets?.filter((value): value is string => typeof value === "string");
     const operation =
       body.operation ?? (new URL(request.url).pathname === "/_litzjs/action" ? "action" : "loader");
     const entry = routes.find((route) => route.path === routePath);
@@ -335,6 +359,52 @@ async function handleRouteRequest<TContext>(
     }
 
     const chain = getRouteMatchChain(entry);
+    const normalizedRequest = normalizeInternalRequest(
+      request,
+      routePath,
+      body.request,
+      body.payload,
+    );
+    const signal = request.signal;
+    const context = await getContext();
+
+    if (operation === "loader" && targetIds && targetIds.length > 0) {
+      const results: BatchedLoaderResponseEntry[] = [];
+
+      for (const batchTargetId of targetIds) {
+        const batchTarget = findTargetRouteMatch(chain, batchTargetId);
+
+        if (!batchTarget) {
+          return createLitzJsonResponse(404, { kind: "fault", message: "Route target not found." });
+        }
+
+        const batchResult = await executeRouteTarget({
+          route: entry.route,
+          operation,
+          chain,
+          target: batchTarget,
+          normalizedRequest,
+          signal,
+          context,
+        });
+        const serializedResult = createBatchedLoaderResponseEntry(batchResult);
+
+        if (!serializedResult) {
+          return createLitzJsonResponse(409, {
+            kind: "fault",
+            message: "Batched route loaders do not support view results.",
+          });
+        }
+
+        results.push(serializedResult);
+      }
+
+      return createLitzJsonResponse(200, {
+        kind: "batch",
+        results,
+      });
+    }
+
     const target =
       operation === "action"
         ? chain[chain.length - 1]
@@ -344,61 +414,15 @@ async function handleRouteRequest<TContext>(
       return createLitzJsonResponse(404, { kind: "fault", message: "Route target not found." });
     }
 
-    const targetIndex = chain.findIndex((candidate) => candidate.id === target.id);
-    const handler =
-      operation === "action" ? (entry.route.action ?? entry.route.options?.action) : target.loader;
-    const validation = operation === "action" ? entry.route.options?.input : target.input;
-    const middleware = chain.slice(0, targetIndex + 1).flatMap((candidate) => candidate.middleware);
     viewId = `${target.id}#${operation}`;
-
-    if (!handler) {
-      return createLitzJsonResponse(405, {
-        kind: "fault",
-        message: `Route does not define a ${operation}.`,
-      });
-    }
-
-    const normalizedRequest = normalizeInternalRequest(
-      request,
-      routePath,
-      body.request,
-      body.payload,
-    );
-    const signal = request.signal;
-    const context = await getContext();
-    const result = await runMiddlewareChain({
-      middleware,
-      request: normalizedRequest.request,
-      params:
-        operation === "action"
-          ? normalizedRequest.params
-          : (extractRouteLikeParams(target.path, new URL(normalizedRequest.request.url).pathname) ??
-            normalizedRequest.params),
+    const result = await executeRouteTarget({
+      route: entry.route,
+      operation,
+      chain,
+      target,
+      normalizedRequest,
       signal,
       context,
-      async execute(nextContext) {
-        const params =
-          operation === "action"
-            ? normalizedRequest.params
-            : (extractRouteLikeParams(
-                target.path,
-                new URL(normalizedRequest.request.url).pathname,
-              ) ?? normalizedRequest.params);
-        const input = await resolveValidatedInput({
-          validation,
-          request: normalizedRequest.request,
-          params,
-          signal,
-          context: nextContext,
-        });
-        return handler({
-          request: normalizedRequest.request,
-          params,
-          signal,
-          context: nextContext,
-          input,
-        });
-      },
     });
 
     return createServerResultResponse(result, viewId);
@@ -526,13 +550,7 @@ async function runMiddlewareChain<TContext, TResult>(options: {
   return dispatch(0, options.context);
 }
 
-function getRouteMatchChain(entry: RouteModule): Array<{
-  id: string;
-  path: string;
-  loader?: (context: unknown) => Awaitable<unknown>;
-  input?: RuntimeInputValidation;
-  middleware: MiddlewareHandler<unknown, unknown>[];
-}> {
+function getRouteMatchChain(entry: RouteModule): RouteMatchEntry[] {
   const layouts = collectLayouts(entry.route?.options?.layout);
 
   return [
@@ -562,24 +580,159 @@ function collectLayouts(layout: LayoutModule | undefined): LayoutModule[] {
 }
 
 function findTargetRouteMatch(
-  chain: Array<{
-    id: string;
-    path: string;
-    loader?: (context: unknown) => Awaitable<unknown>;
-    input?: RuntimeInputValidation;
-    middleware: MiddlewareHandler<unknown, unknown>[];
-  }>,
+  chain: RouteMatchEntry[],
   targetId: string,
-):
-  | {
-      id: string;
-      path: string;
-      loader?: (context: unknown) => Awaitable<unknown>;
-      input?: RuntimeInputValidation;
-      middleware: MiddlewareHandler<unknown, unknown>[];
-    }
-  | undefined {
+): RouteMatchEntry | undefined {
   return chain.find((entry) => entry.id === targetId);
+}
+
+async function executeRouteTarget<TContext>(options: {
+  route: NonNullable<RouteModule["route"]>;
+  operation: "loader" | "action";
+  chain: RouteMatchEntry[];
+  target: RouteMatchEntry;
+  normalizedRequest: {
+    request: Request;
+    params: Record<string, string>;
+  };
+  signal: AbortSignal;
+  context: TContext | undefined;
+}): Promise<unknown> {
+  const targetIndex = options.chain.findIndex((candidate) => candidate.id === options.target.id);
+  const handler =
+    options.operation === "action"
+      ? (options.route.action ?? options.route.options?.action)
+      : options.target.loader;
+  const validation =
+    options.operation === "action" ? options.route.options?.input : options.target.input;
+
+  if (!handler) {
+    return {
+      kind: "fault",
+      status: 405,
+      message: `Route does not define a ${options.operation}.`,
+    };
+  }
+
+  const params =
+    options.operation === "action"
+      ? options.normalizedRequest.params
+      : (extractRouteLikeParams(
+          options.target.path,
+          new URL(options.normalizedRequest.request.url).pathname,
+        ) ?? options.normalizedRequest.params);
+
+  return runMiddlewareChain({
+    middleware: options.chain
+      .slice(0, targetIndex + 1)
+      .flatMap((candidate) => candidate.middleware),
+    request: options.normalizedRequest.request,
+    params,
+    signal: options.signal,
+    context: options.context,
+    async execute(nextContext) {
+      const input = await resolveValidatedInput({
+        validation,
+        request: options.normalizedRequest.request,
+        params,
+        signal: options.signal,
+        context: nextContext,
+      });
+
+      return handler({
+        request: options.normalizedRequest.request,
+        params,
+        signal: options.signal,
+        context: nextContext,
+        input,
+      });
+    },
+  });
+}
+
+function createBatchedLoaderResponseEntry(result: unknown): BatchedLoaderResponseEntry | null {
+  if (!result || typeof result !== "object" || !("kind" in result)) {
+    return {
+      status: 500,
+      body: {
+        kind: "fault",
+        message: "Handler returned an unknown result.",
+      },
+    };
+  }
+
+  const serverResult = result as {
+    kind: string;
+    status?: number;
+    headers?: HeadersInit;
+    data?: unknown;
+    location?: string;
+    replace?: boolean;
+    revalidate?: string[];
+    message?: string;
+    code?: string;
+    digest?: string;
+  };
+  const headers = new Headers(serverResult.headers);
+  applyRevalidateHeader(headers, serverResult.revalidate);
+  const serializedHeaderEntries = Array.from(headers.entries());
+  const serializedHeaders =
+    serializedHeaderEntries.length > 0 ? serializedHeaderEntries : undefined;
+
+  switch (serverResult.kind) {
+    case "data":
+      return {
+        status: serverResult.status ?? 200,
+        headers: serializedHeaders,
+        body: {
+          kind: "data",
+          data: serverResult.data,
+          revalidate: serverResult.revalidate ?? [],
+        },
+      };
+    case "redirect":
+      return {
+        status: serverResult.status ?? 303,
+        headers: serializedHeaders,
+        body: {
+          kind: "redirect",
+          location: serverResult.location,
+          replace: serverResult.replace ?? false,
+          revalidate: serverResult.revalidate ?? [],
+        },
+      };
+    case "error":
+      return {
+        status: serverResult.status ?? 500,
+        headers: serializedHeaders,
+        body: {
+          kind: "error",
+          message: serverResult.message ?? "Error",
+          code: serverResult.code,
+          data: serverResult.data,
+        },
+      };
+    case "fault":
+      return {
+        status: serverResult.status ?? 500,
+        headers: serializedHeaders,
+        body: {
+          kind: "fault",
+          message: serverResult.message ?? "Fault",
+          digest: serverResult.digest,
+        },
+      };
+    case "view":
+      return null;
+    default:
+      return {
+        status: 500,
+        body: {
+          kind: "fault",
+          message: `Unsupported result kind "${serverResult.kind}".`,
+        },
+      };
+  }
 }
 
 async function createServerResultResponse(

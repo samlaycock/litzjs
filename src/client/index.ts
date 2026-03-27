@@ -5,7 +5,6 @@ import type { ActionHookResult, LayoutReference, LoaderHookResult, SubmitOptions
 import type { RouteRuntimeState } from "./runtime";
 
 import { createFormDataPayload } from "../form-data";
-import { LITZ_RESULT_ACCEPT } from "../internal-transport";
 import {
   extractRouteLikeParams,
   hasPatternSegments,
@@ -16,7 +15,7 @@ import { createSearchParamRecord, type SearchParamRecord } from "../search-param
 import { isAbortError } from "./abort-error";
 import { installClientBindings } from "./bindings";
 import { createLinkComponent } from "./link";
-import { processLoaderResults, type LoaderSettledResult } from "./loader-fetch";
+import { fetchRouteLoadersInParallel, processLoaderResults } from "./loader-fetch";
 import { applySearchParams, shouldPrefetchLink } from "./navigation";
 import { resolveSettledPageStatus, withSettledPageState } from "./page-state";
 import {
@@ -38,7 +37,7 @@ import {
   useRequiredRouteStatus,
 } from "./runtime";
 import { sortRecord } from "./sort-record";
-import { getRevalidateTargets, parseLoaderResponse } from "./transport";
+import { getRevalidateTargets } from "./transport";
 
 installClientBindings({
   usePathname,
@@ -458,7 +457,7 @@ function RouteHost(props: {
 
       setPageState((current) => applyCachedLoaderStateToPageState(current, loaderMatches, mode));
 
-      const settled = await fetchLoaderSettledResults(loaderMatches, {
+      const settled = await fetchRouteLoadersInParallel(loaderMatches, {
         routePath: renderedRoute.path,
         baseRequest,
         signal: controller.signal,
@@ -944,7 +943,7 @@ async function reloadCurrentRoute(options: {
 
   const finalLoaderMatch = loaderMatches[loaderMatches.length - 1];
 
-  const settled = await fetchLoaderSettledResults(loaderMatches, {
+  const settled = await fetchRouteLoadersInParallel(loaderMatches, {
     routePath: options.route.path,
     baseRequest,
     signal: options.signal,
@@ -1726,7 +1725,7 @@ async function prefetchRouteLoaderData(
     return;
   }
 
-  const settled = await fetchLoaderSettledResults(loaderMatches, {
+  const settled = await fetchRouteLoadersInParallel(loaderMatches, {
     routePath: route.path,
     baseRequest: {
       params: extractRouteParams(route.path, nextUrl.pathname) ?? {},
@@ -1745,50 +1744,6 @@ async function prefetchRouteLoaderData(
       withLoaderStaleState(result.value.loaderResult, false),
     );
   }
-}
-
-async function fetchLoaderSettledResults(
-  matches: readonly {
-    readonly id: string;
-    readonly cacheKey: string;
-  }[],
-  context: {
-    routePath: string;
-    baseRequest: {
-      params: Record<string, string>;
-      search: URLSearchParams;
-    };
-    signal?: AbortSignal;
-  },
-): Promise<readonly LoaderSettledResult[]> {
-  const search = createSearchParamRecord(context.baseRequest.search);
-
-  return Promise.allSettled(
-    matches.map(async (match) => {
-      const response = await fetch("/_litzjs/route", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          accept: LITZ_RESULT_ACCEPT,
-        },
-        body: JSON.stringify({
-          path: context.routePath,
-          target: match.id,
-          operation: "loader",
-          request: {
-            params: context.baseRequest.params,
-            search,
-          },
-        }),
-        signal: context.signal,
-      });
-
-      return {
-        match,
-        loaderResult: await parseLoaderResponse(response),
-      };
-    }),
-  );
 }
 
 function withLoaderStaleState(result: LoaderHookResult, stale: boolean): LoaderHookResult {
