@@ -47,6 +47,8 @@ export function processLoaderResults(
     onResult: (match: LoaderMatch, loaderResult: LoaderHookResult) => void;
     onRedirect: (location: string) => void;
     onRouteError: (matchId: string, error: unknown) => void;
+    resolveOfflineEligible?: (matchId: string) => boolean;
+    onOfflineStale?: (matchId: string) => void;
   },
 ): void {
   for (const [index, result] of settled.entries()) {
@@ -62,8 +64,15 @@ export function processLoaderResults(
         return;
       }
 
+      const matchId = matches[index]!.id;
+
+      if (callbacks.resolveOfflineEligible?.(matchId) && callbacks.onOfflineStale) {
+        callbacks.onOfflineStale(matchId);
+        continue;
+      }
+
       if (isRouteLikeError(error)) {
-        callbacks.onRouteError(matches[index]!.id, error);
+        callbacks.onRouteError(matchId, error);
         return;
       }
 

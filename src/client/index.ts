@@ -65,6 +65,10 @@ type LoadedRoute = {
     middleware?: unknown[];
     pendingComponent?: React.ComponentType;
     errorComponent?: React.ComponentType<{ error: unknown }>;
+    offline?: {
+      fallbackComponent?: React.ComponentType;
+      preserveStaleOnFailure?: boolean;
+    };
   };
 };
 
@@ -457,6 +461,25 @@ function RouteHost(props: {
             errorTargetId: matchId,
           }));
         },
+        resolveOfflineEligible(matchId) {
+          const match = loaderMatches.find((entry) => entry.id === matchId);
+          return (
+            match?.options?.offline?.preserveStaleOnFailure === true &&
+            getCachedLoaderResult(match.cacheKey) !== undefined
+          );
+        },
+        onOfflineStale(matchId) {
+          setPageState((current) => {
+            const staleIds = new Set(current.offlineStaleMatchIds);
+            staleIds.add(matchId);
+            return {
+              ...current,
+              status: "offline-stale" as RouteRuntimeState["status"],
+              pending: false,
+              offlineStaleMatchIds: staleIds,
+            };
+          });
+        },
       });
     };
 
@@ -571,6 +594,10 @@ type ActiveMatch = {
     middleware?: unknown[];
     pendingComponent?: React.ComponentType;
     errorComponent?: React.ComponentType<{ error: unknown }>;
+    offline?: {
+      fallbackComponent?: React.ComponentType;
+      preserveStaleOnFailure?: boolean;
+    };
   };
   params: Record<string, string>;
   search: URLSearchParams;
@@ -591,6 +618,7 @@ type PageState = {
   pending: boolean;
   errorInfo?: MatchErrorInfo;
   errorTargetId?: string;
+  offlineStaleMatchIds?: ReadonlySet<string>;
 };
 
 function createEmptyPageState(): PageState {
@@ -847,6 +875,25 @@ async function reloadCurrentRoute(options: {
         errorTargetId: matchId,
       }));
     },
+    resolveOfflineEligible(matchId) {
+      const match = loaderMatches.find((entry) => entry.id === matchId);
+      return (
+        match?.options?.offline?.preserveStaleOnFailure === true &&
+        getCachedLoaderResult(match.cacheKey) !== undefined
+      );
+    },
+    onOfflineStale(matchId) {
+      options.setPageState((current) => {
+        const staleIds = new Set(current.offlineStaleMatchIds);
+        staleIds.add(matchId);
+        return {
+          ...current,
+          status: "offline-stale" as RouteRuntimeState["status"],
+          pending: false,
+          offlineStaleMatchIds: staleIds,
+        };
+      });
+    },
   });
 }
 
@@ -859,11 +906,16 @@ function renderMatchChain(
   reloadImpl: (mode?: "loading" | "revalidating") => Promise<void>,
   setPageState: React.Dispatch<React.SetStateAction<PageState>>,
 ): React.ReactElement {
-  const errorBoundaryIndex = findErrorBoundaryIndex(matches, pageState);
+  const offlineFallbackIndex = findOfflineFallbackIndex(matches, pageState);
+  const errorBoundaryIndex =
+    offlineFallbackIndex === null ? findErrorBoundaryIndex(matches, pageState) : null;
   const pendingBoundaryIndex =
-    errorBoundaryIndex === null ? findPendingBoundaryIndex(matches, pageState) : null;
+    errorBoundaryIndex === null && offlineFallbackIndex === null
+      ? findPendingBoundaryIndex(matches, pageState)
+      : null;
 
   if (
+    offlineFallbackIndex === null &&
     errorBoundaryIndex === null &&
     pendingBoundaryIndex === null &&
     matches.some(
@@ -884,7 +936,13 @@ function renderMatchChain(
 
     let content: React.ReactElement;
 
-    if (errorBoundaryIndex !== null && index === errorBoundaryIndex) {
+    if (offlineFallbackIndex !== null && index === offlineFallbackIndex) {
+      content = React.createElement(
+        match.options?.offline?.fallbackComponent as React.ComponentType,
+      );
+    } else if (offlineFallbackIndex !== null && index > offlineFallbackIndex) {
+      continue;
+    } else if (errorBoundaryIndex !== null && index === errorBoundaryIndex) {
       const ErrorComponent = match.options?.errorComponent ?? DefaultRouteErrorPage;
       content = React.createElement(ErrorComponent as React.ComponentType<any>, {
         error: pageState.errorInfo,
@@ -963,6 +1021,28 @@ function findPendingBoundaryIndex(matches: ActiveMatch[], pageState: PageState):
     const match = matches[index];
 
     if (match && match.options?.pendingComponent) {
+      return index;
+    }
+  }
+
+  return null;
+}
+
+function findOfflineFallbackIndex(matches: ActiveMatch[], pageState: PageState): number | null {
+  if (!pageState.errorInfo || !pageState.errorTargetId) {
+    return null;
+  }
+
+  const targetIndex = matches.findIndex((match) => match.id === pageState.errorTargetId);
+
+  if (targetIndex === -1) {
+    return null;
+  }
+
+  for (let index = targetIndex; index >= 0; index -= 1) {
+    const match = matches[index];
+
+    if (match?.options?.offline?.fallbackComponent) {
       return index;
     }
   }
