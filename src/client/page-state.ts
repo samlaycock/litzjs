@@ -23,13 +23,20 @@ export function resolveSettledPageStatus(
   current: SettledStatusState,
   options: {
     includeActionResult?: boolean;
+    ignoreLoaderMatchIds?: readonly string[];
   } = {},
 ): "idle" | "offline-stale" | "error" {
   if (current.offlineStaleMatchIds?.size) {
     return "offline-stale";
   }
 
-  for (const matchState of Object.values(current.matchStates)) {
+  const ignoredMatchIds = new Set(options.ignoreLoaderMatchIds ?? []);
+
+  for (const [matchId, matchState] of Object.entries(current.matchStates)) {
+    if (ignoredMatchIds.has(matchId)) {
+      continue;
+    }
+
     if (matchState.loaderResult?.kind === "error") {
       return "error";
     }

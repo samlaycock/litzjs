@@ -128,4 +128,83 @@ describe("resolveSettledPageStatus", () => {
 
     expect(result).toBe("error");
   });
+
+  test("ignores stale route loader errors when a later action succeeds", () => {
+    const result = resolveSettledPageStatus(
+      {
+        matchStates: {
+          layout: {
+            loaderResult: {
+              kind: "data",
+              status: 200,
+              headers: new Headers(),
+              stale: false,
+              data: { layout: true },
+              render() {
+                return null;
+              },
+            },
+          },
+          route: {
+            loaderResult: {
+              ...error(404, "Project not found"),
+              headers: new Headers(),
+              stale: false,
+            },
+          },
+        },
+        actionResult: {
+          kind: "view",
+          status: 200,
+          headers: new Headers(),
+          node: null,
+          render() {
+            return null;
+          },
+        },
+      },
+      {
+        ignoreLoaderMatchIds: ["route"],
+      },
+    );
+
+    expect(result).toBe("idle");
+  });
+
+  test("still reports error when only a parent layout loader is in error", () => {
+    const result = resolveSettledPageStatus(
+      {
+        matchStates: {
+          layout: {
+            loaderResult: {
+              ...error(404, "Layout missing"),
+              headers: new Headers(),
+              stale: false,
+            },
+          },
+          route: {
+            loaderResult: {
+              ...error(404, "Project not found"),
+              headers: new Headers(),
+              stale: false,
+            },
+          },
+        },
+        actionResult: {
+          kind: "view",
+          status: 200,
+          headers: new Headers(),
+          node: null,
+          render() {
+            return null;
+          },
+        },
+      },
+      {
+        ignoreLoaderMatchIds: ["route"],
+      },
+    );
+
+    expect(result).toBe("error");
+  });
 });
