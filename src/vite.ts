@@ -22,6 +22,12 @@ import type { ApiRouteMethod } from "./index";
 
 import { createClientModuleProjection } from "./client-projection";
 import {
+  createApiResponseFromResult,
+  isServerResultLike,
+  resolveValidatedInput,
+  type RuntimeInputValidation,
+} from "./input-validation";
+import {
   extractRouteLikeParams,
   interpolatePath,
   matchPathname,
@@ -1231,6 +1237,7 @@ export async function handleLitzResourceRequest(
       resource?: {
         loader?: (context: unknown) => Promise<unknown>;
         action?: (context: unknown) => Promise<unknown>;
+        input?: RuntimeInputValidation;
         middleware?: DevMiddlewareHandler<unknown, unknown>[];
       };
     }>(server, toImportSpecifier(server.config.root, entry.modulePath));
@@ -1238,6 +1245,7 @@ export async function handleLitzResourceRequest(
       | {
           loader?: (context: unknown) => Promise<unknown>;
           action?: (context: unknown) => Promise<unknown>;
+          input?: RuntimeInputValidation;
           middleware?: DevMiddlewareHandler<unknown, unknown>[];
         }
       | undefined;
@@ -1275,18 +1283,32 @@ export async function handleLitzResourceRequest(
       params: normalizedRequest.params,
       signal,
       context: undefined,
-      execute(nextContext) {
+      async execute(nextContext) {
+        const input = await resolveValidatedInput({
+          validation: resource.input,
+          request: normalizedRequest.request,
+          params: normalizedRequest.params,
+          signal,
+          context: nextContext,
+        });
+
         return handler({
           request: normalizedRequest.request,
           params: normalizedRequest.params,
           signal,
           context: nextContext,
+          input,
         });
       },
     });
 
     await sendServerResult(server, response, result, `${entry.path}#${operation}`);
   } catch (error) {
+    if (isServerResultLike(error)) {
+      await sendServerResult(server, response, error);
+      return;
+    }
+
     server.ssrFixStacktrace(error as Error);
     console.error(error);
     sendLitzJson(response, 500, {
@@ -1336,6 +1358,7 @@ export async function handleLitzRouteRequest(
         options?: {
           layout?: unknown;
           loader?: (context: unknown) => Promise<unknown>;
+          input?: RuntimeInputValidation;
           middleware?: DevMiddlewareHandler<unknown, unknown>[];
         };
       };
@@ -1351,11 +1374,13 @@ export async function handleLitzRouteRequest(
             options?: {
               layout?: unknown;
               loader?: (context: unknown) => Promise<unknown>;
+              input?: RuntimeInputValidation;
               middleware?: DevMiddlewareHandler<unknown, unknown>[];
             };
           };
           loader?: (context: unknown) => Promise<unknown>;
           action?: (context: unknown) => Promise<unknown>;
+          input?: RuntimeInputValidation;
           middleware?: DevMiddlewareHandler<unknown, unknown>[];
         };
       };
@@ -1365,8 +1390,19 @@ export async function handleLitzRouteRequest(
           loader?: (context: unknown) => Promise<unknown>;
           action?: (context: unknown) => Promise<unknown>;
           options?: {
+            layout?: {
+              id: string;
+              path: string;
+              options?: {
+                layout?: unknown;
+                loader?: (context: unknown) => Promise<unknown>;
+                input?: RuntimeInputValidation;
+                middleware?: DevMiddlewareHandler<unknown, unknown>[];
+              };
+            };
             loader?: (context: unknown) => Promise<unknown>;
             action?: (context: unknown) => Promise<unknown>;
+            input?: RuntimeInputValidation;
             middleware?: DevMiddlewareHandler<unknown, unknown>[];
           };
         }
@@ -1395,6 +1431,7 @@ export async function handleLitzRouteRequest(
     const targetIndex = chain.findIndex((candidate) => candidate.id === target.id);
     const handler =
       operation === "action" ? (route.action ?? route.options?.action) : target.loader;
+    const validation = operation === "action" ? route.options?.input : target.input;
 
     if (!handler) {
       sendLitzJson(response, 405, {
@@ -1423,7 +1460,7 @@ export async function handleLitzRouteRequest(
             normalizedRequest.params),
       signal,
       context: undefined,
-      execute(nextContext) {
+      async execute(nextContext) {
         const params =
           operation === "action"
             ? normalizedRequest.params
@@ -1431,17 +1468,30 @@ export async function handleLitzRouteRequest(
                 target.path,
                 new URL(normalizedRequest.request.url).pathname,
               ) ?? normalizedRequest.params);
+        const input = await resolveValidatedInput({
+          validation,
+          request: normalizedRequest.request,
+          params,
+          signal,
+          context: nextContext,
+        });
         return handler({
           request: normalizedRequest.request,
           params,
           signal,
           context: nextContext,
+          input,
         });
       },
     });
 
     await sendServerResult(server, response, result, `${target.id}#${operation}`);
   } catch (error) {
+    if (isServerResultLike(error)) {
+      await sendServerResult(server, response, error);
+      return;
+    }
+
     server.ssrFixStacktrace(error as Error);
     console.error(error);
     sendLitzJson(response, 500, {
@@ -1521,6 +1571,7 @@ export async function handleLitzApiRequest(
     );
     const api = module.api as
       | {
+          input?: RuntimeInputValidation;
           middleware?: DevMiddlewareHandler<unknown, Response>[];
           methods?: Partial<
             Record<
@@ -1530,6 +1581,12 @@ export async function handleLitzApiRequest(
                 params: Record<string, string>;
                 signal: AbortSignal;
                 context: unknown;
+                input: {
+                  params: unknown;
+                  search: unknown;
+                  headers: unknown;
+                  body: unknown;
+                };
               }) => Promise<Response> | Response
             >
           >;
@@ -1557,18 +1614,37 @@ export async function handleLitzApiRequest(
       params: matchedParams ?? {},
       signal,
       context: undefined,
-      execute(nextContext) {
+      async execute(nextContext) {
+        const input = await resolveValidatedInput({
+          validation: api?.input,
+          request: apiRequest,
+          params: matchedParams ?? {},
+          signal,
+          context: nextContext,
+        });
+
         return handler({
           request: apiRequest,
           params: matchedParams ?? {},
           signal,
           context: nextContext,
+          input,
         });
       },
     });
 
     await writeFetchResponseToNode(response, apiResponse);
   } catch (error) {
+    if (error instanceof Response) {
+      await writeFetchResponseToNode(response, error);
+      return;
+    }
+
+    if (isServerResultLike(error)) {
+      await writeFetchResponseToNode(response, createApiResponseFromResult(error));
+      return;
+    }
+
     server.ssrFixStacktrace(error as Error);
     console.error(error);
     response.statusCode = 500;
@@ -1893,10 +1969,12 @@ function getDevRouteMatchChain(entry: {
         options?: {
           layout?: unknown;
           loader?: (context: unknown) => Promise<unknown>;
+          input?: RuntimeInputValidation;
           middleware?: DevMiddlewareHandler<unknown, unknown>[];
         };
       };
       loader?: (context: unknown) => Promise<unknown>;
+      input?: RuntimeInputValidation;
       middleware?: DevMiddlewareHandler<unknown, unknown>[];
     };
   };
@@ -1904,6 +1982,7 @@ function getDevRouteMatchChain(entry: {
   id: string;
   path: string;
   loader?: (context: unknown) => Promise<unknown>;
+  input?: RuntimeInputValidation;
   middleware: DevMiddlewareHandler<unknown, unknown>[];
 }> {
   const layouts = collectDevLayouts(entry.route.options?.layout);
@@ -1913,12 +1992,14 @@ function getDevRouteMatchChain(entry: {
       id: layout.id,
       path: layout.path,
       loader: layout.options?.loader,
+      input: layout.options?.input,
       middleware: layout.options?.middleware ?? [],
     })),
     {
       id: entry.id,
       path: entry.path,
       loader: entry.route.loader ?? entry.route.options?.loader,
+      input: entry.route.options?.input,
       middleware: entry.route.options?.middleware ?? [],
     },
   ];
@@ -1932,6 +2013,7 @@ function collectDevLayouts(
         options?: {
           layout?: unknown;
           loader?: (context: unknown) => Promise<unknown>;
+          input?: RuntimeInputValidation;
           middleware?: DevMiddlewareHandler<unknown, unknown>[];
         };
       }
@@ -1942,6 +2024,7 @@ function collectDevLayouts(
   options?: {
     layout?: unknown;
     loader?: (context: unknown) => Promise<unknown>;
+    input?: RuntimeInputValidation;
     middleware?: DevMiddlewareHandler<unknown, unknown>[];
   };
 }> {
@@ -1962,6 +2045,7 @@ function isDevLayout(value: unknown): value is {
   options?: {
     layout?: unknown;
     loader?: (context: unknown) => Promise<unknown>;
+    input?: RuntimeInputValidation;
     middleware?: DevMiddlewareHandler<unknown, unknown>[];
   };
 } {

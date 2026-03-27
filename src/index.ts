@@ -278,6 +278,81 @@ type HasRequiredPathParams<TPath extends string> = string extends TPath
 type MaybeRequiredArg<TPath extends string, TValue> =
   HasRequiredPathParams<TPath> extends true ? [value: TValue] : [value?: TValue];
 
+type Awaitable<T> = T | Promise<T>;
+
+export interface InputParserContext<TContext = unknown, TPath extends string = string> {
+  request: Request;
+  params: PathParams<TPath>;
+  signal: AbortSignal;
+  context: TContext;
+}
+
+export interface InputValidationOptions<
+  TPath extends string = string,
+  TContext = unknown,
+  TParams = PathParams<TPath>,
+  TSearch = URLSearchParams,
+  THeaders = Headers,
+  TBody = undefined,
+> {
+  params?: (
+    params: PathParams<TPath>,
+    context: InputParserContext<TContext, TPath>,
+  ) => Awaitable<TParams>;
+  search?: (
+    search: URLSearchParams,
+    context: InputParserContext<TContext, TPath>,
+  ) => Awaitable<TSearch>;
+  headers?: (headers: Headers, context: InputParserContext<TContext, TPath>) => Awaitable<THeaders>;
+  body?: (request: Request, context: InputParserContext<TContext, TPath>) => Awaitable<TBody>;
+}
+
+type ValidatedParamsFor<
+  TPath extends string,
+  TInput extends InputValidationOptions<TPath, any, any, any, any, any> | undefined,
+> = TInput extends {
+  params?: (...args: any[]) => Awaitable<infer TParams>;
+}
+  ? TParams
+  : PathParams<TPath>;
+
+type ValidatedSearchFor<
+  TPath extends string,
+  TInput extends InputValidationOptions<TPath, any, any, any, any, any> | undefined,
+> = TInput extends {
+  search?: (...args: any[]) => Awaitable<infer TSearch>;
+}
+  ? TSearch
+  : URLSearchParams;
+
+type ValidatedHeadersFor<
+  TPath extends string,
+  TInput extends InputValidationOptions<TPath, any, any, any, any, any> | undefined,
+> = TInput extends {
+  headers?: (...args: any[]) => Awaitable<infer THeaders>;
+}
+  ? THeaders
+  : Headers;
+
+type ValidatedBodyFor<
+  TPath extends string,
+  TInput extends InputValidationOptions<TPath, any, any, any, any, any> | undefined,
+> = TInput extends {
+  body?: (...args: any[]) => Awaitable<infer TBody>;
+}
+  ? TBody | undefined
+  : undefined;
+
+export type ValidatedInput<
+  TPath extends string = string,
+  TInput extends InputValidationOptions<TPath, any, any, any, any, any> | undefined = undefined,
+> = {
+  params: ValidatedParamsFor<TPath, TInput>;
+  search: ValidatedSearchFor<TPath, TInput>;
+  headers: ValidatedHeadersFor<TPath, TInput>;
+  body: ValidatedBodyFor<TPath, TInput>;
+};
+
 type LoaderDataFor<TResult extends ServerResult> =
   Extract<TResult, { kind: "data" }> extends { data: infer TData } ? TData : never;
 
@@ -468,25 +543,38 @@ export type ActionSuccessResultFor<TResult extends ServerResult = ServerResult> 
   null | ActionErrorResultFor<TResult>
 >;
 
-export type RouteHandlerContext<TContext = unknown, TPath extends string = string> = {
+type HandlerContextBase<TContext = unknown, TPath extends string = string> = {
   request: Request;
   params: PathParams<TPath>;
   signal: AbortSignal;
   context: TContext;
 };
 
-export type ResourceHandlerContext<TContext = unknown, TPath extends string = string> = {
-  request: Request;
-  params: PathParams<TPath>;
-  signal: AbortSignal;
-  context: TContext;
+export type RouteHandlerContext<
+  TContext = unknown,
+  TPath extends string = string,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
+> = HandlerContextBase<TContext, TPath> & {
+  input: ValidatedInput<TPath, TInput>;
 };
 
-export type ApiHandlerContext<TContext = unknown, TPath extends string = string> = {
-  request: Request;
-  params: PathParams<TPath>;
-  signal: AbortSignal;
-  context: TContext;
+export type ResourceHandlerContext<
+  TContext = unknown,
+  TPath extends string = string,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
+> = HandlerContextBase<TContext, TPath> & {
+  input: ValidatedInput<TPath, TInput>;
+};
+
+export type ApiHandlerContext<
+  TContext = unknown,
+  TPath extends string = string,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
+> = HandlerContextBase<TContext, TPath> & {
+  input: ValidatedInput<TPath, TInput>;
 };
 
 export type ApiRouteMethod =
@@ -499,31 +587,44 @@ export type ApiRouteMethod =
   | "HEAD"
   | "ALL";
 
-export type ApiRouteHandler<TContext = unknown, TPath extends string = string> = (
-  context: ApiHandlerContext<TContext, TPath>,
-) => Promise<Response> | Response;
+export type ApiRouteHandler<
+  TContext = unknown,
+  TPath extends string = string,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
+> = (context: ApiHandlerContext<TContext, TPath, TInput>) => Promise<Response> | Response;
 
-export type ApiRouteHandlers<TContext = unknown, TPath extends string = string> = Partial<
-  Record<ApiRouteMethod, ApiRouteHandler<TContext, TPath>>
->;
+export type ApiRouteHandlers<
+  TContext = unknown,
+  TPath extends string = string,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
+> = Partial<Record<ApiRouteMethod, ApiRouteHandler<TContext, TPath, TInput>>>;
 
 export type DefineApiRouteOptions<
   TContext = unknown,
   TPath extends string = string,
-  TMethods extends ApiRouteHandlers<TContext, TPath> = ApiRouteHandlers<TContext, TPath>,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
+  TMethods extends ApiRouteHandlers<TContext, TPath, TInput> = ApiRouteHandlers<
+    TContext,
+    TPath,
+    TInput
+  >,
 > = Simplify<
   TMethods & {
     middleware?: MiddlewareRef<NoInferType<TContext>, Response>[];
+    input?: TInput;
   }
 >;
 
-type ApiFetchMethod<TMethods extends ApiRouteHandlers<any, any>> = "ALL" extends keyof TMethods
+type ApiFetchMethod<TMethods extends ApiRouteHandlers<any, any, any>> = "ALL" extends keyof TMethods
   ? Exclude<ApiRouteMethod, "ALL">
   : Exclude<Extract<keyof TMethods, ApiRouteMethod>, "ALL">;
 
 export type ApiFetchOptions<
   TPath extends string = string,
-  TMethods extends ApiRouteHandlers<any, TPath> = ApiRouteHandlers<any, TPath>,
+  TMethods extends ApiRouteHandlers<any, TPath, any> = ApiRouteHandlers<any, TPath, any>,
 > = Omit<RequestInit, "method"> &
   PathRequestParams<TPath> &
   SearchRequest & {
@@ -534,13 +635,17 @@ export type RouteServerHandler<
   TContext = unknown,
   TResult extends ServerResult = ServerResult,
   TPath extends string = string,
-> = (context: RouteHandlerContext<TContext, TPath>) => Promise<TResult> | TResult;
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
+> = (context: RouteHandlerContext<TContext, TPath, TInput>) => Promise<TResult> | TResult;
 
 export type ResourceServerHandler<
   TContext = unknown,
   TResult extends ServerResult = ServerResult,
   TPath extends string = string,
-> = (context: ResourceHandlerContext<TContext, TPath>) => Promise<TResult> | TResult;
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
+> = (context: ResourceHandlerContext<TContext, TPath, TInput>) => Promise<TResult> | TResult;
 
 export type ServerHandler<TContext = unknown, TResult extends ServerResult = ServerResult> =
   | RouteServerHandler<TContext, TResult>
@@ -551,11 +656,14 @@ export type DefineRouteOptions<
   TContext = unknown,
   TLoaderResult extends ServerResult = ServerResult,
   TActionResult extends ServerResult = ServerResult,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
 > = {
   component: React.ComponentType;
   layout?: LayoutReference;
-  loader?: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>>;
-  action?: RouteServerHandler<TContext, TActionResult, NoInferType<TPath>>;
+  input?: TInput;
+  loader?: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>, TInput>;
+  action?: RouteServerHandler<TContext, TActionResult, NoInferType<TPath>, TInput>;
   middleware?: MiddlewareRef<TContext, ServerResult>[];
   errorBoundary?: React.ComponentType<{ error: RouteFaultLike }>;
   offline?: {
@@ -564,8 +672,13 @@ export type DefineRouteOptions<
   };
 };
 
-type RouteBaseOptions<TPath extends string = string, TContext = unknown> = Omit<
-  DefineRouteOptions<TPath, TContext, ServerResult, ServerResult>,
+type RouteBaseOptions<
+  TPath extends string = string,
+  TContext = unknown,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
+> = Omit<
+  DefineRouteOptions<TPath, TContext, ServerResult, ServerResult, TInput>,
   "loader" | "action"
 >;
 
@@ -573,66 +686,79 @@ type RouteLoaderOption<
   TPath extends string = string,
   TContext = unknown,
   TLoaderResult extends ServerResult = never,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
 > = [TLoaderResult] extends [never]
   ? {
       loader?: never;
     }
   : {
-      loader: RouteServerHandler<TContext, TLoaderResult, TPath>;
+      loader: RouteServerHandler<TContext, TLoaderResult, TPath, TInput>;
     };
 
 type RouteActionOption<
   TPath extends string = string,
   TContext = unknown,
   TActionResult extends ServerResult = never,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
 > = [TActionResult] extends [never]
   ? {
       action?: never;
     }
   : {
-      action: RouteServerHandler<TContext, TActionResult, TPath>;
+      action: RouteServerHandler<TContext, TActionResult, TPath, TInput>;
     };
 
 export type DefineLayoutOptions<
   TPath extends string = string,
   TContext = unknown,
   TLoaderResult extends ServerResult = ServerResult,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
 > = {
   component: React.JSXElementConstructor<{ children: React.ReactNode }>;
   layout?: LayoutReference;
-  loader?: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>>;
+  input?: TInput;
+  loader?: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>, TInput>;
   middleware?: MiddlewareRef<TContext, ServerResult>[];
   errorBoundary?: React.ComponentType<{ error: RouteFaultLike }>;
 };
 
-type LayoutBaseOptions<TPath extends string = string, TContext = unknown> = Omit<
-  DefineLayoutOptions<TPath, TContext, ServerResult>,
-  "loader"
->;
+type LayoutBaseOptions<
+  TPath extends string = string,
+  TContext = unknown,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
+> = Omit<DefineLayoutOptions<TPath, TContext, ServerResult, TInput>, "loader">;
 
 type LayoutLoaderOption<
   TPath extends string = string,
   TContext = unknown,
   TLoaderResult extends ServerResult = never,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
 > = [TLoaderResult] extends [never]
   ? {
       loader?: never;
     }
   : {
-      loader: RouteServerHandler<TContext, TLoaderResult, TPath>;
+      loader: RouteServerHandler<TContext, TLoaderResult, TPath, TInput>;
     };
 
 export type LitzLayout<
   TPath extends string = string,
   TContext = unknown,
   TLoaderResult extends ServerResult = never,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
 > = Simplify<
   {
     id: TPath;
     path: TPath;
     component: React.JSXElementConstructor<{ children: React.ReactNode }>;
-    options: LayoutBaseOptions<TPath, TContext> &
-      LayoutLoaderOption<TPath, TContext, TLoaderResult>;
+    options: LayoutBaseOptions<TPath, TContext, TInput> &
+      LayoutLoaderOption<TPath, TContext, TLoaderResult, TInput>;
     useParams(): PathParams<TPath>;
     useSearch(): [URLSearchParams, SetSearchParams];
     useStatus(): RouteStatus;
@@ -647,6 +773,7 @@ export type LayoutReference = {
   options?: {
     layout?: LayoutReference;
     loader?: unknown;
+    input?: unknown;
     middleware?: MiddlewareRef<any, ServerResult>[];
     errorBoundary?: React.ComponentType<{ error: RouteFaultLike }>;
   };
@@ -685,14 +812,16 @@ export type LitzRoute<
   TContext = unknown,
   TLoaderResult extends ServerResult = never,
   TActionResult extends ServerResult = never,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
 > = Simplify<
   {
     id: TPath;
     path: TPath;
     component: React.ComponentType;
-    options: RouteBaseOptions<TPath, TContext> &
-      RouteLoaderOption<TPath, TContext, TLoaderResult> &
-      RouteActionOption<TPath, TContext, TActionResult>;
+    options: RouteBaseOptions<TPath, TContext, TInput> &
+      RouteLoaderOption<TPath, TContext, TLoaderResult, TInput> &
+      RouteActionOption<TPath, TContext, TActionResult, TInput>;
     useParams(): PathParams<TPath>;
     useSearch(): [URLSearchParams, SetSearchParams];
     useStatus(): RouteStatus;
@@ -736,10 +865,17 @@ export type ResourceComponentProps<TPath extends string = string> = ResourceRequ
 export type LitzApiRoute<
   TPath extends string = string,
   TContext = unknown,
-  TMethods extends ApiRouteHandlers<TContext, TPath> = ApiRouteHandlers<TContext, TPath>,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
+  TMethods extends ApiRouteHandlers<TContext, TPath, TInput> = ApiRouteHandlers<
+    TContext,
+    TPath,
+    TInput
+  >,
 > = {
   path: TPath;
   middleware?: MiddlewareRef<TContext, Response>[];
+  input?: TInput;
   methods: TMethods;
   fetch(...args: MaybeRequiredArg<TPath, ApiFetchOptions<TPath, TMethods>>): Promise<Response>;
 };
@@ -749,12 +885,15 @@ export type LitzResource<
   TContext = unknown,
   TLoaderResult extends ServerResult = never,
   TActionResult extends ServerResult = never,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
   TComponent extends React.ComponentType<ResourceComponentProps<TPath>> = React.ComponentType<
     ResourceComponentProps<TPath>
   >,
 > = Simplify<
   {
     path: TPath;
+    input?: TInput;
     middleware?: MiddlewareRef<TContext, ServerResult>[];
     component: TComponent;
     Component: React.ComponentType<ResourceComponentProps<TPath>>;
@@ -765,7 +904,7 @@ export type LitzResource<
   } & ([TLoaderResult] extends [never]
     ? {}
     : {
-        loader: ResourceServerHandler<TContext, TLoaderResult, TPath>;
+        loader: ResourceServerHandler<TContext, TLoaderResult, TPath, TInput>;
         useLoaderResult(): LoaderHookResultFor<TLoaderResult> | null;
         useLoaderData(): LoaderDataValueFor<TLoaderResult>;
         useLoaderView(): LoaderViewValueFor<TLoaderResult>;
@@ -775,7 +914,7 @@ export type LitzResource<
     ([TActionResult] extends [never]
       ? {}
       : {
-          action: ResourceServerHandler<TContext, TActionResult, TPath>;
+          action: ResourceServerHandler<TContext, TActionResult, TPath, TInput>;
           useActionResult(): ActionHookResultFor<TActionResult>;
           useActionData(): ActionDataValueFor<TActionResult>;
           useActionView(): ActionViewValueFor<TActionResult>;
@@ -818,24 +957,28 @@ type ResourceLoaderOption<
   TPath extends string = string,
   TContext = unknown,
   TLoaderResult extends ServerResult = never,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
 > = [TLoaderResult] extends [never]
   ? {
       loader?: never;
     }
   : {
-      loader: ResourceServerHandler<TContext, TLoaderResult, TPath>;
+      loader: ResourceServerHandler<TContext, TLoaderResult, TPath, TInput>;
     };
 
 type ResourceActionOption<
   TPath extends string = string,
   TContext = unknown,
   TActionResult extends ServerResult = never,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
 > = [TActionResult] extends [never]
   ? {
       action?: never;
     }
   : {
-      action: ResourceServerHandler<TContext, TActionResult, TPath>;
+      action: ResourceServerHandler<TContext, TActionResult, TPath, TInput>;
     };
 
 type ResourceOptions<
@@ -843,10 +986,13 @@ type ResourceOptions<
   TContext = unknown,
   TLoaderResult extends ServerResult = never,
   TActionResult extends ServerResult = never,
+  TInput extends InputValidationOptions<TPath, TContext, any, any, any, any> | undefined =
+    undefined,
   TComponent extends React.ComponentType<ResourceComponentProps<TPath>> = never,
 > = ResourceComponentOption<TPath, TComponent> &
-  ResourceLoaderOption<TPath, TContext, TLoaderResult> &
-  ResourceActionOption<TPath, TContext, TActionResult> & {
+  ResourceLoaderOption<TPath, TContext, TLoaderResult, TInput> &
+  ResourceActionOption<TPath, TContext, TActionResult, TInput> & {
+    input?: TInput;
     middleware?: MiddlewareRef<TContext, ServerResult>[];
   };
 
@@ -954,48 +1100,66 @@ function getRequiredResourceActions(path: string) {
   return bindings.useRequiredResourceActions(path);
 }
 
-export function defineRoute<TContext = unknown, const TPath extends string = string>(
+export function defineRoute<
+  TContext = unknown,
+  const TPath extends string = string,
+  TInput extends
+    | InputValidationOptions<NoInferType<TPath>, TContext, any, any, any, any>
+    | undefined = undefined,
+>(
   path: TPath,
-  options: RouteBaseOptions<NoInferType<TPath>, TContext> & {
+  options: RouteBaseOptions<NoInferType<TPath>, TContext, TInput> & {
     loader?: never;
     action?: never;
   },
-): LitzRoute<TPath, TContext, never, never>;
+): LitzRoute<TPath, TContext, never, never, TInput>;
 export function defineRoute<
   TContext = unknown,
   const TPath extends string = string,
   TLoaderResult extends ServerResult = ServerResult,
+  TInput extends
+    | InputValidationOptions<NoInferType<TPath>, TContext, any, any, any, any>
+    | undefined = undefined,
 >(
   path: TPath,
-  options: RouteBaseOptions<NoInferType<TPath>, TContext> & {
-    loader: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>>;
+  options: RouteBaseOptions<NoInferType<TPath>, TContext, TInput> & {
+    loader: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>, TInput>;
     action?: never;
   },
-): LitzRoute<TPath, TContext, TLoaderResult, never>;
+): LitzRoute<TPath, TContext, TLoaderResult, never, TInput>;
 export function defineRoute<
   TContext = unknown,
   const TPath extends string = string,
   TActionResult extends ServerResult = ServerResult,
+  TInput extends
+    | InputValidationOptions<NoInferType<TPath>, TContext, any, any, any, any>
+    | undefined = undefined,
 >(
   path: TPath,
-  options: RouteBaseOptions<NoInferType<TPath>, TContext> & {
+  options: RouteBaseOptions<NoInferType<TPath>, TContext, TInput> & {
     loader?: never;
-    action: RouteServerHandler<TContext, TActionResult, NoInferType<TPath>>;
+    action: RouteServerHandler<TContext, TActionResult, NoInferType<TPath>, TInput>;
   },
-): LitzRoute<TPath, TContext, never, TActionResult>;
+): LitzRoute<TPath, TContext, never, TActionResult, TInput>;
 export function defineRoute<
   TContext = unknown,
   const TPath extends string = string,
   TLoaderResult extends ServerResult = ServerResult,
   TActionResult extends ServerResult = ServerResult,
+  TInput extends
+    | InputValidationOptions<NoInferType<TPath>, TContext, any, any, any, any>
+    | undefined = undefined,
 >(
   path: TPath,
-  options: RouteBaseOptions<NoInferType<TPath>, TContext> & {
-    loader: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>>;
-    action: RouteServerHandler<TContext, TActionResult, NoInferType<TPath>>;
+  options: RouteBaseOptions<NoInferType<TPath>, TContext, TInput> & {
+    loader: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>, TInput>;
+    action: RouteServerHandler<TContext, TActionResult, NoInferType<TPath>, TInput>;
   },
-): LitzRoute<TPath, TContext, TLoaderResult, TActionResult>;
-export function defineRoute(path: string, options: DefineRouteOptions<any, any, any>): any {
+): LitzRoute<TPath, TContext, TLoaderResult, TActionResult, TInput>;
+export function defineRoute(
+  path: string,
+  options: DefineRouteOptions<any, any, any, any, any>,
+): any {
   return {
     id: path,
     path,
@@ -1077,23 +1241,32 @@ export function defineRoute(path: string, options: DefineRouteOptions<any, any, 
   } as any;
 }
 
-export function defineLayout<TContext = unknown, const TPath extends string = string>(
+export function defineLayout<
+  TContext = unknown,
+  const TPath extends string = string,
+  TInput extends
+    | InputValidationOptions<NoInferType<TPath>, TContext, any, any, any, any>
+    | undefined = undefined,
+>(
   path: TPath,
-  options: LayoutBaseOptions<NoInferType<TPath>, TContext> & {
+  options: LayoutBaseOptions<NoInferType<TPath>, TContext, TInput> & {
     loader?: never;
   },
-): LitzLayout<TPath, TContext, never>;
+): LitzLayout<TPath, TContext, never, TInput>;
 export function defineLayout<
   TContext = unknown,
   const TPath extends string = string,
   TLoaderResult extends ServerResult = ServerResult,
+  TInput extends
+    | InputValidationOptions<NoInferType<TPath>, TContext, any, any, any, any>
+    | undefined = undefined,
 >(
   path: TPath,
-  options: LayoutBaseOptions<NoInferType<TPath>, TContext> & {
-    loader: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>>;
+  options: LayoutBaseOptions<NoInferType<TPath>, TContext, TInput> & {
+    loader: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>, TInput>;
   },
-): LitzLayout<TPath, TContext, TLoaderResult>;
-export function defineLayout(path: string, options: DefineLayoutOptions<any, any, any>): any {
+): LitzLayout<TPath, TContext, TLoaderResult, TInput>;
+export function defineLayout(path: string, options: DefineLayoutOptions<any, any, any, any>): any {
   return {
     id: path,
     path,
@@ -1173,16 +1346,29 @@ export function useLocation(): LitzLocation {
 export function defineApiRoute<
   TContext = unknown,
   const TPath extends string = string,
-  TMethods extends ApiRouteHandlers<TContext, TPath> = ApiRouteHandlers<TContext, TPath>,
+  TInput extends
+    | InputValidationOptions<NoInferType<TPath>, TContext, any, any, any, any>
+    | undefined = undefined,
+  TMethods extends ApiRouteHandlers<TContext, TPath, TInput> = ApiRouteHandlers<
+    TContext,
+    TPath,
+    TInput
+  >,
 >(
   path: TPath,
-  definition: DefineApiRouteOptions<NoInferType<TContext>, NoInferType<TPath>, TMethods>,
-): LitzApiRoute<TPath, TContext, TMethods> {
-  const { middleware, ...methods } = definition as DefineApiRouteOptions<TContext, TPath, TMethods>;
+  definition: DefineApiRouteOptions<NoInferType<TContext>, NoInferType<TPath>, TInput, TMethods>,
+): LitzApiRoute<TPath, TContext, TInput, TMethods> {
+  const { middleware, input, ...methods } = definition as DefineApiRouteOptions<
+    TContext,
+    TPath,
+    TInput,
+    TMethods
+  >;
 
   return {
     path,
     middleware,
+    input,
     methods: methods as TMethods,
     fetch(...args: MaybeRequiredArg<TPath, ApiFetchOptions<TPath, TMethods>>) {
       const options = (args[0] ?? {}) as ApiFetchOptions<TPath, TMethods>;
@@ -1197,20 +1383,37 @@ export function defineApiRoute<
   };
 }
 
-export function defineResource<TContext = unknown, const TPath extends string = string>(
+export function defineResource<
+  TContext = unknown,
+  const TPath extends string = string,
+  TInput extends
+    | InputValidationOptions<NoInferType<TPath>, TContext, any, any, any, any>
+    | undefined = undefined,
+>(
   path: TPath,
   options: ResourceOptions<
     NoInferType<TPath>,
     NoInferType<TContext>,
     never,
     never,
+    TInput,
     React.ComponentType<ResourceComponentProps<TPath>>
   >,
-): LitzResource<TPath, TContext, never, never, React.ComponentType<ResourceComponentProps<TPath>>>;
+): LitzResource<
+  TPath,
+  TContext,
+  never,
+  never,
+  TInput,
+  React.ComponentType<ResourceComponentProps<TPath>>
+>;
 export function defineResource<
   TContext = unknown,
   const TPath extends string = string,
   TLoaderResult extends ServerResult = ServerResult,
+  TInput extends
+    | InputValidationOptions<NoInferType<TPath>, TContext, any, any, any, any>
+    | undefined = undefined,
   TComponent extends React.ComponentType<ResourceComponentProps<TPath>> = React.ComponentType<
     ResourceComponentProps<TPath>
   >,
@@ -1221,13 +1424,17 @@ export function defineResource<
     NoInferType<TContext>,
     TLoaderResult,
     never,
+    TInput,
     TComponent
   >,
-): LitzResource<TPath, TContext, TLoaderResult, never, TComponent>;
+): LitzResource<TPath, TContext, TLoaderResult, never, TInput, TComponent>;
 export function defineResource<
   TContext = unknown,
   const TPath extends string = string,
   TActionResult extends ServerResult = ServerResult,
+  TInput extends
+    | InputValidationOptions<NoInferType<TPath>, TContext, any, any, any, any>
+    | undefined = undefined,
   TComponent extends React.ComponentType<ResourceComponentProps<TPath>> = React.ComponentType<
     ResourceComponentProps<TPath>
   >,
@@ -1238,14 +1445,18 @@ export function defineResource<
     NoInferType<TContext>,
     never,
     TActionResult,
+    TInput,
     TComponent
   >,
-): LitzResource<TPath, TContext, never, TActionResult, TComponent>;
+): LitzResource<TPath, TContext, never, TActionResult, TInput, TComponent>;
 export function defineResource<
   TContext = unknown,
   const TPath extends string = string,
   TLoaderResult extends ServerResult = ServerResult,
   TActionResult extends ServerResult = ServerResult,
+  TInput extends
+    | InputValidationOptions<NoInferType<TPath>, TContext, any, any, any, any>
+    | undefined = undefined,
   TComponent extends React.ComponentType<ResourceComponentProps<TPath>> = React.ComponentType<
     ResourceComponentProps<TPath>
   >,
@@ -1256,9 +1467,10 @@ export function defineResource<
     NoInferType<TContext>,
     TLoaderResult,
     TActionResult,
+    TInput,
     TComponent
   >,
-): LitzResource<TPath, TContext, TLoaderResult, TActionResult, TComponent>;
+): LitzResource<TPath, TContext, TLoaderResult, TActionResult, TInput, TComponent>;
 export function defineResource(path: any, options: any): any {
   const ResourceComponent = function LitzDefinedResourceComponent(props: ResourceComponentProps) {
     const bindings = getClientBindings();
@@ -1358,14 +1570,14 @@ export function server<
   TContext = unknown,
   TResult extends ServerResult = ServerResult,
   TPath extends string = string,
+  TInput extends
+    | InputValidationOptions<NoInferType<TPath>, TContext, any, any, any, any>
+    | undefined = undefined,
 >(
-  handler: (context: {
-    request: Request;
-    params: PathParams<NoInferType<TPath>>;
-    signal: AbortSignal;
-    context: NoInferType<TContext>;
-  }) => Promise<TResult> | TResult,
-): RouteServerHandler<TContext, TResult, TPath> {
+  handler: (
+    context: RouteHandlerContext<NoInferType<TContext>, NoInferType<TPath>, TInput>,
+  ) => Promise<TResult> | TResult,
+): RouteServerHandler<TContext, TResult, TPath, TInput> {
   return handler;
 }
 

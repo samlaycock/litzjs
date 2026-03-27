@@ -1,6 +1,12 @@
 import type { ApiRouteMethod } from "../index";
 
 import {
+  createApiResponseFromResult,
+  isServerResultLike,
+  resolveValidatedInput,
+  type RuntimeInputValidation,
+} from "../input-validation";
+import {
   extractRouteLikeParams,
   interpolatePath,
   matchPathname,
@@ -31,6 +37,7 @@ type LayoutModule = {
   options?: {
     layout?: LayoutModule;
     loader?: (context: unknown) => Awaitable<unknown>;
+    input?: RuntimeInputValidation;
     middleware?: MiddlewareHandler<unknown, unknown>[];
   };
 };
@@ -45,6 +52,7 @@ type RouteModule = {
       layout?: LayoutModule;
       loader?: (context: unknown) => Awaitable<unknown>;
       action?: (context: unknown) => Awaitable<unknown>;
+      input?: RuntimeInputValidation;
       middleware?: MiddlewareHandler<unknown, unknown>[];
     };
   };
@@ -55,6 +63,7 @@ type ResourceModule = {
   resource?: {
     loader?: (context: unknown) => Awaitable<unknown>;
     action?: (context: unknown) => Awaitable<unknown>;
+    input?: RuntimeInputValidation;
     middleware?: MiddlewareHandler<unknown, unknown>[];
   };
 };
@@ -62,6 +71,7 @@ type ResourceModule = {
 type ApiModule = {
   path: string;
   api?: {
+    input?: RuntimeInputValidation;
     middleware?: MiddlewareHandler<unknown, Response>[];
     methods?: Partial<
       Record<
@@ -71,6 +81,12 @@ type ApiModule = {
           params: Record<string, string>;
           signal: AbortSignal;
           context: unknown;
+          input: {
+            params: unknown;
+            search: unknown;
+            headers: unknown;
+            body: unknown;
+          };
         }) => Promise<Response> | Response
       >
     >;
@@ -230,8 +246,9 @@ async function handleResourceRequest<TContext>(
       return createLitzJsonResponse(404, { kind: "fault", message: "Resource not found." });
     }
 
-    const handler = operation === "action" ? entry.resource.action : entry.resource.loader;
-    const middleware = entry.resource.middleware ?? [];
+    const resource = entry.resource;
+    const handler = operation === "action" ? resource.action : resource.loader;
+    const middleware = resource.middleware ?? [];
 
     if (!handler) {
       return createLitzJsonResponse(405, {
@@ -254,18 +271,31 @@ async function handleResourceRequest<TContext>(
       params: normalizedRequest.params,
       signal,
       context,
-      execute(nextContext) {
+      async execute(nextContext) {
+        const input = await resolveValidatedInput({
+          validation: resource.input,
+          request: normalizedRequest.request,
+          params: normalizedRequest.params,
+          signal,
+          context: nextContext,
+        });
+
         return handler({
           request: normalizedRequest.request,
           params: normalizedRequest.params,
           signal,
           context: nextContext,
+          input,
         });
       },
     });
 
     return createServerResultResponse(result, `${entry.path}#${operation}`);
   } catch (error) {
+    if (isServerResultLike(error)) {
+      return createServerResultResponse(error);
+    }
+
     reportError?.(error, getLoadedContext?.());
     return createUnhandledFaultResponse();
   }
@@ -307,6 +337,7 @@ async function handleRouteRequest<TContext>(
     const targetIndex = chain.findIndex((candidate) => candidate.id === target.id);
     const handler =
       operation === "action" ? (entry.route.action ?? entry.route.options?.action) : target.loader;
+    const validation = operation === "action" ? entry.route.options?.input : target.input;
     const middleware = chain.slice(0, targetIndex + 1).flatMap((candidate) => candidate.middleware);
 
     if (!handler) {
@@ -334,7 +365,7 @@ async function handleRouteRequest<TContext>(
             normalizedRequest.params),
       signal,
       context,
-      execute(nextContext) {
+      async execute(nextContext) {
         const params =
           operation === "action"
             ? normalizedRequest.params
@@ -342,17 +373,29 @@ async function handleRouteRequest<TContext>(
                 target.path,
                 new URL(normalizedRequest.request.url).pathname,
               ) ?? normalizedRequest.params);
+        const input = await resolveValidatedInput({
+          validation,
+          request: normalizedRequest.request,
+          params,
+          signal,
+          context: nextContext,
+        });
         return handler({
           request: normalizedRequest.request,
           params,
           signal,
           context: nextContext,
+          input,
         });
       },
     });
 
     return createServerResultResponse(result, `${target.id}#${operation}`);
   } catch (error) {
+    if (isServerResultLike(error)) {
+      return createServerResultResponse(error);
+    }
+
     reportError?.(error, getLoadedContext?.());
     return createUnhandledFaultResponse();
   }
@@ -363,50 +406,71 @@ async function handleApiRequest<TContext>(
   apiRoutes: ApiModule[],
   getContext: () => Promise<TContext | undefined>,
 ): Promise<Response | null> {
-  const url = new URL(request.url);
-  const matched = apiRoutes
-    .map((candidate) => ({
-      entry: candidate,
-      params: matchPathname(candidate.path, url.pathname),
-    }))
-    .find((candidate) => candidate.params !== null);
+  try {
+    const url = new URL(request.url);
+    const matched = apiRoutes
+      .map((candidate) => ({
+        entry: candidate,
+        params: matchPathname(candidate.path, url.pathname),
+      }))
+      .find((candidate) => candidate.params !== null);
 
-  if (!matched?.entry.api?.methods) {
-    return null;
+    if (!matched?.entry.api?.methods) {
+      return null;
+    }
+
+    const params = matched.params;
+
+    if (!params) {
+      return null;
+    }
+
+    const method = request.method.toUpperCase() as Exclude<ApiRouteMethod, "ALL">;
+    const handler = matched.entry.api.methods[method] ?? matched.entry.api.methods.ALL;
+    const middleware = matched.entry.api.middleware ?? [];
+
+    if (!handler) {
+      return new Response("Method Not Allowed", { status: 405 });
+    }
+
+    const signal = request.signal;
+    const context = await getContext();
+
+    return await runMiddlewareChain({
+      middleware,
+      request,
+      params,
+      signal,
+      context,
+      async execute(nextContext) {
+        const input = await resolveValidatedInput({
+          validation: matched.entry.api?.input,
+          request,
+          params,
+          signal,
+          context: nextContext,
+        });
+
+        return handler({
+          request,
+          params,
+          signal,
+          context: nextContext,
+          input,
+        });
+      },
+    });
+  } catch (error) {
+    if (error instanceof Response) {
+      return error;
+    }
+
+    if (isServerResultLike(error)) {
+      return createApiResponseFromResult(error);
+    }
+
+    throw error;
   }
-
-  const params = matched.params;
-
-  if (!params) {
-    return null;
-  }
-
-  const method = request.method.toUpperCase() as Exclude<ApiRouteMethod, "ALL">;
-  const handler = matched.entry.api.methods[method] ?? matched.entry.api.methods.ALL;
-  const middleware = matched.entry.api.middleware ?? [];
-
-  if (!handler) {
-    return new Response("Method Not Allowed", { status: 405 });
-  }
-
-  const signal = request.signal;
-  const context = await getContext();
-
-  return runMiddlewareChain({
-    middleware,
-    request,
-    params,
-    signal,
-    context,
-    execute(nextContext) {
-      return handler({
-        request,
-        params,
-        signal,
-        context: nextContext,
-      });
-    },
-  });
 }
 
 async function runMiddlewareChain<TContext, TResult>(options: {
@@ -455,6 +519,7 @@ function getRouteMatchChain(entry: RouteModule): Array<{
   id: string;
   path: string;
   loader?: (context: unknown) => Awaitable<unknown>;
+  input?: RuntimeInputValidation;
   middleware: MiddlewareHandler<unknown, unknown>[];
 }> {
   const layouts = collectLayouts(entry.route?.options?.layout);
@@ -464,12 +529,14 @@ function getRouteMatchChain(entry: RouteModule): Array<{
       id: layout.id,
       path: layout.path,
       loader: layout.options?.loader,
+      input: layout.options?.input,
       middleware: layout.options?.middleware ?? [],
     })),
     {
       id: entry.id,
       path: entry.path,
       loader: entry.route?.loader ?? entry.route?.options?.loader,
+      input: entry.route?.options?.input,
       middleware: entry.route?.options?.middleware ?? [],
     },
   ];
@@ -488,6 +555,7 @@ function findTargetRouteMatch(
     id: string;
     path: string;
     loader?: (context: unknown) => Awaitable<unknown>;
+    input?: RuntimeInputValidation;
     middleware: MiddlewareHandler<unknown, unknown>[];
   }>,
   targetId: string,
@@ -496,6 +564,7 @@ function findTargetRouteMatch(
       id: string;
       path: string;
       loader?: (context: unknown) => Awaitable<unknown>;
+      input?: RuntimeInputValidation;
       middleware: MiddlewareHandler<unknown, unknown>[];
     }
   | undefined {
