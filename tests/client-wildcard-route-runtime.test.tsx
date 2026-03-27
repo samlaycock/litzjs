@@ -32,6 +32,13 @@ const loadDocsRoute = mock(async () => ({
     component: DocsRoute,
   },
 }));
+const loadBrokenRoute = mock(async () => ({
+  route: {
+    id: "broken-route",
+    path: "/broken",
+    component: BrokenRoute,
+  },
+}));
 const loadProjectRoute = mock(async () => ({
   route: projectRoute,
 }));
@@ -57,12 +64,17 @@ function HomeRoute(): React.ReactElement {
       <Link href="/projects/42?tab=activity" prefetchData>
         Open project route
       </Link>
+      <Link href="/broken">Open broken route</Link>
     </main>
   );
 }
 
 function DocsRoute(): React.ReactElement {
   return <div id="route-state" data-value="wildcard-route" />;
+}
+
+function BrokenRoute(): React.ReactElement {
+  return <div id="route-state" data-value="broken-route" />;
 }
 
 function ProjectRoute(): React.ReactElement {
@@ -133,6 +145,11 @@ void mock.module("virtual:litzjs:route-manifest", () => ({
       load: loadProjectRoute,
     },
     {
+      id: "broken-route",
+      path: "/broken",
+      load: loadBrokenRoute,
+    },
+    {
       id: submitRoute.id,
       path: submitRoute.path,
       load: loadSubmitRoute,
@@ -159,6 +176,7 @@ describe("client wildcard route runtime", () => {
     clientModule = null;
     loadHomeRoute.mockClear();
     loadDocsRoute.mockClear();
+    loadBrokenRoute.mockClear();
     loadProjectRoute.mockClear();
     loadSubmitRoute.mockClear();
     routeSubmitEvents.length = 0;
@@ -206,6 +224,56 @@ describe("client wildcard route runtime", () => {
       "wildcard-route",
     );
     expect(loadDocsRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test("renders a managed route fault when a lazy route module rejects during navigation", async () => {
+    loadBrokenRoute.mockImplementationOnce(async () => Promise.reject(new Error("Chunk 404")));
+    clientModule = await import("../src/client/index");
+
+    await act(async () => {
+      clientModule?.mountApp(container!);
+      await flushApp();
+    });
+
+    const link = container?.querySelector('a[href="/broken"]');
+
+    expect(link).not.toBeNull();
+
+    await act(async () => {
+      link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+      await flushApp();
+    });
+
+    expect(window.location.pathname).toBe("/broken");
+    expect(document.querySelector("h1")?.textContent).toBe("Route Error");
+    expect(document.querySelector("p")?.textContent).toBe("fault 500: Chunk 404");
+  });
+
+  test("renders a managed route fault when a lazy route module omits the route export", async () => {
+    loadBrokenRoute.mockImplementationOnce(
+      async () => ({}) as Awaited<ReturnType<typeof loadBrokenRoute>>,
+    );
+    clientModule = await import("../src/client/index");
+
+    await act(async () => {
+      clientModule?.mountApp(container!);
+      await flushApp();
+    });
+
+    const link = container?.querySelector('a[href="/broken"]');
+
+    expect(link).not.toBeNull();
+
+    await act(async () => {
+      link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+      await flushApp();
+    });
+
+    expect(window.location.pathname).toBe("/broken");
+    expect(document.querySelector("h1")?.textContent).toBe("Route Error");
+    expect(document.querySelector("p")?.textContent).toBe(
+      'fault 500: Route module "broken-route" does not export "route".',
+    );
   });
 
   test("uses prefetched loader data immediately on navigation while revalidating in the background", async () => {
