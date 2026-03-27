@@ -44,6 +44,7 @@ export async function fetchRouteAction(
   path: string,
   request: ResourceRequest,
   payload: SubmitPayload,
+  signal?: AbortSignal,
 ): Promise<ActionHookResult> {
   const actionRequest = createInternalActionRequestInit(
     {
@@ -58,6 +59,7 @@ export async function fetchRouteAction(
     method: "POST",
     headers: actionRequest.headers,
     body: actionRequest.body,
+    signal,
   });
 
   return parseActionResponse(response);

@@ -77,6 +77,8 @@ type ResourceStoreEntry = {
   loaderInFlight?: Promise<LoaderHookResult | void>;
   loaderMode?: "loading" | "revalidating";
   actionInFlightCount: number;
+  actionController?: AbortController;
+  actionSequence: number;
 };
 
 type NormalizedResourceRequest = {
@@ -444,6 +446,8 @@ async function performPreparedResourceRequest(
 ): Promise<NonNullable<ActionHookResult> | LoaderHookResult | void> {
   const { key, normalizedRequest } = preparedRequest;
   const entry = getEntry(key);
+  const actionSequence = operation === "action" ? entry.actionSequence + 1 : undefined;
+  const actionController = operation === "action" ? new AbortController() : undefined;
 
   if (operation === "loader" && entry.loaderInFlight) {
     return entry.loaderInFlight;
@@ -452,6 +456,9 @@ async function performPreparedResourceRequest(
   if (operation === "loader") {
     entry.loaderMode = mode === "revalidating" ? "revalidating" : "loading";
   } else {
+    entry.actionController?.abort();
+    entry.actionController = actionController;
+    entry.actionSequence = actionSequence!;
     entry.actionInFlightCount += 1;
   }
 
@@ -472,6 +479,7 @@ async function performPreparedResourceRequest(
                 },
                 payload,
               ),
+              signal: actionController?.signal,
             })
           : await fetch("/_litzjs/resource", {
               method: "POST",
@@ -504,6 +512,10 @@ async function performPreparedResourceRequest(
       }
 
       const actionResult = (await parseActionResponse(response)) as NonNullable<ActionHookResult>;
+
+      if (shouldIgnoreResourceAction(entry, actionController, actionSequence)) {
+        return;
+      }
 
       if (actionResult.kind === "redirect") {
         entry.snapshot = {
@@ -538,6 +550,13 @@ async function performPreparedResourceRequest(
       };
       return actionResult;
     } catch (error) {
+      if (
+        operation === "action" &&
+        shouldIgnoreResourceAction(entry, actionController, actionSequence, error)
+      ) {
+        return;
+      }
+
       if (isRedirectSignal(error)) {
         performClientRedirect(error.location, error.replace);
         entry.snapshot = {
@@ -560,6 +579,10 @@ async function performPreparedResourceRequest(
         entry.loaderMode = undefined;
       } else {
         entry.actionInFlightCount -= 1;
+
+        if (entry.actionController === actionController) {
+          entry.actionController = undefined;
+        }
       }
 
       syncEntryPendingState(entry);
@@ -621,6 +644,13 @@ function subscribe(key: string, listener: () => void): () => void {
 
   return () => {
     entry.listeners.delete(listener);
+
+    if (entry.listeners.size === 0) {
+      entry.actionSequence += 1;
+      entry.actionController?.abort();
+      entry.actionController = undefined;
+    }
+
     deferredCleanupResourceEntry(key, entry);
   };
 }
@@ -645,6 +675,7 @@ function getEntry(key: string): ResourceStoreEntry {
       snapshot: getInitialSnapshot(),
       listeners: new Set(),
       actionInFlightCount: 0,
+      actionSequence: 0,
     };
     resourceStore.set(key, entry);
     pruneResourceStore();
@@ -660,7 +691,7 @@ function notify(entry: ResourceStoreEntry): void {
 }
 
 function getActiveEntryStatus(entry: ResourceStoreEntry): RouteStatus | null {
-  if (entry.actionInFlightCount > 0) {
+  if (entry.actionController) {
     return "submitting";
   }
 
@@ -707,6 +738,31 @@ function deferredCleanupResourceEntry(key: string, entry: ResourceStoreEntry): v
       resourceStore.delete(key);
     }
   });
+}
+
+function shouldIgnoreResourceAction(
+  entry: ResourceStoreEntry,
+  controller?: AbortController,
+  sequence?: number,
+  error?: unknown,
+): boolean {
+  if (!controller || sequence === undefined) {
+    return false;
+  }
+
+  if (controller.signal.aborted || entry.actionSequence !== sequence) {
+    return true;
+  }
+
+  return isAbortError(error);
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === "AbortError"
+    : error instanceof Error
+      ? error.name === "AbortError"
+      : false;
 }
 
 function pruneResourceStore(): void {

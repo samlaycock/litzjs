@@ -1138,6 +1138,30 @@ function useMatchRuntime(options: {
         : null;
   const error =
     match.kind === "route" ? pageState.error : loaderResult?.kind === "error" ? loaderResult : null;
+  const submitRequestKey = React.useMemo(
+    () =>
+      JSON.stringify({
+        params: sortRecord(match.params),
+        search: sortRecord(createSearchParamRecord(match.search)),
+      }),
+    [match.params, match.search],
+  );
+  const submitSequenceRef = React.useRef(0);
+  const submitControllerRef = React.useRef<AbortController | null>(null);
+
+  React.useEffect(() => {
+    submitSequenceRef.current += 1;
+    submitControllerRef.current?.abort();
+    submitControllerRef.current = null;
+  }, [submitRequestKey]);
+
+  React.useEffect(() => {
+    return () => {
+      submitSequenceRef.current += 1;
+      submitControllerRef.current?.abort();
+      submitControllerRef.current = null;
+    };
+  }, []);
 
   const setSearch = React.useCallback<RouteRuntimeState["setSearch"]>(
     (updates, submitOptions) => {
@@ -1167,14 +1191,46 @@ function useMatchRuntime(options: {
         pending: true,
       }));
 
-      const result = await fetchRouteAction(
-        route.path,
-        {
-          params: match.params,
-          search: match.search,
-        },
-        formData,
-      );
+      submitControllerRef.current?.abort();
+      const controller = new AbortController();
+      submitControllerRef.current = controller;
+      const submitSequence = submitSequenceRef.current + 1;
+      submitSequenceRef.current = submitSequence;
+
+      let result: ActionHookResult;
+
+      try {
+        result = await fetchRouteAction(
+          route.path,
+          {
+            params: match.params,
+            search: match.search,
+          },
+          formData,
+          controller.signal,
+        );
+      } catch (error) {
+        if (
+          shouldIgnoreRouteSubmit(
+            controller.signal,
+            submitSequenceRef.current,
+            submitSequence,
+            error,
+          )
+        ) {
+          return;
+        }
+
+        throw error;
+      } finally {
+        if (submitControllerRef.current === controller) {
+          submitControllerRef.current = null;
+        }
+      }
+
+      if (shouldIgnoreRouteSubmit(controller.signal, submitSequenceRef.current, submitSequence)) {
+        return;
+      }
 
       if (result?.kind === "redirect") {
         navigate(result.location, submitOptions?.replace ?? result.replace);
@@ -1248,6 +1304,10 @@ function useMatchRuntime(options: {
 
       if (result && shouldRevalidateAfterSubmit(route, result.headers, submitOptions?.revalidate)) {
         await reloadImpl("revalidating");
+
+        if (shouldIgnoreRouteSubmit(controller.signal, submitSequenceRef.current, submitSequence)) {
+          return;
+        }
       }
 
       if (result?.kind === "error" || result?.kind === "fault") {
@@ -1295,6 +1355,27 @@ function useMatchRuntime(options: {
       view,
     ],
   );
+}
+
+function shouldIgnoreRouteSubmit(
+  signal: AbortSignal,
+  latestSequence: number,
+  sequence: number,
+  error?: unknown,
+): boolean {
+  if (signal.aborted || latestSequence !== sequence) {
+    return true;
+  }
+
+  return isAbortError(error);
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === "AbortError"
+    : error instanceof Error
+      ? error.name === "AbortError"
+      : false;
 }
 
 function getLayoutChain(layout: LoadedLayout | undefined): LoadedLayout[] {
