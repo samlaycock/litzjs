@@ -3,12 +3,24 @@ import { describe, expect, test, mock } from "bun:test";
 import {
   createViewResult,
   getRevalidateTargets,
+  parseActionResponse,
   parseLoaderResponse,
 } from "../src/client/transport";
 
 void mock.module("@vitejs/plugin-rsc/browser", () => ({
   createFromReadableStream: () => Promise.resolve(null),
 }));
+
+const originalNodeEnv = process.env.NODE_ENV;
+
+function setNodeEnv(value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env.NODE_ENV;
+    return;
+  }
+
+  process.env.NODE_ENV = value;
+}
 
 describe("transport header reading", () => {
   test("createViewResult reads status from x-litzjs-status header", async () => {
@@ -68,11 +80,62 @@ describe("transport header reading", () => {
       },
       { status: 404 },
     );
+    const error = await parseLoaderResponse(response).catch((reason) => reason);
 
-    await expect(parseLoaderResponse(response)).rejects.toMatchObject({
+    expect(error).toMatchObject({
       kind: "fault",
       status: 404,
       message: "Route not found.",
     });
+  });
+
+  test("parseLoaderResponse normalizes non-JSON error responses into development faults", async () => {
+    setNodeEnv("development");
+
+    try {
+      const response = new Response("<html><body>Bad gateway</body></html>", {
+        status: 502,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+        },
+      });
+      const error = await parseLoaderResponse(response).catch((reason) => reason);
+
+      expect(error).toMatchObject({
+        kind: "fault",
+        status: 502,
+      });
+      expect((error as { message: string }).message).toContain("502");
+      expect((error as { message: string }).message).toContain("Bad gateway");
+    } finally {
+      setNodeEnv(originalNodeEnv);
+    }
+  });
+
+  test("parseActionResponse normalizes malformed JSON into production faults", async () => {
+    setNodeEnv("production");
+
+    try {
+      const response = new Response('{"kind":"data"', {
+        status: 503,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+        },
+      });
+      const result = await parseActionResponse(response);
+
+      expect(result).not.toBeNull();
+
+      if (!result || result.kind !== "fault") {
+        throw new Error("Expected a normalized fault result.");
+      }
+
+      expect(result.status).toBe(503);
+      expect(result.message).toBe("[litzjs] The server returned an invalid response.");
+      expect(result.digest).toBeUndefined();
+      expect(result.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    } finally {
+      setNodeEnv(originalNodeEnv);
+    }
   });
 });
