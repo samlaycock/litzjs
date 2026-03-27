@@ -477,6 +477,77 @@ describe("dev server abort signal lifecycle", () => {
 });
 
 describe("dev server error masking", () => {
+  test("treats missing internal route targets as faults", async () => {
+    const server = createMockViteDevServer(async () => ({}));
+    const internalMetadata = JSON.stringify({
+      path: "/missing/:id",
+      target: "missing.show",
+      operation: "loader",
+      request: { params: { id: "1" } },
+    });
+    const request = createMockRequest({
+      url: "/_litzjs/route",
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: internalMetadata,
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzRouteRequest(server, [], request, response, next);
+
+    expect(response.statusCode).toBe(404);
+    expect(response.getBody()).toContain('"kind":"fault"');
+    expect(response.getBody()).toContain("Route not found.");
+  });
+
+  test("treats missing internal resource handlers as faults", async () => {
+    const server = createMockViteDevServer(async () => ({
+      resource: {
+        action() {
+          return { kind: "data", data: { ok: true } };
+        },
+      },
+    }));
+    const internalMetadata = JSON.stringify({
+      path: "/resources/config",
+      operation: "loader",
+      request: {},
+    });
+    const request = createMockRequest({
+      url: "/_litzjs/resource",
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: internalMetadata,
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzResourceRequest(
+      server,
+      [
+        {
+          path: "/resources/config",
+          modulePath: "src/resources/config.ts",
+          hasLoader: false,
+          hasAction: true,
+          hasComponent: false,
+        },
+      ],
+      request,
+      response,
+      next,
+    );
+
+    expect(response.statusCode).toBe(405);
+    expect(response.getBody()).toContain('"kind":"fault"');
+    expect(response.getBody()).toContain("Resource does not define a loader.");
+  });
+
   test("does not expose raw error messages from resource handlers", async () => {
     const sensitiveMessage = "ECONNREFUSED 127.0.0.1:5432 - password=hunter2";
     const server = createMockViteDevServer(async () => {

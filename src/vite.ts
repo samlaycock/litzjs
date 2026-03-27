@@ -1223,7 +1223,7 @@ export async function handleLitzResourceRequest(
     const entry = manifest.find((resource) => resource.path === resourcePath);
 
     if (!resourcePath || !entry) {
-      sendLitzJson(response, 404, { kind: "error", message: "Resource not found." });
+      sendLitzJson(response, 404, { kind: "fault", message: "Resource not found." });
       return;
     }
 
@@ -1254,7 +1254,7 @@ export async function handleLitzResourceRequest(
 
     if (!handler) {
       sendLitzJson(response, 405, {
-        kind: "error",
+        kind: "fault",
         message: `Resource does not define a ${operation}.`,
       });
       return;
@@ -1325,7 +1325,7 @@ export async function handleLitzRouteRequest(
     const entry = manifest.find((route) => route.path === routePath);
 
     if (!routePath || !entry) {
-      sendLitzJson(response, 404, { kind: "error", message: "Route not found." });
+      sendLitzJson(response, 404, { kind: "fault", message: "Route not found." });
       return;
     }
 
@@ -1388,7 +1388,7 @@ export async function handleLitzRouteRequest(
         : findDevTargetRouteMatch(chain, targetId ?? routePath);
 
     if (!target) {
-      sendLitzJson(response, 404, { kind: "error", message: "Route target not found." });
+      sendLitzJson(response, 404, { kind: "fault", message: "Route target not found." });
       return;
     }
 
@@ -1398,7 +1398,7 @@ export async function handleLitzRouteRequest(
 
     if (!handler) {
       sendLitzJson(response, 405, {
-        kind: "error",
+        kind: "fault",
         message: `Route does not define a ${operation}.`,
       });
       return;

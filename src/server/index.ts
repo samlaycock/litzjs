@@ -227,7 +227,7 @@ async function handleResourceRequest<TContext>(
     const entry = resources.find((resource) => resource.path === resourcePath);
 
     if (!resourcePath || !entry?.resource) {
-      return createLitzJsonResponse(404, { kind: "error", message: "Resource not found." });
+      return createLitzJsonResponse(404, { kind: "fault", message: "Resource not found." });
     }
 
     const handler = operation === "action" ? entry.resource.action : entry.resource.loader;
@@ -235,7 +235,7 @@ async function handleResourceRequest<TContext>(
 
     if (!handler) {
       return createLitzJsonResponse(405, {
-        kind: "error",
+        kind: "fault",
         message: `Resource does not define a ${operation}.`,
       });
     }
@@ -291,7 +291,7 @@ async function handleRouteRequest<TContext>(
     const entry = routes.find((route) => route.path === routePath);
 
     if (!routePath || !entry?.route) {
-      return createLitzJsonResponse(404, { kind: "error", message: "Route not found." });
+      return createLitzJsonResponse(404, { kind: "fault", message: "Route not found." });
     }
 
     const chain = getRouteMatchChain(entry);
@@ -301,7 +301,7 @@ async function handleRouteRequest<TContext>(
         : findTargetRouteMatch(chain, targetId ?? routePath);
 
     if (!target) {
-      return createLitzJsonResponse(404, { kind: "error", message: "Route target not found." });
+      return createLitzJsonResponse(404, { kind: "fault", message: "Route target not found." });
     }
 
     const targetIndex = chain.findIndex((candidate) => candidate.id === target.id);
@@ -311,7 +311,7 @@ async function handleRouteRequest<TContext>(
 
     if (!handler) {
       return createLitzJsonResponse(405, {
-        kind: "error",
+        kind: "fault",
         message: `Route does not define a ${operation}.`,
       });
     }

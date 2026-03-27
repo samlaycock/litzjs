@@ -1,6 +1,10 @@
 import { describe, expect, test, mock } from "bun:test";
 
-import { createViewResult, getRevalidateTargets } from "../src/client/transport";
+import {
+  createViewResult,
+  getRevalidateTargets,
+  parseLoaderResponse,
+} from "../src/client/transport";
 
 void mock.module("@vitejs/plugin-rsc/browser", () => ({
   createFromReadableStream: () => Promise.resolve(null),
@@ -54,5 +58,21 @@ describe("transport header reading", () => {
     const targets = getRevalidateTargets(headers);
 
     expect(targets).toEqual([]);
+  });
+
+  test("parseLoaderResponse throws framework faults instead of surfacing them as loader errors", async () => {
+    const response = Response.json(
+      {
+        kind: "fault",
+        message: "Route not found.",
+      },
+      { status: 404 },
+    );
+
+    await expect(parseLoaderResponse(response)).rejects.toMatchObject({
+      kind: "fault",
+      status: 404,
+      message: "Route not found.",
+    });
   });
 });

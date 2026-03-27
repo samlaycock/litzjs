@@ -421,4 +421,80 @@ describe("server security", () => {
     expect(body.message).not.toContain("permission denied");
     expect(body.message).not.toContain("/etc/shadow");
   });
+
+  test("treats missing internal route targets as faults instead of explicit errors", async () => {
+    const server = createServer({
+      manifest: {
+        routes: [],
+      },
+    });
+
+    const routeRequest = createInternalActionRequestInit(
+      {
+        path: "/missing/:id",
+        target: "missing.show",
+        operation: "loader",
+        request: {
+          params: { id: "1" },
+        },
+      },
+      { reload: true },
+    );
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/route", {
+        method: "POST",
+        headers: routeRequest.headers,
+        body: routeRequest.body,
+      }),
+    );
+    const body = (await response.json()) as {
+      kind: "fault";
+      message: string;
+    };
+
+    expect(response.status).toBe(404);
+    expect(body.kind).toBe("fault");
+    expect(body.message).toBe("Route not found.");
+  });
+
+  test("treats missing internal resource handlers as faults instead of explicit errors", async () => {
+    const server = createServer({
+      manifest: {
+        resources: [
+          {
+            path: "/resources/config",
+            resource: {
+              action() {
+                return { kind: "data", data: { ok: true } };
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const resourceRequest = createInternalActionRequestInit(
+      {
+        path: "/resources/config",
+        operation: "loader",
+        request: {},
+      },
+      { reload: true },
+    );
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/resource", {
+        method: "POST",
+        headers: resourceRequest.headers,
+        body: resourceRequest.body,
+      }),
+    );
+    const body = (await response.json()) as {
+      kind: "fault";
+      message: string;
+    };
+
+    expect(response.status).toBe(405);
+    expect(body.kind).toBe("fault");
+    expect(body.message).toBe("Resource does not define a loader.");
+  });
 });
