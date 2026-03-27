@@ -202,6 +202,18 @@ export const resource = defineResource("/resource/account/:id", {
       </section>
 
       <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Loader vs Merged State</h2>
+        <p className="text-neutral-400 mb-4">
+          Loader-only hooks keep the last loader result until you reload the resource. A later
+          successful action can clear merged <code className="text-sky-400">useError()</code> and
+          return <code className="text-sky-400">useStatus()</code> to{" "}
+          <code className="text-sky-400">'idle'</code> while{" "}
+          <code className="text-sky-400">useLoaderError()</code> still reflects the earlier loader
+          error.
+        </p>
+      </section>
+
+      <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Multiple instances</h2>
         <p className="text-neutral-400 mb-4">
           Resources are instance-scoped, not global. You can mount the same resource more than once

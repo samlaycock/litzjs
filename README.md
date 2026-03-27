@@ -681,6 +681,10 @@ The main split to keep in mind:
 - `useActionData()` / `useActionView()` / `useActionError()` / `useInvalid()` read action-only state
 - `useData()` / `useView()` / `useError()` read the latest settled merged value for the resource
 
+Loader-only hooks keep the last loader result until you call `useReload()`. A later successful
+action can clear merged `useError()` and return `useStatus()` to `idle` while
+`useLoaderError()` still reflects the earlier loader error.
+
 ### Multiple Resource Instances
 
 Resources are instance-scoped, not global. You can render the same resource multiple times on the
