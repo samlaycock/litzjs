@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { resolveSettledPageStatus, withIdleState } from "../src/client/page-state";
+import {
+  resolveSettledPageStatus,
+  withIdleState,
+  withSettledPageState,
+} from "../src/client/page-state";
 import { error, fault } from "../src/index";
 
 describe("withIdleState", () => {
@@ -227,5 +231,37 @@ describe("resolveSettledPageStatus", () => {
     );
 
     expect(result).toBe("error");
+  });
+});
+
+describe("withSettledPageState", () => {
+  test("clears the merged explicit error when a no-loader reload settles", () => {
+    const result = withSettledPageState({
+      matchStates: {
+        route: {
+          loaderResult: null,
+        },
+      },
+      actionResult: {
+        ...error(422, "Invalid input"),
+        headers: new Headers(),
+      },
+      nextResultSequence: 2,
+      latestDataResult: null,
+      latestViewResult: null,
+      error: {
+        ...error(422, "Invalid input"),
+        headers: new Headers(),
+      },
+      status: "error" as const,
+      pending: true,
+      errorInfo: undefined,
+      errorTargetId: undefined,
+      offlineStaleMatchIds: undefined,
+    });
+
+    expect(result.status).toBe("idle");
+    expect(result.pending).toBe(false);
+    expect(result.error).toBeNull();
   });
 });

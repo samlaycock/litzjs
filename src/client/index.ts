@@ -16,7 +16,7 @@ import { installClientBindings } from "./bindings";
 import { createLinkComponent } from "./link";
 import { fetchRouteLoadersInParallel, processLoaderResults } from "./loader-fetch";
 import { applySearchParams, shouldPrefetchLink } from "./navigation";
-import { resolveSettledPageStatus } from "./page-state";
+import { resolveSettledPageStatus, withSettledPageState } from "./page-state";
 import {
   createResourceComponent,
   createResourceFormComponent,
@@ -756,18 +756,6 @@ function withLatestViewResult(
       sequence,
       result,
     },
-  };
-}
-
-function withSettledPageState(current: PageState): PageState {
-  return {
-    ...current,
-    status: resolveSettledPageStatus(current, {
-      includeActionResult: false,
-    }),
-    pending: false,
-    errorInfo: undefined,
-    errorTargetId: undefined,
   };
 }
 
