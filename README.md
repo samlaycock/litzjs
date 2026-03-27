@@ -754,6 +754,101 @@ Supported method keys:
 
 `api.fetch(...)` accepts route params, search params, headers, and the HTTP method when needed.
 
+## Input Validation
+
+Routes, layouts, resources, and API routes can declare an `input` object that parses raw request
+surfaces into validated values before the handler runs.
+
+```tsx
+import { data, defineApiRoute, defineRoute, error, invalid, server } from "litzjs";
+
+export const route = defineRoute("/projects/:id", {
+  component: ProjectPage,
+  input: {
+    params(params) {
+      const projectId = Number(params.id);
+
+      if (!Number.isInteger(projectId)) {
+        throw error(400, "Project id must be an integer.");
+      }
+
+      return { projectId };
+    },
+    search(search) {
+      return {
+        tab: search.get("tab") ?? "overview",
+      };
+    },
+    headers(headers) {
+      return {
+        tenant: headers.get("x-tenant") ?? "public",
+      };
+    },
+    async body(request) {
+      const formData = await request.formData();
+      const name = String(formData.get("name") ?? "").trim();
+
+      if (!name) {
+        throw invalid({
+          fields: {
+            name: "Name is required.",
+          },
+        });
+      }
+
+      return { name };
+    },
+  },
+  loader: server(async ({ input }) => {
+    return data({
+      projectId: input.params.projectId,
+      tab: input.search.tab,
+      tenant: input.headers.tenant,
+    });
+  }),
+  action: server(async ({ input }) => {
+    return data({
+      saved: true,
+      name: input.body?.name ?? "",
+    });
+  }),
+});
+
+export const api = defineApiRoute("/api/projects/:id", {
+  input: {
+    params(params) {
+      return {
+        projectId: Number(params.id),
+      };
+    },
+    async body(request) {
+      return (await request.json()) as {
+        name: string;
+      };
+    },
+  },
+  POST({ input }) {
+    return Response.json({
+      id: input.params.projectId,
+      name: input.body?.name ?? null,
+    });
+  },
+});
+```
+
+Each parser receives the raw value plus `{ request, params, signal, context }`.
+
+- `params` receives the path params object
+- `search` receives `URLSearchParams`
+- `headers` receives `Headers`
+- `body` receives a cloned `Request`, so handlers can still read the original request body
+
+Parsed values are exposed on `context.input`. When no parser is defined, the raw request values are
+still available through `request`, `params`, and the standard Web APIs.
+
+Parsers can short-circuit by throwing Litz result helpers such as `error(...)` or `invalid(...)`.
+For `GET` and `HEAD` requests, `input.body` is always `undefined`.
+
 ## Server Runtime
 
 Litz ships a default WinterCG-style server runtime:
@@ -834,7 +929,7 @@ That means Litz apps should treat route loaders, actions, resources, and API rou
 server endpoint:
 
 - authenticate and authorize inside middleware or handlers
-- validate params, search params, headers, and form/body input
+- validate params, search params, headers, and form/body input with `input` hooks or in middleware/handlers
 - apply CSRF protections when using cookie-backed auth for writes
 - do not assume a request came from Litz just because it arrived through `/_litzjs/*`
 
