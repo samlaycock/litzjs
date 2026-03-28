@@ -19,7 +19,7 @@ describe("testing docs", () => {
     );
     expect(testingDoc).toContain('import { describe, expect, test } from "bun:test";');
     expect(testingDoc).toContain("const result = await loader({");
-    expect(testingDoc).toContain("const response = await api.GET({");
+    expect(testingDoc).toContain("const response = await api.methods.GET({");
     expect(testingDoc).toContain("const response = await app.fetch(");
     expect(testingDoc).toContain("bun add -d @testing-library/react @testing-library/dom");
 

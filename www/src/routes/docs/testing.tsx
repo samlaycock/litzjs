@@ -124,7 +124,7 @@ import { api } from "../src/routes/api.users";
 
 describe("GET /api/users", () => {
   test("returns a list of users", async () => {
-    const response = await api.GET({
+    const response = await api.methods.GET({
       request: new Request("http://localhost/api/users"),
       params: {},
       signal: new AbortController().signal,
@@ -139,7 +139,7 @@ describe("GET /api/users", () => {
   });
 
   test("returns 401 without auth", async () => {
-    const response = await api.GET({
+    const response = await api.methods.GET({
       request: new Request("http://localhost/api/users"),
       params: {},
       signal: new AbortController().signal,
