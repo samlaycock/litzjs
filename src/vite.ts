@@ -682,8 +682,8 @@ export async function renderView(node, metadata = {}) {
 
 // ── Filesystem Discovery ─────────────────────────────────────────────────────
 // Scans the project for routes, layouts, resources, and API routes using glob
-// patterns. Each `discover*FromFile` helper extracts metadata (path, defineRoute
-// call, etc.) from individual files using regex.
+// patterns. Each `discover*FromFile` helper extracts metadata from the exported
+// bindings in an individual module using a lightweight TypeScript AST pass.
 
 export async function discoverAllManifests(
   root: string,
@@ -775,30 +775,223 @@ async function discoverLayouts(root: string, patterns: string[]): Promise<Discov
   return discovered.filter((entry): entry is DiscoveredLayout => entry !== null);
 }
 
+interface DiscoveredRouteLikeDefinition {
+  readonly path: string;
+  readonly options?: ts.Expression;
+}
+
+function createModuleSourceFile(filePath: string, source: string): ts.SourceFile {
+  const scriptKind = filePath.endsWith(".tsx")
+    ? ts.ScriptKind.TSX
+    : filePath.endsWith(".jsx")
+      ? ts.ScriptKind.JSX
+      : ts.ScriptKind.TS;
+
+  return ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, scriptKind);
+}
+
+function hasExportModifier(modifiers: readonly ts.ModifierLike[] | undefined): boolean {
+  return modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false;
+}
+
+function unwrapManifestExpression(expression: ts.Expression): ts.Expression {
+  if (ts.isParenthesizedExpression(expression)) {
+    return unwrapManifestExpression(expression.expression);
+  }
+
+  if (
+    ts.isAsExpression(expression) ||
+    ts.isSatisfiesExpression(expression) ||
+    ts.isTypeAssertionExpression(expression) ||
+    ts.isNonNullExpression(expression)
+  ) {
+    return unwrapManifestExpression(expression.expression);
+  }
+
+  return expression;
+}
+
+function getStringLiteralValue(expression: ts.Expression | undefined): string | null {
+  if (!expression) {
+    return null;
+  }
+
+  const unwrapped = unwrapManifestExpression(expression);
+
+  if (ts.isStringLiteral(unwrapped) || ts.isNoSubstitutionTemplateLiteral(unwrapped)) {
+    return unwrapped.text;
+  }
+
+  return null;
+}
+
+function getObjectPropertyName(propertyName: ts.PropertyName): string | null {
+  if (
+    ts.isIdentifier(propertyName) ||
+    ts.isStringLiteral(propertyName) ||
+    ts.isNoSubstitutionTemplateLiteral(propertyName) ||
+    ts.isNumericLiteral(propertyName)
+  ) {
+    return propertyName.text;
+  }
+
+  return null;
+}
+
+function hasObjectProperty(expression: ts.Expression | undefined, propertyName: string): boolean {
+  if (!expression) {
+    return false;
+  }
+
+  const unwrapped = unwrapManifestExpression(expression);
+
+  if (!ts.isObjectLiteralExpression(unwrapped)) {
+    return false;
+  }
+
+  return unwrapped.properties.some((property) => {
+    if (
+      ts.isPropertyAssignment(property) ||
+      ts.isMethodDeclaration(property) ||
+      ts.isShorthandPropertyAssignment(property)
+    ) {
+      return property.name ? getObjectPropertyName(property.name) === propertyName : false;
+    }
+
+    return false;
+  });
+}
+
+function resolveRouteLikeFactoryCall(
+  expression: ts.Expression,
+  bindings: ReadonlyMap<string, ts.Expression>,
+  factoryName: string,
+  seenBindings: Set<string>,
+): DiscoveredRouteLikeDefinition | null {
+  const unwrapped = unwrapManifestExpression(expression);
+
+  if (ts.isIdentifier(unwrapped)) {
+    if (seenBindings.has(unwrapped.text)) {
+      return null;
+    }
+
+    const binding = bindings.get(unwrapped.text);
+
+    if (!binding) {
+      return null;
+    }
+
+    const nextSeenBindings = new Set(seenBindings);
+    nextSeenBindings.add(unwrapped.text);
+    return resolveRouteLikeFactoryCall(binding, bindings, factoryName, nextSeenBindings);
+  }
+
+  if (
+    ts.isCallExpression(unwrapped) &&
+    ts.isIdentifier(unwrapped.expression) &&
+    unwrapped.expression.text === factoryName
+  ) {
+    const routeLikePath = getStringLiteralValue(unwrapped.arguments[0]);
+
+    if (!routeLikePath) {
+      return null;
+    }
+
+    return {
+      path: routeLikePath,
+      options: unwrapped.arguments[1],
+    };
+  }
+
+  let discoveredDefinition: DiscoveredRouteLikeDefinition | null = null;
+
+  ts.forEachChild(unwrapped, (child) => {
+    if (discoveredDefinition || !ts.isExpression(child)) {
+      return;
+    }
+
+    discoveredDefinition = resolveRouteLikeFactoryCall(
+      child,
+      bindings,
+      factoryName,
+      new Set(seenBindings),
+    );
+  });
+
+  return discoveredDefinition;
+}
+
+function discoverExportedRouteLikeDefinition(
+  source: string,
+  filePath: string,
+  exportName: string,
+  factoryName: string,
+): DiscoveredRouteLikeDefinition | null {
+  const sourceFile = createModuleSourceFile(filePath, source);
+  const bindings = new Map<string, ts.Expression>();
+  const exportedBindings = new Map<string, string>();
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isVariableStatement(statement)) {
+      const exported = hasExportModifier(statement.modifiers);
+
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name) || !declaration.initializer) {
+          continue;
+        }
+
+        bindings.set(declaration.name.text, declaration.initializer);
+
+        if (exported) {
+          exportedBindings.set(declaration.name.text, declaration.name.text);
+        }
+      }
+
+      continue;
+    }
+
+    if (
+      ts.isExportDeclaration(statement) &&
+      !statement.moduleSpecifier &&
+      statement.exportClause &&
+      ts.isNamedExports(statement.exportClause)
+    ) {
+      for (const element of statement.exportClause.elements) {
+        exportedBindings.set(element.name.text, element.propertyName?.text ?? element.name.text);
+      }
+    }
+  }
+
+  const exportedBinding = exportedBindings.get(exportName);
+
+  if (!exportedBinding) {
+    return null;
+  }
+
+  return resolveRouteLikeFactoryCall(
+    ts.factory.createIdentifier(exportedBinding),
+    bindings,
+    factoryName,
+    new Set(),
+  );
+}
+
 export async function discoverRouteFromFile(
   root: string,
   file: string,
 ): Promise<DiscoveredRoute | null> {
   const source = await readFile(file, "utf8");
-  const match = source.match(
-    /export\s+const\s+route\s*=\s*defineRoute(?:<[\s\S]*?>)?\(\s*["'`]([^"'`]+)["'`]/,
-  );
+  const routeDefinition = discoverExportedRouteLikeDefinition(source, file, "route", "defineRoute");
 
-  if (!match) {
-    return null;
-  }
-
-  const routePath = match[1];
-
-  if (!routePath) {
+  if (!routeDefinition) {
     return null;
   }
 
   const relativeModulePath = normalizeRelativePath(root, file);
 
   return {
-    id: routePath,
-    path: routePath,
+    id: routeDefinition.path,
+    path: routeDefinition.path,
     modulePath: relativeModulePath,
   };
 }
@@ -808,23 +1001,20 @@ export async function discoverLayoutFromFile(
   file: string,
 ): Promise<DiscoveredLayout | null> {
   const source = await readFile(file, "utf8");
-  const match = source.match(
-    /export\s+const\s+layout\s*=\s*defineLayout(?:<[\s\S]*?>)?\(\s*["'`]([^"'`]+)["'`]/,
+  const layoutDefinition = discoverExportedRouteLikeDefinition(
+    source,
+    file,
+    "layout",
+    "defineLayout",
   );
 
-  if (!match) {
-    return null;
-  }
-
-  const layoutPath = match[1];
-
-  if (!layoutPath) {
+  if (!layoutDefinition) {
     return null;
   }
 
   return {
-    id: layoutPath,
-    path: layoutPath,
+    id: layoutDefinition.path,
+    path: layoutDefinition.path,
     modulePath: normalizeRelativePath(root, file),
   };
 }
@@ -847,26 +1037,23 @@ export async function discoverResourceFromFile(
   file: string,
 ): Promise<DiscoveredResource | null> {
   const source = await readFile(file, "utf8");
-  const pathMatch = source.match(
-    /export\s+const\s+resource\s*=\s*defineResource(?:<[\s\S]*?>)?\(\s*["'`]([^"'`]+)["'`]/,
+  const resourceDefinition = discoverExportedRouteLikeDefinition(
+    source,
+    file,
+    "resource",
+    "defineResource",
   );
 
-  if (!pathMatch) {
-    return null;
-  }
-
-  const resourcePath = pathMatch[1];
-
-  if (!resourcePath) {
+  if (!resourceDefinition) {
     return null;
   }
 
   return {
-    path: resourcePath,
+    path: resourceDefinition.path,
     modulePath: normalizeRelativePath(root, file),
-    hasLoader: /\bloader\s*:/.test(source),
-    hasAction: /\baction\s*:/.test(source),
-    hasComponent: /\bcomponent\s*:/.test(source),
+    hasLoader: hasObjectProperty(resourceDefinition.options, "loader"),
+    hasAction: hasObjectProperty(resourceDefinition.options, "action"),
+    hasComponent: hasObjectProperty(resourceDefinition.options, "component"),
   };
 }
 
@@ -888,22 +1075,14 @@ export async function discoverApiRouteFromFile(
   file: string,
 ): Promise<DiscoveredApiRoute | null> {
   const source = await readFile(file, "utf8");
-  const match = source.match(
-    /export\s+const\s+api\s*=\s*defineApiRoute(?:<[\s\S]*?>)?\(\s*["'`]([^"'`]+)["'`]/,
-  );
+  const apiDefinition = discoverExportedRouteLikeDefinition(source, file, "api", "defineApiRoute");
 
-  if (!match) {
-    return null;
-  }
-
-  const apiPath = match[1];
-
-  if (!apiPath) {
+  if (!apiDefinition) {
     return null;
   }
 
   return {
-    path: apiPath,
+    path: apiDefinition.path,
     modulePath: normalizeRelativePath(root, file),
   };
 }

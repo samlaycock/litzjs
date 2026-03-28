@@ -835,6 +835,35 @@ describe("manifest discovery", () => {
         rmSync(root, { force: true, recursive: true });
       }
     });
+
+    test("discovers aliased and wrapped route exports", async () => {
+      const root = createTempProject();
+
+      try {
+        const file = path.join(root, "src", "routes", "dashboard.ts");
+
+        writeFileSync(
+          file,
+          [
+            `import { defineRoute } from "litzjs";`,
+            `const wrapRoute = (value: unknown) => value;`,
+            `const baseRoute = defineRoute("/dashboard", { component: Dashboard });`,
+            `const dashboardRoute = wrapRoute(baseRoute);`,
+            `export { dashboardRoute as route };`,
+          ].join("\n"),
+        );
+
+        const result = await discoverRouteFromFile(root, file);
+
+        expect(result).toEqual({
+          id: "/dashboard",
+          path: "/dashboard",
+          modulePath: "src/routes/dashboard.ts",
+        });
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
   });
 
   describe("discoverLayoutFromFile", () => {
@@ -875,6 +904,33 @@ describe("manifest discovery", () => {
         const result = await discoverLayoutFromFile(root, file);
 
         expect(result).toBeNull();
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("discovers aliased layout exports", async () => {
+      const root = createTempProject();
+
+      try {
+        const file = path.join(root, "src", "routes", "app-layout.tsx");
+
+        writeFileSync(
+          file,
+          [
+            `import { defineLayout } from "litzjs";`,
+            `const appLayout = defineLayout("/app", { component: AppLayout });`,
+            `export { appLayout as layout };`,
+          ].join("\n"),
+        );
+
+        const result = await discoverLayoutFromFile(root, file);
+
+        expect(result).toEqual({
+          id: "/app",
+          path: "/app",
+          modulePath: "src/routes/app-layout.tsx",
+        });
       } finally {
         rmSync(root, { force: true, recursive: true });
       }
@@ -931,6 +987,42 @@ describe("manifest discovery", () => {
         rmSync(root, { force: true, recursive: true });
       }
     });
+
+    test("discovers wrapped resource exports", async () => {
+      const root = createTempProject();
+
+      try {
+        const file = path.join(root, "src", "routes", "resources", "wrapped.ts");
+
+        writeFileSync(
+          file,
+          [
+            `import { defineResource } from "litzjs";`,
+            `const wrapResource = (value: unknown) => value;`,
+            `const wrappedResource = wrapResource(`,
+            `  defineResource("/resource/wrapped", {`,
+            `    loader: async () => {},`,
+            `    action: async () => {},`,
+            `    component: WrappedResource,`,
+            `  }),`,
+            `);`,
+            `export { wrappedResource as resource };`,
+          ].join("\n"),
+        );
+
+        const result = await discoverResourceFromFile(root, file);
+
+        expect(result).toEqual({
+          path: "/resource/wrapped",
+          modulePath: "src/routes/resources/wrapped.ts",
+          hasLoader: true,
+          hasAction: true,
+          hasComponent: true,
+        });
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
   });
 
   describe("discoverApiRouteFromFile", () => {
@@ -967,6 +1059,39 @@ describe("manifest discovery", () => {
         const result = await discoverApiRouteFromFile(root, file);
 
         expect(result).toBeNull();
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("discovers aliased and wrapped API route exports", async () => {
+      const root = createTempProject();
+
+      try {
+        const file = path.join(root, "src", "routes", "api", "wrapped-health.ts");
+
+        writeFileSync(
+          file,
+          [
+            `import { defineApiRoute } from "litzjs";`,
+            `const wrapApi = (value: unknown) => value;`,
+            `const healthApi = wrapApi(`,
+            `  defineApiRoute("/api/wrapped-health", {`,
+            `    GET() {`,
+            `      return Response.json({ ok: true });`,
+            `    },`,
+            `  }),`,
+            `);`,
+            `export { healthApi as api };`,
+          ].join("\n"),
+        );
+
+        const result = await discoverApiRouteFromFile(root, file);
+
+        expect(result).toEqual({
+          path: "/api/wrapped-health",
+          modulePath: "src/routes/api/wrapped-health.ts",
+        });
       } finally {
         rmSync(root, { force: true, recursive: true });
       }
