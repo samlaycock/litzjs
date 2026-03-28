@@ -1,3 +1,4 @@
+import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { defineConfig } from "vite";
@@ -10,7 +11,17 @@ const packageRoot = path.resolve(__dirname, "..");
 
 export default defineConfig(() => ({
   root: rootDir,
-  plugins: [tailwindcss(), litz(), pwa({ registerType: "autoUpdate", outDir: "dist/client" })],
+  plugins: [
+    tailwindcss(),
+    litz(),
+    pwa({ registerType: "autoUpdate", outDir: "dist/client" }),
+    cloudflare({
+      viteEnvironment: {
+        name: "rsc",
+        childEnvironments: ["ssr"],
+      },
+    }),
+  ],
   resolve: {
     alias: [
       {

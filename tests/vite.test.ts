@@ -26,6 +26,7 @@ import {
   discoverRouteFromFile,
   discoverServerEntry,
   handleLitzApiRequest,
+  handleLitzFetchableRequest,
   handleLitzResourceRequest,
   handleLitzRouteRequest,
   transformServerModuleSource,
@@ -1309,6 +1310,120 @@ describe("manifest discovery", () => {
       } finally {
         rmSync(root, { force: true, recursive: true });
       }
+    });
+  });
+
+  describe("fetchable environment request proxying", () => {
+    function createMockFetchableEnv(handler: (request: Request) => Promise<Response>): {
+      dispatchFetch(request: Request): Promise<Response>;
+    } {
+      return { dispatchFetch: handler };
+    }
+
+    test("proxies request through dispatchFetch and writes response to node", async () => {
+      const env = createMockFetchableEnv(async () => {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      });
+      const request = createMockRequest({
+        url: "/_litzjs/resource",
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: "/resources/config", operation: "loader" }),
+      });
+      const response = createMockResponse();
+      const next = mock(() => {});
+
+      await handleLitzFetchableRequest(env, request, response, next);
+
+      expect(response.statusCode).toBe(200);
+      expect(response.getBody()).toBe(JSON.stringify({ ok: true }));
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    test("falls through to next middleware for non-litzjs 404 responses", async () => {
+      const env = createMockFetchableEnv(async () => {
+        return new Response("Not Found", { status: 404 });
+      });
+      const request = createMockRequest({
+        url: "/some-static-asset.css",
+        method: "GET",
+      });
+      const response = createMockResponse();
+      const next = mock(() => {});
+
+      await handleLitzFetchableRequest(env, request, response, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(next).toHaveBeenCalledWith();
+    });
+
+    test("does not fall through for litzjs 404 responses", async () => {
+      const env = createMockFetchableEnv(async () => {
+        return new Response("Resource not found", { status: 404 });
+      });
+      const request = createMockRequest({
+        url: "/_litzjs/resource",
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: "/resources/missing" }),
+      });
+      const response = createMockResponse();
+      const next = mock(() => {});
+
+      await handleLitzFetchableRequest(env, request, response, next);
+
+      expect(response.statusCode).toBe(404);
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    test("passes dispatchFetch errors to next middleware", async () => {
+      const error = new Error("workerd crashed");
+      const env = createMockFetchableEnv(async () => {
+        throw error;
+      });
+      const request = createMockRequest({
+        url: "/_litzjs/route",
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: "/dashboard" }),
+      });
+      const response = createMockResponse();
+      const next = mock(() => {});
+
+      await handleLitzFetchableRequest(env, request, response, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(next).toHaveBeenCalledWith(error);
+    });
+
+    test("preserves response headers from dispatchFetch", async () => {
+      const env = createMockFetchableEnv(async () => {
+        return new Response("streamed", {
+          status: 200,
+          headers: {
+            "content-type": "text/event-stream",
+            "cache-control": "no-cache",
+            "x-custom": "header-value",
+          },
+        });
+      });
+      const request = createMockRequest({
+        url: "/_litzjs/route",
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: "/events" }),
+      });
+      const response = createMockResponse();
+      const next = mock(() => {});
+
+      await handleLitzFetchableRequest(env, request, response, next);
+
+      expect(response.statusCode).toBe(200);
+      expect(response.getBody()).toBe("streamed");
+      expect(next).not.toHaveBeenCalled();
     });
   });
 });
