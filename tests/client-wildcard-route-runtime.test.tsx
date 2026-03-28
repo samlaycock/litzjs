@@ -59,7 +59,7 @@ function HomeRoute(): React.ReactElement {
   const navigate = clientModule.useNavigate();
 
   return (
-    <main>
+    <main id="home-main">
       <div id="route-state" data-value="home-route" />
       <Link href="/docs/getting-started/install">Open docs wildcard route</Link>
       <Link href="/projects/42?tab=activity" prefetchData>
@@ -74,7 +74,11 @@ function HomeRoute(): React.ReactElement {
 }
 
 function DocsRoute(): React.ReactElement {
-  return <div id="route-state" data-value="wildcard-route" />;
+  return (
+    <main id="docs-main">
+      <div id="route-state" data-value="wildcard-route" />
+    </main>
+  );
 }
 
 function BrokenRoute(): React.ReactElement {
@@ -620,6 +624,80 @@ describe("client wildcard route runtime", () => {
 
     expect(window.location.pathname).toBe("/");
     expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe("home-route");
+  });
+
+  test("restores scroll on popstate and focuses the destination main landmark after navigation", async () => {
+    clientModule = await import("../src/client/index");
+
+    await act(async () => {
+      clientModule?.mountApp(container!);
+      await flushApp();
+    });
+
+    const docsLink = container?.querySelector('a[href="/docs/getting-started/install"]');
+
+    window.scrollTo(0, 180);
+    window.dispatchEvent(new Event("scroll"));
+
+    await act(async () => {
+      docsLink?.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+        }),
+      );
+      await flushApp();
+    });
+
+    expect(window.location.pathname).toBe("/docs/getting-started/install");
+    expect(window.scrollY).toBe(0);
+    expect(document.activeElement?.id).toBe("docs-main");
+    expect(document.getElementById("docs-main")?.getAttribute("tabindex")).toBe("-1");
+
+    window.scrollTo(0, 320);
+    window.dispatchEvent(new Event("scroll"));
+
+    await act(async () => {
+      window.history.back();
+      await flushApp();
+    });
+
+    expect(window.location.pathname).toBe("/");
+    expect(window.scrollY).toBe(180);
+    expect(document.activeElement?.id).toBe("home-main");
+  });
+
+  test("allows apps to opt out of managed scroll restoration and focus handoff", async () => {
+    clientModule = await import("../src/client/index");
+
+    await act(async () => {
+      clientModule?.mountApp(container!, {
+        scrollRestoration: false,
+        focusManagement: false,
+      });
+      await flushApp();
+    });
+
+    const docsLink = container?.querySelector('a[href="/docs/getting-started/install"]');
+
+    docsLink?.dispatchEvent(new Event("focus"));
+    window.scrollTo(0, 220);
+
+    await act(async () => {
+      docsLink?.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+        }),
+      );
+      await flushApp();
+    });
+
+    expect(window.location.pathname).toBe("/docs/getting-started/install");
+    expect(window.scrollY).toBe(220);
+    expect(document.activeElement?.id).not.toBe("docs-main");
   });
 
   test("warns when passed a wrapper component instead of the options object", async () => {
