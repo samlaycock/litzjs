@@ -237,7 +237,7 @@ export function createServer<TContext = unknown>(
 }
 
 async function createDocumentResponse(
-  document: CreateServerOptions["document"]  ,
+  document: CreateServerOptions["document"],
   request: Request,
   status: number,
 ): Promise<Response | null> {
