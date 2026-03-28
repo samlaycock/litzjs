@@ -10,8 +10,8 @@ function normalizeWhitespace(value: string) {
   return value.replaceAll(/\s+/g, " ").trim();
 }
 
-describe("docs package names", () => {
-  test("getting started docs guide readers through installation, quick start, then configuration", () => {
+describe("getting started docs flow", () => {
+  test("guides readers through installation, quick start, then configuration", () => {
     const rootLayout = normalizeWhitespace(readDoc("www/src/routes/_layouts/root.tsx"));
     const installationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/installation.tsx"));
     const quickStartDoc = normalizeWhitespace(readDoc("www/src/routes/docs/quick-start.tsx"));
@@ -30,12 +30,16 @@ describe("docs package names", () => {
 
     expect(installationDoc).toContain('Link href="/docs/quick-start"');
     expect(installationDoc).toContain("Quick Start");
+    expect(installationDoc).not.toContain('Link href="/docs/configuration"');
     expect(quickStartDoc).toContain('Link href="/docs/configuration"');
     expect(quickStartDoc).toContain("Configuration &rarr;");
+    expect(quickStartDoc).not.toContain('Link href="/docs/routing"');
     expect(configurationDoc).toContain('Link href="/docs/quick-start"');
     expect(configurationDoc).toContain("&larr; Quick Start");
   });
+});
 
+describe("docs package names", () => {
   test("installation docs use the published package name in every install command", () => {
     const installationDoc = readDoc("www/src/routes/docs/installation.tsx");
 
