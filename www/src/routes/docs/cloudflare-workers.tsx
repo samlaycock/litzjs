@@ -83,6 +83,7 @@ export default {
   "compatibility_date": "2026-03-27",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
+    "directory": "./dist/client",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/_litzjs/*", "/api/*"]
@@ -90,10 +91,10 @@ export default {
 }`}
         />
         <p className="text-neutral-400 mt-4 mb-4">
-          If you use the Cloudflare Vite plugin, it can infer{" "}
-          <code className="text-sky-400">assets.directory</code> from the Vite output. If you are
-          not using the plugin, set <code className="text-sky-400">assets.directory</code> to{" "}
-          <code className="text-sky-400">"./dist/client"</code> yourself.
+          If you use the Cloudflare Vite plugin, keeping{" "}
+          <code className="text-sky-400">assets.directory</code> aligned with{" "}
+          <code className="text-sky-400">dist/client</code> matches the generated output and keeps
+          the JSON example copy-pasteable.
         </p>
       </section>
 

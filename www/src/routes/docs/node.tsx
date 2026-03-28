@@ -136,6 +136,7 @@ export async function sendWebResponse(response: Response, reply: ServerResponse)
           code={`import http from "node:http";
 import { createReadStream } from "node:fs";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import app from "./dist/server/index.js";
 import { sendWebResponse, toWebRequest } from "./node-adapter.js";
 
@@ -145,11 +146,51 @@ const clientDir = path.resolve("dist/client");
 const server = http.createServer(async (req, res) => {
   try {
     const pathname = new URL(req.url ?? "/", "http://internal").pathname;
-
-    const isStaticFile = pathname !== "/" && (pathname.split("/").at(-1) ?? "").includes(".");
+    const isStaticFile = pathname.startsWith("/assets/");
 
     if (isStaticFile) {
-      createReadStream(path.join(clientDir, pathname.slice(1))).pipe(res);
+      try {
+        await pipeline(createReadStream(path.join(clientDir, pathname.slice(1))), res);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          throw error;
+        }
+      }
+
+      if (res.writableEnded) {
+        return;
+      }
+    }
+
+    if (pathname === "/favicon.ico" || pathname === "/robots.txt") {
+      try {
+        await pipeline(createReadStream(path.join(clientDir, pathname.slice(1))), res);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          throw error;
+        }
+      }
+
+      if (res.writableEnded) {
+        return;
+      }
+    }
+
+    if (pathname === "/index.html") {
+      try {
+        await pipeline(createReadStream(path.join(clientDir, "index.html")), res);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          throw error;
+        }
+      }
+
+      if (res.writableEnded) {
+        return;
+      }
+    }
+
+    if (res.writableEnded) {
       return;
     }
 

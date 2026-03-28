@@ -19,6 +19,8 @@ describe("deployment docs", () => {
     expect(nodeDoc).toContain("Readable.toWeb");
     expect(nodeDoc).toContain('express.static(path.join(clientDir, "assets")');
     expect(nodeDoc).toContain("reply.hijack()");
+    expect(nodeDoc).toContain('const isStaticFile = pathname.startsWith("/assets/");');
+    expect(nodeDoc).toContain("await pipeline(createReadStream");
     expect(nodeDoc).toContain("embedAssets");
 
     expect(bunDoc).toContain('import app from "./dist/server/index.js";');
@@ -28,7 +30,7 @@ describe("deployment docs", () => {
 
     expect(cloudflareDoc).toContain("return app.fetch(request);");
     expect(cloudflareDoc).toContain('"run_worker_first": ["/_litzjs/*", "/api/*"]');
-    expect(cloudflareDoc).toContain("assets.directory");
+    expect(cloudflareDoc).toContain('"directory": "./dist/client"');
     expect(cloudflareDoc).toContain("env.ASSETS.fetch(request)");
 
     expect(denoDoc).toContain('import app from "./dist/server/index.js";');

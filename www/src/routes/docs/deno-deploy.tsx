@@ -137,7 +137,7 @@ deployctl deploy --project=my-litz-app --entrypoint=server.ts`}
     "dev": "vite",
     "build": "vite build",
     "start": "deno serve ./server.ts",
-    "deploy": "vite build && deno deploy --prod"
+    "deploy": "vite build && deployctl deploy --project=my-litz-app --entrypoint=server.ts"
   }
 }`}
         />
