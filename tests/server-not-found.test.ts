@@ -42,6 +42,124 @@ describe("server not-found handling", () => {
     expect(await missingResponse.text()).toContain("<h1>Missing</h1>");
   });
 
+  test("supports function-form notFound handlers and falls back to the document when they return null", async () => {
+    const server = createServer({
+      manifest: {
+        routes: [
+          {
+            id: "projects.show",
+            path: "/projects/:id",
+            route: {},
+          },
+        ],
+      },
+      document: '<!doctype html><html><body><div id="app">app</div></body></html>',
+      notFound(request) {
+        const pathname = new URL(request.url).pathname;
+
+        if (pathname === "/missing-hard") {
+          return new Response("<!doctype html><html><body><h1>Hard missing</h1></body></html>", {
+            status: 404,
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+            },
+          });
+        }
+
+        return null;
+      },
+    });
+
+    const fallbackResponse = await server.fetch(
+      new Request("https://app.example.com/missing-soft", {
+        headers: {
+          accept: "text/html",
+        },
+      }),
+    );
+
+    expect(fallbackResponse.status).toBe(200);
+    expect(await fallbackResponse.text()).toContain('id="app"');
+
+    const handledResponse = await server.fetch(
+      new Request("https://app.example.com/missing-hard", {
+        headers: {
+          accept: "text/html",
+        },
+      }),
+    );
+
+    expect(handledResponse.status).toBe(404);
+    expect(await handledResponse.text()).toContain("<h1>Hard missing</h1>");
+  });
+
+  test("clones prebuilt document and notFound responses before returning them", async () => {
+    const sharedDocument = new Response(
+      '<!doctype html><html><body><div id="app">app</div></body></html>',
+      {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+        },
+      },
+    );
+    const sharedNotFound = new Response(
+      "<!doctype html><html><body><h1>Missing</h1></body></html>",
+      {
+        status: 404,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+        },
+      },
+    );
+    const server = createServer({
+      manifest: {
+        routes: [
+          {
+            id: "projects.show",
+            path: "/projects/:id",
+            route: {},
+          },
+        ],
+      },
+      document: sharedDocument,
+      notFound: sharedNotFound,
+    });
+
+    const matchedFirst = await server.fetch(
+      new Request("https://app.example.com/projects/42", {
+        headers: {
+          accept: "text/html",
+        },
+      }),
+    );
+    const matchedSecond = await server.fetch(
+      new Request("https://app.example.com/projects/7", {
+        headers: {
+          accept: "text/html",
+        },
+      }),
+    );
+    const missingFirst = await server.fetch(
+      new Request("https://app.example.com/missing-a", {
+        headers: {
+          accept: "text/html",
+        },
+      }),
+    );
+    const missingSecond = await server.fetch(
+      new Request("https://app.example.com/missing-b", {
+        headers: {
+          accept: "text/html",
+        },
+      }),
+    );
+
+    expect(await matchedFirst.text()).toContain('id="app"');
+    expect(await matchedSecond.text()).toContain('id="app"');
+    expect(await missingFirst.text()).toContain("<h1>Missing</h1>");
+    expect(await missingSecond.text()).toContain("<h1>Missing</h1>");
+  });
+
   test("keeps asset handling ahead of custom notFound responses", async () => {
     const server = createServer({
       notFound: "<!doctype html><html><body><h1>Missing</h1></body></html>",
