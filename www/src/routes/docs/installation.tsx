@@ -77,19 +77,19 @@ function DocsInstallationPage() {
         <CodeBlock
           language="bash"
           code={`# With Bun
-bun add litzjs react react-dom
+bun add react react-dom
 bun add -d typescript vite @vitejs/plugin-rsc
 
 # With npm
-npm install litzjs react react-dom
+npm install react react-dom
 npm install -D typescript vite @vitejs/plugin-rsc
 
 # With Yarn
-yarn add litzjs react react-dom
+yarn add react react-dom
 yarn add -D typescript vite @vitejs/plugin-rsc
 
 # With pnpm
-pnpm add litzjs react react-dom
+pnpm add react react-dom
 pnpm add -D typescript vite @vitejs/plugin-rsc`}
         />
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mt-4 mb-4">
