@@ -102,11 +102,16 @@ export default {
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Build and deploy commands</h2>
-        <p className="text-neutral-400 mb-4">This is the copy-pasteable path for Deno Deploy:</p>
+        <p className="text-neutral-400 mb-4">
+          Use separate commands for local verification and production deployment:
+        </p>
         <CodeBlock
           language="bash"
           code={`vite build
+# Local preview
 deno serve ./server.ts
+
+# Production deploy
 deployctl deploy --project=my-litz-app --entrypoint=server.ts`}
         />
       </section>
