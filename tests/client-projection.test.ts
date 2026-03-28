@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import ts from "typescript";
 
 import { createClientModuleProjection } from "../src/client-projection";
 
@@ -62,6 +63,31 @@ function HomePage() {
     expect(projected).not.toContain("never ship this");
   });
 
+  test("does not pull in shadowed top-level declarations", () => {
+    const source = `
+import { defineRoute } from "litzjs";
+
+const layout = {
+  secret: "server-only",
+};
+
+function Page() {
+  const layout = "client-layout";
+
+  return <main>{layout}</main>;
+}
+
+export const route = defineRoute("/", {
+  component: Page,
+});
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/home.tsx", source);
+
+    expect(projected).toContain('const layout = "client-layout";');
+    expect(projected).not.toContain("server-only");
+  });
+
   test("keeps imported layout bindings named layout when projection resolves real files", () => {
     const fixtureDir = mkdtempSync(join(tmpdir(), "litz-client-projection-"));
     const layoutFile = join(fixtureDir, "layout.tsx");
@@ -106,6 +132,44 @@ export const route = defineRoute("/", {
       expect(projected).toContain("layout: layout");
     } finally {
       rmSync(fixtureDir, { recursive: true, force: true });
+    }
+  });
+
+  test("does not create a TypeScript program for each projection", async () => {
+    const source = `
+import { defineRoute } from "litzjs";
+
+function Page() {
+  return <main>Home</main>;
+}
+
+export const route = defineRoute("/", {
+  component: Page,
+});
+`;
+    const createProgram = mock((...args: Parameters<typeof ts.createProgram>) => {
+      throw new Error(
+        `createProgram should not be called: ${args[0]?.join(",") ?? "unknown root names"}`,
+      );
+    });
+
+    void mock.module("typescript", () => ({
+      default: {
+        ...ts,
+        createProgram,
+      },
+    }));
+
+    try {
+      const { createClientModuleProjection: createProjectionWithoutProgram } = await import(
+        `../src/client-projection.ts?without-program=${Date.now()}`
+      );
+
+      createProjectionWithoutProgram("/virtual/routes/home.tsx", source);
+
+      expect(createProgram).not.toHaveBeenCalled();
+    } finally {
+      mock.restore();
     }
   });
 });

@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import ts from "typescript";
 
 export function createClientModuleProjection(filePath: string, source: string): string | null {
@@ -11,40 +9,6 @@ export function createClientModuleProjection(filePath: string, source: string): 
     true,
     scriptKind,
   );
-  const compilerOptions: ts.CompilerOptions = {
-    target: ts.ScriptTarget.ESNext,
-    module: ts.ModuleKind.ESNext,
-    jsx: ts.JsxEmit.Preserve,
-    moduleResolution: ts.ModuleResolutionKind.Bundler,
-    allowJs: true,
-  };
-  const host = ts.createCompilerHost(compilerOptions, true);
-  const originalGetSourceFile = host.getSourceFile.bind(host);
-
-  host.getSourceFile = (fileName, languageVersion, onError, shouldCreateNewSourceFile) => {
-    if (path.resolve(fileName) === path.resolve(filePath)) {
-      return sourceFile;
-    }
-
-    return originalGetSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile);
-  };
-  host.readFile = (fileName) => {
-    if (path.resolve(fileName) === path.resolve(filePath)) {
-      return source;
-    }
-
-    return readFileSync(fileName, "utf8");
-  };
-  host.fileExists = (fileName) => {
-    if (path.resolve(fileName) === path.resolve(filePath)) {
-      return true;
-    }
-
-    return ts.sys.fileExists(fileName);
-  };
-
-  const program = ts.createProgram([filePath], compilerOptions, host);
-  const checker = program.getTypeChecker();
   const topLevelDeclarations = collectTopLevelDeclarations(sourceFile);
   const importStatements = sourceFile.statements.filter(ts.isImportDeclaration);
   const topLevelNames = new Set(topLevelDeclarations.keys());
@@ -68,7 +32,6 @@ export function createClientModuleProjection(filePath: string, source: string): 
 
     const referencedNames = collectReferencedNames(
       statement,
-      checker,
       topLevelNames,
       importBindings,
       shouldSkipProjectionSubtree,
@@ -220,16 +183,14 @@ function collectImportBindings(imports: readonly ts.ImportDeclaration[]): Set<st
 
 function collectReferencedNames(
   statement: ts.Statement,
-  checker: ts.TypeChecker,
   topLevelNames: Set<string>,
   importBindings: Set<string>,
   shouldSkipSubtree: (node: ts.Node) => boolean,
 ): { locals: Set<string>; imports: Set<string> } {
   const locals = new Set<string>();
   const imports = new Set<string>();
-  const sourceFile = statement.getSourceFile();
 
-  function visit(node: ts.Node): void {
+  function visit(node: ts.Node, scopes: readonly ReadonlySet<string>[]): void {
     if (shouldSkipSubtree(node)) {
       return;
     }
@@ -238,51 +199,19 @@ function collectReferencedNames(
       return;
     }
 
+    const nextScopes = getProjectionScopes(node, scopes);
+
     if (ts.isIdentifier(node)) {
       if (isIgnoredIdentifierReference(node)) {
         return;
       }
 
-      const symbol = checker.getSymbolAtLocation(node);
-      const declarations = symbol?.declarations ?? [];
-      const declaration = declarations[0];
+      if (isShadowedProjectionReference(node.text, nextScopes)) {
+        return;
+      }
 
       if (importBindings.has(node.text)) {
-        if (!declaration) {
-          imports.add(node.text);
-          return;
-        }
-
-        if (isImportBindingDeclaration(declaration)) {
-          imports.add(node.text);
-          return;
-        }
-
-        if (declarations.every((candidate) => candidate.getSourceFile() !== sourceFile)) {
-          imports.add(node.text);
-          return;
-        }
-      }
-
-      if (!declaration) {
-        return;
-      }
-
-      if (isImportBindingDeclaration(declaration)) {
-        if (importBindings.has(node.text)) {
-          imports.add(node.text);
-        }
-
-        return;
-      }
-
-      const declarationFile = declaration.getSourceFile();
-
-      if (declarationFile !== statement.getSourceFile()) {
-        if (importBindings.has(node.text)) {
-          imports.add(node.text);
-        }
-
+        imports.add(node.text);
         return;
       }
 
@@ -293,11 +222,171 @@ function collectReferencedNames(
       return;
     }
 
-    ts.forEachChild(node, visit);
+    ts.forEachChild(node, (child) => visit(child, nextScopes));
   }
 
-  visit(statement);
+  visit(statement, []);
   return { locals, imports };
+}
+
+function getProjectionScopes(
+  node: ts.Node,
+  scopes: readonly ReadonlySet<string>[],
+): readonly ReadonlySet<string>[] {
+  const bindings = collectProjectionScopeBindings(node);
+
+  if (!bindings || bindings.size === 0) {
+    return scopes;
+  }
+
+  return [...scopes, bindings];
+}
+
+function collectProjectionScopeBindings(node: ts.Node): ReadonlySet<string> | null {
+  if (isProjectionFunctionLike(node)) {
+    const bindings = new Set<string>();
+
+    for (const parameter of node.parameters) {
+      collectBindingNames(parameter.name, bindings);
+    }
+
+    if (node.body) {
+      collectFunctionScopedVarBindings(node.body, bindings);
+    }
+
+    return bindings;
+  }
+
+  if (ts.isBlock(node)) {
+    return collectBlockScopeBindings(node.statements);
+  }
+
+  if (ts.isCaseBlock(node)) {
+    const statements = node.clauses.flatMap((clause) => clause.statements);
+
+    return collectBlockScopeBindings(statements);
+  }
+
+  if (ts.isCatchClause(node)) {
+    const bindings = new Set<string>();
+
+    if (node.variableDeclaration) {
+      collectBindingNames(node.variableDeclaration.name, bindings);
+    }
+
+    return bindings;
+  }
+
+  if (
+    (ts.isForStatement(node) || ts.isForInStatement(node) || ts.isForOfStatement(node)) &&
+    node.initializer &&
+    ts.isVariableDeclarationList(node.initializer) &&
+    isBlockScopedDeclarationList(node.initializer)
+  ) {
+    const bindings = new Set<string>();
+
+    collectVariableDeclarationListBindings(node.initializer, bindings);
+    return bindings;
+  }
+
+  return null;
+}
+
+function collectFunctionScopedVarBindings(node: ts.Node, bindings: Set<string>): void {
+  function visit(current: ts.Node): void {
+    if (current !== node && isProjectionFunctionLike(current)) {
+      return;
+    }
+
+    if (ts.isVariableDeclarationList(current) && !isBlockScopedDeclarationList(current)) {
+      collectVariableDeclarationListBindings(current, bindings);
+    }
+
+    ts.forEachChild(current, visit);
+  }
+
+  visit(node);
+}
+
+function collectBlockScopeBindings(statements: readonly ts.Statement[]): ReadonlySet<string> {
+  const bindings = new Set<string>();
+
+  for (const statement of statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      bindings.add(statement.name.text);
+      continue;
+    }
+
+    if (ts.isClassDeclaration(statement) && statement.name) {
+      bindings.add(statement.name.text);
+      continue;
+    }
+
+    if (
+      ts.isVariableStatement(statement) &&
+      isBlockScopedDeclarationList(statement.declarationList)
+    ) {
+      collectVariableDeclarationListBindings(statement.declarationList, bindings);
+    }
+  }
+
+  return bindings;
+}
+
+function collectVariableDeclarationListBindings(
+  declarationList: ts.VariableDeclarationList,
+  bindings: Set<string>,
+): void {
+  for (const declaration of declarationList.declarations) {
+    collectBindingNames(declaration.name, bindings);
+  }
+}
+
+function collectBindingNames(name: ts.BindingName, bindings: Set<string>): void {
+  if (ts.isIdentifier(name)) {
+    bindings.add(name.text);
+    return;
+  }
+
+  for (const element of name.elements) {
+    if (!ts.isBindingElement(element)) {
+      continue;
+    }
+
+    collectBindingNames(element.name, bindings);
+  }
+}
+
+function isProjectionFunctionLike(
+  node: ts.Node,
+): node is
+  | ts.FunctionDeclaration
+  | ts.FunctionExpression
+  | ts.ArrowFunction
+  | ts.MethodDeclaration {
+  return (
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isMethodDeclaration(node)
+  );
+}
+
+function isBlockScopedDeclarationList(declarationList: ts.VariableDeclarationList): boolean {
+  return (declarationList.flags & ts.NodeFlags.BlockScoped) !== 0;
+}
+
+function isShadowedProjectionReference(
+  name: string,
+  scopes: readonly ReadonlySet<string>[],
+): boolean {
+  for (let index = scopes.length - 1; index >= 0; index -= 1) {
+    if (scopes[index]?.has(name)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function isIgnoredIdentifierReference(node: ts.Identifier): boolean {
@@ -322,6 +411,7 @@ function isIgnoredIdentifierReference(node: ts.Identifier): boolean {
   if (
     ts.isVariableDeclaration(parent) ||
     ts.isFunctionDeclaration(parent) ||
+    ts.isFunctionExpression(parent) ||
     ts.isParameter(parent) ||
     ts.isBindingElement(parent) ||
     ts.isClassDeclaration(parent)
@@ -551,15 +641,6 @@ function getObjectPropertyName(name: ts.PropertyName): string | null {
   }
 
   return null;
-}
-
-function isImportBindingDeclaration(declaration: ts.Declaration): boolean {
-  return (
-    ts.isImportClause(declaration) ||
-    ts.isImportSpecifier(declaration) ||
-    ts.isNamespaceImport(declaration) ||
-    ts.isImportEqualsDeclaration(declaration)
-  );
 }
 
 function isServerOnlyProjectionProperty(
