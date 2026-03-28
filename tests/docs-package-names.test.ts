@@ -105,7 +105,7 @@ describe("docs package names", () => {
     expect(apiReferenceDoc).toContain(
       "Complete reference for all exports from litzjs, litzjs/client, litzjs/server, and litzjs/vite.",
     );
-    expect(apiReferenceDoc).toContain(">litzjs</h2>");
+    expect(apiReferenceDoc).toContain('title="litzjs"');
     expect(apiReferenceDoc).not.toContain("exports from litz, litzjs/client");
   });
 
@@ -127,6 +127,138 @@ describe("docs package names", () => {
     );
     expect(navigationDoc).not.toContain(
       'Import from <code className="text-sky-400">"litz"</code>.',
+    );
+  });
+
+  test("api reference covers the complete documented public package surface", () => {
+    const apiReferenceDoc = normalizeWhitespace(readDoc("www/src/routes/docs/api-reference.tsx"));
+
+    const litzExports = [
+      "ActionErrorResultFor",
+      "ActionHookResult",
+      "ActionHookResultFor",
+      "ActionSuccessResultFor",
+      "ApiFetchOptions",
+      "ApiHandlerContext",
+      "ApiRouteHandler",
+      "ApiRouteHandlers",
+      "ApiRouteMethod",
+      "DataResult",
+      "DefineApiRouteOptions",
+      "DefineLayoutOptions",
+      "DefineRouteOptions",
+      "ErrorResult",
+      "FaultResult",
+      "FormDataPayloadRecord",
+      "FormDataPayloadValue",
+      "FormJsonValue",
+      "InputParserContext",
+      "InputValidationOptions",
+      "InvalidResult",
+      "LayoutReference",
+      "LitzApiRoute",
+      "LitzLayout",
+      "LitzLocation",
+      "LitzMatch",
+      "LitzResource",
+      "LitzRoute",
+      "LoaderHookResult",
+      "LoaderHookResultFor",
+      "Middleware",
+      "MiddlewareContext",
+      "MiddlewareHandler",
+      "MiddlewareNext",
+      "MiddlewareOverrides",
+      "MiddlewareRef",
+      "NormalizedResult",
+      "PathParams",
+      "RedirectResult",
+      "ResourceComponentProps",
+      "ResourceHandlerContext",
+      "ResourceRequest",
+      "ResourceServerHandler",
+      "RouteErrorLike",
+      "RouteExplicitErrorLike",
+      "RouteFaultLike",
+      "RouteFormProps",
+      "RouteHandlerContext",
+      "RouteServerHandler",
+      "RouteStatus",
+      "SearchParamRecord",
+      "SearchParamValue",
+      "SearchParamsUpdate",
+      "ServerHandler",
+      "ServerResult",
+      "SetResourceSearchParams",
+      "SetSearchParams",
+      "SubmitOptions",
+      "SubmitPayload",
+      "ValidatedInput",
+      "ViewResult",
+      "data",
+      "defineApiRoute",
+      "defineLayout",
+      "defineResource",
+      "defineRoute",
+      "error",
+      "fault",
+      "formJson",
+      "invalid",
+      "redirect",
+      "server",
+      "useLocation",
+      "useMatches",
+      "usePathname",
+      "view",
+      "withHeaders",
+    ];
+
+    const clientExports = [
+      "Link",
+      "MountAppOptions",
+      "mountApp",
+      "useLocation",
+      "useMatches",
+      "useNavigate",
+      "usePathname",
+    ];
+
+    const serverExports = ["CreateServerOptions", "createServer"];
+
+    const viteExports = [
+      "LitzPluginOptions",
+      "cleanupRscPluginArtifacts",
+      "litz",
+      "transformServerModuleSource",
+    ];
+
+    for (const symbol of litzExports) {
+      expect(apiReferenceDoc).toContain(symbol);
+    }
+
+    for (const symbol of clientExports) {
+      expect(apiReferenceDoc).toContain(symbol);
+    }
+
+    for (const symbol of serverExports) {
+      expect(apiReferenceDoc).toContain(symbol);
+    }
+
+    for (const symbol of viteExports) {
+      expect(apiReferenceDoc).toContain(symbol);
+    }
+
+    expect(apiReferenceDoc).toContain("expected application failures");
+    expect(apiReferenceDoc).toContain("unexpected runtime failures");
+    expect(apiReferenceDoc).toContain(
+      "`route.useData()`, `route.useView()`, and `route.useError()` return the latest settled loader/action state for that route.",
+    );
+    expect(apiReferenceDoc).toContain("resource.Component");
+    expect(apiReferenceDoc).toContain(
+      'Import from <code className="text-sky-400">{importPath}</code>.',
+    );
+    expect(apiReferenceDoc).toContain(
+      "Most apps only need `litz(...)`, but the helper exports are public",
     );
   });
 });
