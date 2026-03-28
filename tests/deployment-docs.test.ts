@@ -21,6 +21,7 @@ describe("deployment docs", () => {
     expect(nodeDoc).toContain("reply.hijack()");
     expect(nodeDoc).toContain('const isStaticFile = pathname.startsWith("/assets/");');
     expect(nodeDoc).toContain("await pipeline(createReadStream");
+    expect(nodeDoc).toContain("res.writableEnded || res.destroyed");
     expect(nodeDoc).toContain("embedAssets");
 
     expect(bunDoc).toContain('import app from "./dist/server/index.js";');
