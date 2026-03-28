@@ -8,10 +8,13 @@
   "routes": [
     {
       "pattern": "litzjs.dev",
-      "custom_domain": true,
-    },
+      "custom_domain": true
+    }
   ],
   "observability": {
-    "enabled": true,
+    "enabled": true
   },
+  "assets": {
+    "not_found_handling": "single-page-application"
+  }
 }
