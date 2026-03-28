@@ -1,16 +1,9 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "litzjs-docs",
-  "account_id": "42ac382cf61662acfd7ac8ab4b3a3929",
+  "name": "litz-fixture-rsc-smoke",
   "compatibility_date": "2026-03-17",
   "compatibility_flags": ["nodejs_compat"],
   "main": "./src/server.ts",
-  "routes": [
-    {
-      "pattern": "litzjs.dev",
-      "custom_domain": true,
-    },
-  ],
   "observability": {
     "enabled": true,
   },
