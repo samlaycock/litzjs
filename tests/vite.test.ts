@@ -1023,6 +1023,39 @@ describe("manifest discovery", () => {
         rmSync(root, { force: true, recursive: true });
       }
     });
+
+    test("detects extracted resource options from a local binding", async () => {
+      const root = createTempProject();
+
+      try {
+        const file = path.join(root, "src", "routes", "resources", "bound-options.ts");
+
+        writeFileSync(
+          file,
+          [
+            `import { defineResource } from "litzjs";`,
+            `const options = {`,
+            `  loader: async () => {},`,
+            `  action: async () => {},`,
+            `  component: BoundOptionsResource,`,
+            `};`,
+            `export const resource = defineResource("/resource/bound-options", options);`,
+          ].join("\n"),
+        );
+
+        const result = await discoverResourceFromFile(root, file);
+
+        expect(result).toEqual({
+          path: "/resource/bound-options",
+          modulePath: "src/routes/resources/bound-options.ts",
+          hasLoader: true,
+          hasAction: true,
+          hasComponent: true,
+        });
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
   });
 
   describe("discoverApiRouteFromFile", () => {
@@ -1091,6 +1124,35 @@ describe("manifest discovery", () => {
         expect(result).toEqual({
           path: "/api/wrapped-health",
           modulePath: "src/routes/api/wrapped-health.ts",
+        });
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("discovers route-like exports from JavaScript modules", async () => {
+      const root = createTempProject();
+
+      try {
+        const file = path.join(root, "src", "routes", "api", "health.mjs");
+
+        writeFileSync(
+          file,
+          [
+            `import { defineApiRoute } from "litzjs";`,
+            `export const api = defineApiRoute("/api/js-health", {`,
+            `  GET() {`,
+            `    return Response.json({ ok: true });`,
+            `  },`,
+            `});`,
+          ].join("\n"),
+        );
+
+        const result = await discoverApiRouteFromFile(root, file);
+
+        expect(result).toEqual({
+          path: "/api/js-health",
+          modulePath: "src/routes/api/health.mjs",
         });
       } finally {
         rmSync(root, { force: true, recursive: true });

@@ -785,7 +785,9 @@ function createModuleSourceFile(filePath: string, source: string): ts.SourceFile
     ? ts.ScriptKind.TSX
     : filePath.endsWith(".jsx")
       ? ts.ScriptKind.JSX
-      : ts.ScriptKind.TS;
+      : filePath.endsWith(".js") || filePath.endsWith(".mjs") || filePath.endsWith(".cjs")
+        ? ts.ScriptKind.JS
+        : ts.ScriptKind.TS;
 
   return ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, scriptKind);
 }
@@ -838,18 +840,48 @@ function getObjectPropertyName(propertyName: ts.PropertyName): string | null {
   return null;
 }
 
-function hasObjectProperty(expression: ts.Expression | undefined, propertyName: string): boolean {
+function resolveBoundExpression(
+  expression: ts.Expression | undefined,
+  bindings: ReadonlyMap<string, ts.Expression>,
+  seenBindings: Set<string>,
+): ts.Expression | null {
   if (!expression) {
-    return false;
+    return null;
   }
 
   const unwrapped = unwrapManifestExpression(expression);
 
-  if (!ts.isObjectLiteralExpression(unwrapped)) {
+  if (ts.isIdentifier(unwrapped)) {
+    if (seenBindings.has(unwrapped.text)) {
+      return null;
+    }
+
+    const binding = bindings.get(unwrapped.text);
+
+    if (!binding) {
+      return null;
+    }
+
+    const nextSeenBindings = new Set(seenBindings);
+    nextSeenBindings.add(unwrapped.text);
+    return resolveBoundExpression(binding, bindings, nextSeenBindings);
+  }
+
+  return unwrapped;
+}
+
+function hasObjectProperty(
+  expression: ts.Expression | undefined,
+  bindings: ReadonlyMap<string, ts.Expression>,
+  propertyName: string,
+): boolean {
+  const resolvedExpression = resolveBoundExpression(expression, bindings, new Set());
+
+  if (!resolvedExpression || !ts.isObjectLiteralExpression(resolvedExpression)) {
     return false;
   }
 
-  return unwrapped.properties.some((property) => {
+  return resolvedExpression.properties.some((property) => {
     if (
       ts.isPropertyAssignment(property) ||
       ts.isMethodDeclaration(property) ||
@@ -916,6 +948,8 @@ function resolveRouteLikeFactoryCall(
       factoryName,
       new Set(seenBindings),
     );
+
+    return discoveredDefinition ?? undefined;
   });
 
   return discoveredDefinition;
@@ -1048,12 +1082,29 @@ export async function discoverResourceFromFile(
     return null;
   }
 
+  const sourceFile = createModuleSourceFile(file, source);
+  const bindings = new Map<string, ts.Expression>();
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) {
+      continue;
+    }
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) {
+        continue;
+      }
+
+      bindings.set(declaration.name.text, declaration.initializer);
+    }
+  }
+
   return {
     path: resourceDefinition.path,
     modulePath: normalizeRelativePath(root, file),
-    hasLoader: hasObjectProperty(resourceDefinition.options, "loader"),
-    hasAction: hasObjectProperty(resourceDefinition.options, "action"),
-    hasComponent: hasObjectProperty(resourceDefinition.options, "component"),
+    hasLoader: hasObjectProperty(resourceDefinition.options, bindings, "loader"),
+    hasAction: hasObjectProperty(resourceDefinition.options, bindings, "action"),
+    hasComponent: hasObjectProperty(resourceDefinition.options, bindings, "component"),
   };
 }
 
