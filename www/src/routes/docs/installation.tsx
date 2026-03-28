@@ -192,10 +192,11 @@ export default defineConfig({
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Next steps</h2>
         <p className="text-neutral-400 mb-4">
           Head to the{" "}
-          <Link href="/docs/configuration" className="text-sky-400 hover:text-sky-300">
-            Configuration
+          <Link href="/docs/quick-start" className="text-sky-400 hover:text-sky-300">
+            Quick Start
           </Link>{" "}
-          page to customize route discovery patterns and server entry options.
+          guide to get a running app in place before you fine-tune route discovery patterns and
+          server entry options in Configuration.
         </p>
       </section>
 
@@ -204,10 +205,10 @@ export default defineConfig({
           &larr; Introduction
         </Link>
         <Link
-          href="/docs/configuration"
+          href="/docs/quick-start"
           className="text-sky-500 hover:text-sky-400 transition-colors"
         >
-          Configuration &rarr;
+          Quick Start &rarr;
         </Link>
       </div>
     </>

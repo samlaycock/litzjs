@@ -11,6 +11,31 @@ function normalizeWhitespace(value: string) {
 }
 
 describe("docs package names", () => {
+  test("getting started docs guide readers through installation, quick start, then configuration", () => {
+    const rootLayout = normalizeWhitespace(readDoc("www/src/routes/_layouts/root.tsx"));
+    const installationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/installation.tsx"));
+    const quickStartDoc = normalizeWhitespace(readDoc("www/src/routes/docs/quick-start.tsx"));
+    const configurationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/configuration.tsx"));
+
+    expect(rootLayout).toContain('{ title: "Introduction", path: "/docs" },');
+    expect(rootLayout).toContain('{ title: "Installation", path: "/docs/installation" },');
+    expect(rootLayout).toContain('{ title: "Quick Start", path: "/docs/quick-start" },');
+    expect(rootLayout).toContain('{ title: "Configuration", path: "/docs/configuration" },');
+    expect(
+      rootLayout.indexOf('{ title: "Installation", path: "/docs/installation" },'),
+    ).toBeLessThan(rootLayout.indexOf('{ title: "Quick Start", path: "/docs/quick-start" },'));
+    expect(rootLayout.indexOf('{ title: "Quick Start", path: "/docs/quick-start" },')).toBeLessThan(
+      rootLayout.indexOf('{ title: "Configuration", path: "/docs/configuration" },'),
+    );
+
+    expect(installationDoc).toContain('Link href="/docs/quick-start"');
+    expect(installationDoc).toContain("Quick Start");
+    expect(quickStartDoc).toContain('Link href="/docs/configuration"');
+    expect(quickStartDoc).toContain("Configuration &rarr;");
+    expect(configurationDoc).toContain('Link href="/docs/quick-start"');
+    expect(configurationDoc).toContain("&larr; Quick Start");
+  });
+
   test("installation docs use the published package name in every install command", () => {
     const installationDoc = readDoc("www/src/routes/docs/installation.tsx");
 
