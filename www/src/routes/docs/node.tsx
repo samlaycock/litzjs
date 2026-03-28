@@ -157,7 +157,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      if (res.writableEnded) {
+      if (res.writableEnded || res.destroyed) {
         return;
       }
     }
@@ -171,7 +171,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      if (res.writableEnded) {
+      if (res.writableEnded || res.destroyed) {
         return;
       }
     }
@@ -185,12 +185,12 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      if (res.writableEnded) {
+      if (res.writableEnded || res.destroyed) {
         return;
       }
     }
 
-    if (res.writableEnded) {
+    if (res.writableEnded || res.destroyed) {
       return;
     }
 
