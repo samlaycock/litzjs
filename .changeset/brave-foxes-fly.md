@@ -2,6 +2,8 @@
 "litzjs": minor
 ---
 
-Support FetchableDevEnvironment in dev server for Cloudflare Workers Vite plugin compatibility.
+Guard non-runnable RSC dev environments and support Cloudflare fixture builds in clean checkouts.
 
-When the `rsc` environment is a `FetchableDevEnvironment` (e.g. provided by `@cloudflare/vite-plugin`), the dev server now proxies requests through `dispatchFetch()` instead of using in-process module loading. The existing `RunnableDevEnvironment` codepath is completely unchanged.
+The Vite dev middleware now bypasses the in-process resource, route, API, and document handlers when the `rsc` environment has no runnable server module loader. This prevents crashes in non-runnable environments while preserving the existing runnable codepath.
+
+The root development install now also includes `@cloudflare/vite-plugin`, which keeps the Cloudflare smoke fixture and related production helper tests working in clean CI checkouts.
