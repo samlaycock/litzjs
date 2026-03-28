@@ -3,6 +3,8 @@ import { Link, useLocation } from "litzjs/client";
 import { useState } from "react";
 import { DiGithubBadge, DiNpm } from "react-icons/di";
 
+import { siteMetadata } from "../../site-metadata";
+
 const DOCS_NAV = [
   {
     title: "Getting Started",
@@ -114,10 +116,10 @@ function RootLayout({ children }: React.PropsWithChildren<{}>) {
           </nav>
         </div>
         <div className="flex flex-row items-center gap-2">
-          <a href="https://www.npmjs.com/package/litzjs" target="_blank" rel="noreferrer">
+          <a href={siteMetadata.npmPackageUrl} target="_blank" rel="noreferrer">
             <DiNpm size={32} className="fill-sky-500 hover:fill-sky-400" />
           </a>
-          <a href="https://github.com/samlaycock/litz" target="_blank" rel="noreferrer">
+          <a href={siteMetadata.githubRepositoryUrl} target="_blank" rel="noreferrer">
             <DiGithubBadge size={32} className="fill-sky-500 hover:fill-sky-400" />
           </a>
         </div>

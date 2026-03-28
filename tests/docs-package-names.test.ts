@@ -38,4 +38,25 @@ describe("docs package names", () => {
     expect(apiReferenceDoc).toContain(">litzjs</h2>");
     expect(apiReferenceDoc).not.toContain("exports from litz, litzjs/client");
   });
+
+  test("docs navigation copy and header links use the published package and repository names", () => {
+    const siteMetadata = readDoc("www/src/site-metadata.ts");
+    const rootLayout = readDoc("www/src/routes/_layouts/root.tsx");
+    const navigationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/navigation.tsx"));
+
+    expect(siteMetadata).toContain('githubRepositoryUrl: "https://github.com/samlaycock/litzjs"');
+    expect(siteMetadata).not.toMatch(/https:\/\/github\.com\/samlaycock\/litz(?!js)/);
+
+    expect(rootLayout).toContain("href={siteMetadata.githubRepositoryUrl}");
+    expect(rootLayout).toContain("href={siteMetadata.npmPackageUrl}");
+    expect(rootLayout).not.toMatch(/https:\/\/github\.com\/samlaycock\/litz(?!js)/);
+
+    expect(navigationDoc).toContain('Import from <code className="text-sky-400">"litzjs"</code>.');
+    expect(navigationDoc).toContain(
+      'Import from <code className="text-sky-400">"litzjs/client"</code>. Returns a function',
+    );
+    expect(navigationDoc).not.toContain(
+      'Import from <code className="text-sky-400">"litz"</code>.',
+    );
+  });
 });

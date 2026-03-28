@@ -2,6 +2,7 @@ import { defineRoute } from "litzjs";
 
 import { Button } from "../components/button";
 import { EnergyVisualization } from "../components/energy-visualization";
+import { siteMetadata } from "../site-metadata";
 
 export const route = defineRoute("/", {
   component: HomePage,
@@ -29,7 +30,7 @@ function HomePage() {
               <Button
                 variant="secondary"
                 as="anchor"
-                href="https://github.com/samlaycock/litzjs"
+                href={siteMetadata.githubRepositoryUrl}
                 target="_blank"
                 rel="noreferrer"
               >
