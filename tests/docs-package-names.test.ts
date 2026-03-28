@@ -19,10 +19,10 @@ describe("docs package names", () => {
     expect(installationDoc).toContain("yarn add litzjs");
     expect(installationDoc).toContain("pnpm add litzjs");
 
-    expect(installationDoc).not.toContain("bun add litz`");
-    expect(installationDoc).not.toContain("npm install litz`");
-    expect(installationDoc).not.toContain("yarn add litz`");
-    expect(installationDoc).not.toContain("pnpm add litz`");
+    expect(installationDoc).not.toMatch(/bun add litz(?!js)/);
+    expect(installationDoc).not.toMatch(/npm install litz(?!js)/);
+    expect(installationDoc).not.toMatch(/yarn add litz(?!js)/);
+    expect(installationDoc).not.toMatch(/pnpm add litz(?!js)/);
   });
 
   test("deployment and API reference docs use the published package name", () => {
