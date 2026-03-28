@@ -237,7 +237,7 @@ export function createServer<TContext = unknown>(
 }
 
 async function createDocumentResponse(
-  document: CreateServerOptions["document"],
+  document: DocumentResponseOption | undefined,
   request: Request,
   status: number,
 ): Promise<Response | null> {
@@ -261,7 +261,7 @@ async function createDocumentResponse(
   }
 
   if (resolvedDocument instanceof Response) {
-    return resolvedDocument;
+    return resolvedDocument.clone();
   }
 
   return new Response(request.method === "HEAD" ? null : String(resolvedDocument), {
