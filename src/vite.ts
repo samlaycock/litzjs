@@ -2639,6 +2639,7 @@ function finalizeServerArtifacts(
 ): boolean {
   let rscEntrySource: string;
   let rscAssetsManifestSource: string;
+  let rscEncryptionKeySource: string | null = null;
   let documentHtml = "";
   let clientAssets: EmbeddedClientAsset[] = [];
 
@@ -2657,22 +2658,48 @@ function finalizeServerArtifacts(
     return false;
   }
 
-  const manifestBindingSource = rscAssetsManifestSource.replace(
-    /^export default\s+/,
-    "const assetsManifest = ",
+  const manifestBindingSource = createDefaultExportConstSource(
+    rscAssetsManifestSource,
+    "assetsManifest",
   );
 
-  if (manifestBindingSource === rscAssetsManifestSource) {
+  if (!manifestBindingSource) {
     return false;
   }
 
-  const inlinedServerSource = rscEntrySource.replace(
+  let inlinedServerSource = rscEntrySource.replace(
     'import assetsManifest from "./__vite_rsc_assets_manifest.js";',
     manifestBindingSource,
   );
 
   if (inlinedServerSource === rscEntrySource) {
     return false;
+  }
+
+  if (inlinedServerSource.includes("__vite_rsc_encryption_key.js")) {
+    try {
+      rscEncryptionKeySource = readFileSync(
+        path.join(serverOutDir, "__vite_rsc_encryption_key.js"),
+        "utf8",
+      );
+    } catch {
+      return false;
+    }
+
+    const encryptionKeyExpression = extractDefaultExportExpression(rscEncryptionKeySource);
+
+    if (!encryptionKeyExpression) {
+      return false;
+    }
+
+    inlinedServerSource = inlinedServerSource.replaceAll(
+      RSC_ENCRYPTION_KEY_IMPORT_PATTERN,
+      `Promise.resolve(${encryptionKeyExpression})`,
+    );
+
+    if (inlinedServerSource.includes("__vite_rsc_encryption_key.js")) {
+      return false;
+    }
   }
 
   let wrapperSource: string;
@@ -2696,6 +2723,19 @@ export function cleanupRscPluginArtifacts(serverOutDir: string): void {
       rmSync(path.join(serverOutDir, entry), { force: true, recursive: true });
     }
   }
+}
+
+const RSC_ENCRYPTION_KEY_IMPORT_PATTERN =
+  /import\((["'])\.\/__vite_rsc_encryption_key\.js\1\)\.then\(\s*\(?\s*([$\w]+)\s*\)?\s*=>\s*\2\.default\s*\)/g;
+
+function extractDefaultExportExpression(source: string): string | null {
+  const match = source.match(/^export default\s+([\s\S]*?);?\s*$/);
+  return match?.[1]?.trim() || null;
+}
+
+function createDefaultExportConstSource(source: string, bindingName: string): string | null {
+  const expression = extractDefaultExportExpression(source);
+  return expression ? `const ${bindingName} = ${expression};` : null;
 }
 
 function createServerModuleWrapper(serverModuleSource: string): string {

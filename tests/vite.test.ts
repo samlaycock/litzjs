@@ -135,6 +135,40 @@ export default createServer({ helper });
     }
   });
 
+  test("inlines the RSC encryption key before cleaning up server artifacts", () => {
+    const repoRoot = process.cwd();
+    const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
+    const root = mkdtempSync(path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-encryption-"));
+
+    try {
+      cpSync(path.join(sourceFixtureRoot, "."), root, { recursive: true });
+
+      const build = spawnSync(
+        process.execPath,
+        ["x", "vite", "build", "--config", path.join(root, "vite.config.ts")],
+        {
+          cwd: repoRoot,
+          encoding: "utf8",
+          timeout: 55_000,
+        },
+      );
+
+      if (build.status !== 0) {
+        throw new Error(
+          ["vite build failed", build.stdout, build.stderr].filter(Boolean).join("\n\n"),
+        );
+      }
+
+      const serverOutDir = path.join(root, "dist", "server");
+      const serverEntry = readFileSync(path.join(serverOutDir, "index.js"), "utf8");
+
+      expect(serverEntry).not.toContain("__vite_rsc_encryption_key.js");
+      expect(existsSync(path.join(serverOutDir, "__vite_rsc_encryption_key.js"))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 60000);
+
   test("emits route-scoped CSS assets for lazy route entries", () => {
     const repoRoot = process.cwd();
     const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
