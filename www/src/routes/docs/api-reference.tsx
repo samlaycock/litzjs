@@ -12,11 +12,12 @@ function ApiReference() {
 
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">API Reference</h1>
       <p className="text-xl text-neutral-300 mb-8">
-        Complete reference for all exports from litz, litzjs/client, litzjs/server, and litzjs/vite.
+        Complete reference for all exports from litzjs, litzjs/client, litzjs/server, and
+        litzjs/vite.
       </p>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">litz</h2>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">litzjs</h2>
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">defineRoute</h3>
         <p className="text-neutral-400 mb-4">

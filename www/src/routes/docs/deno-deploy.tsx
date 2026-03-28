@@ -61,7 +61,7 @@ Deno.serve(async (request) => {
     "build": "vite build"
   },
   "imports": {
-    "litzjs/": "npm:litz@latest/"
+    "litzjs/": "npm:litzjs@latest/"
   }
 }`}
         />
