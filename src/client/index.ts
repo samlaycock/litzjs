@@ -125,6 +125,7 @@ const routeModulePrefetchCache = new Map<string, Promise<LoadedRoute | null>>();
 const routeDataPrefetchCache = new Map<string, Promise<void>>();
 const layoutChainCache = new WeakMap<LoadedLayout, LoadedLayout[]>();
 const pathParamNamesCache = new Map<string, string[]>();
+const SCROLL_POSITION_PERSIST_INTERVAL_MS = 100;
 const LITZ_NAVIGATION_STATE_KEY = "__litzjsNavigation";
 const LITZ_ORIGINAL_HISTORY_STATE_KEY = "__litzjsOriginalState";
 
@@ -423,6 +424,36 @@ function LitzApp(props: {
 }): React.ReactElement {
   const [location, setLocation] = React.useState(() => window.location.href);
   const pendingNavigationRef = React.useRef<PendingNavigation | null>(null);
+  const scrollPersistTimeoutRef = React.useRef<number | null>(null);
+  const lastScrollPersistTimeRef = React.useRef(0);
+
+  const persistScrollPositionNow = React.useCallback(() => {
+    if (scrollPersistTimeoutRef.current !== null) {
+      window.clearTimeout(scrollPersistTimeoutRef.current);
+      scrollPersistTimeoutRef.current = null;
+    }
+
+    persistCurrentScrollPosition();
+    lastScrollPersistTimeRef.current = Date.now();
+  }, []);
+
+  const scheduleScrollPositionPersist = React.useCallback(() => {
+    const elapsed = Date.now() - lastScrollPersistTimeRef.current;
+
+    if (elapsed >= SCROLL_POSITION_PERSIST_INTERVAL_MS) {
+      persistScrollPositionNow();
+      return;
+    }
+
+    if (scrollPersistTimeoutRef.current !== null) {
+      return;
+    }
+
+    scrollPersistTimeoutRef.current = window.setTimeout(() => {
+      scrollPersistTimeoutRef.current = null;
+      persistScrollPositionNow();
+    }, SCROLL_POSITION_PERSIST_INTERVAL_MS - elapsed);
+  }, [persistScrollPositionNow]);
 
   React.useEffect(() => {
     function handlePopState(): void {
@@ -446,10 +477,10 @@ function LitzApp(props: {
     const previousScrollRestoration = window.history.scrollRestoration;
 
     window.history.scrollRestoration = "manual";
-    persistCurrentScrollPosition();
+    persistScrollPositionNow();
 
     const handleScroll = () => {
-      persistCurrentScrollPosition();
+      scheduleScrollPositionPersist();
     };
 
     window.addEventListener("scroll", handleScroll, {
@@ -457,15 +488,24 @@ function LitzApp(props: {
     });
 
     return () => {
+      if (scrollPersistTimeoutRef.current !== null) {
+        window.clearTimeout(scrollPersistTimeoutRef.current);
+        scrollPersistTimeoutRef.current = null;
+      }
+
       window.removeEventListener("scroll", handleScroll);
       window.history.scrollRestoration = previousScrollRestoration;
     };
-  }, [props.navigationBehavior.scrollRestoration]);
+  }, [
+    persistScrollPositionNow,
+    props.navigationBehavior.scrollRestoration,
+    scheduleScrollPositionPersist,
+  ]);
 
   const navigate = React.useCallback(
     (next: string, replace = false) => {
       if (props.navigationBehavior.scrollRestoration) {
-        persistCurrentScrollPosition();
+        persistScrollPositionNow();
       }
 
       pendingNavigationRef.current = {
@@ -497,7 +537,7 @@ function LitzApp(props: {
         setLocation(window.location.href);
       });
     },
-    [props.navigationBehavior.scrollRestoration],
+    [persistScrollPositionNow, props.navigationBehavior.scrollRestoration],
   );
 
   const navigationValue = React.useMemo(
@@ -765,7 +805,9 @@ function RouteHost(props: {
       }
     }
 
-    if (!props.navigationBehavior.focusManagement) {
+    // Replace navigations commonly update the URL in place, so preserve the
+    // user's current focus target instead of forcing a page-level handoff.
+    if (pendingNavigation.type === "replace" || !props.navigationBehavior.focusManagement) {
       return;
     }
 
@@ -776,7 +818,6 @@ function RouteHost(props: {
     props.location,
     props.navigationBehavior.focusManagement,
     props.navigationBehavior.scrollRestoration,
-    props.pendingNavigationRef,
     renderedRoute,
   ]);
 

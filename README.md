@@ -111,7 +111,7 @@ function NotFoundPage() {
 mountApp(root, { notFound: NotFoundPage });
 ```
 
-By default, client navigations scroll to the top on pushes, restore saved scroll positions on back and forward, and move focus to the first `main` landmark after the new screen renders. You can opt out of either behavior when your app needs to manage navigation UX itself:
+By default, client navigations scroll to the top on pushes, restore saved scroll positions on back and forward, and move focus to the first `main` landmark after page-changing navigations render. You can opt out of either behavior when your app needs to manage navigation UX itself:
 
 ```tsx
 import { mountApp } from "litzjs/client";
