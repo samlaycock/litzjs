@@ -13,7 +13,16 @@ function DocsQuickStartPage() {
       <title>Quick Start | Litz</title>
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">Quick Start</h1>
       <p className="text-xl text-neutral-300 mb-8">
-        Mount the Litz runtime, keep a normal Vite document, and create your first explicit route.
+        Use this page once you already have a project directory and want the minimal Litz wiring
+        reference.
+      </p>
+      <p className="text-neutral-400 mb-8">
+        If you are starting from nothing, follow{" "}
+        <Link href="/docs/first-app" className="text-sky-400 hover:text-sky-300">
+          First App
+        </Link>{" "}
+        first. This page assumes the app already exists and focuses on the core files and next
+        framework features.
       </p>
 
       <section className="mb-12">
@@ -158,10 +167,10 @@ function ProfilePage() {
 
       <div className="flex justify-between pt-8 border-t border-neutral-800">
         <Link
-          href="/docs/installation"
+          href="/docs/first-app"
           className="text-neutral-400 hover:text-sky-400 transition-colors"
         >
-          &larr; Installation
+          &larr; First App
         </Link>
         <Link
           href="/docs/configuration"
