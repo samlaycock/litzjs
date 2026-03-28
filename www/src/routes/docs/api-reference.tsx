@@ -196,7 +196,7 @@ const response = await api.fetch({
         ],
         example: {
           language: "tsx",
-          code: `import { defineRoute, fault, server } from "litzjs";
+          code: `import { data, defineRoute, fault, server } from "litzjs";
 
 export const route = defineRoute("/reports/:id", {
   component: ReportPage,
@@ -209,7 +209,7 @@ export const route = defineRoute("/reports/:id", {
       });
     }
 
-    return report;
+    return data(report);
   }),
 });`,
         },
@@ -249,10 +249,22 @@ return withHeaders(data({ ok: true }), {
           language: "tsx",
           code: `import { formJson } from "litzjs";
 
-await route.useSubmit()({
-  title: "Hello",
-  filters: formJson({ published: true, tags: ["docs"] }),
-});`,
+function SaveFiltersButton() {
+  const submit = route.useSubmit();
+
+  return (
+    <button
+      onClick={() =>
+        submit({
+          title: "Hello",
+          filters: formJson({ published: true, tags: ["docs"] }),
+        })
+      }
+    >
+      Save filters
+    </button>
+  );
+}`,
         },
       },
       {
