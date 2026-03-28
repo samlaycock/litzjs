@@ -88,6 +88,63 @@ export const route = defineRoute("/", {
     expect(projected).not.toContain("server-only");
   });
 
+  test("keeps top-level values when matching imports are type-only", () => {
+    const source = `
+import type { layout } from "./layout-types";
+import { defineRoute } from "litzjs";
+
+const layout = defineRoute("/shell", {
+  component: Shell,
+});
+
+function Shell() {
+  return <section>Shell</section>;
+}
+
+function Page() {
+  return <main>Page</main>;
+}
+
+export const route = defineRoute("/", {
+  component: Page,
+  layout,
+});
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/home.tsx", source);
+
+    expect(projected).toContain("const layout = defineRoute");
+    expect(projected).not.toContain('import { layout } from "./layout-types";');
+  });
+
+  test("ignores inline type-only named imports when tracking value bindings", () => {
+    const source = `
+import { defineRoute, type layout } from "litzjs";
+
+const layout = defineRoute("/shell", {
+  component: Shell,
+});
+
+function Shell() {
+  return <section>Shell</section>;
+}
+
+function Page() {
+  return <main>Page</main>;
+}
+
+export const route = defineRoute("/", {
+  component: Page,
+  layout,
+});
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/home.tsx", source);
+
+    expect(projected).toContain("const layout = defineRoute");
+    expect(projected).not.toContain("type layout");
+  });
+
   test("keeps imported layout bindings named layout when projection resolves real files", () => {
     const fixtureDir = mkdtempSync(join(tmpdir(), "litz-client-projection-"));
     const layoutFile = join(fixtureDir, "layout.tsx");
@@ -153,7 +210,7 @@ export const route = defineRoute("/", {
       );
     });
 
-    void mock.module("typescript", () => ({
+    await mock.module("typescript", () => ({
       default: {
         ...ts,
         createProgram,
