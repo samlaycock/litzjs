@@ -61,7 +61,15 @@ Bun.serve({
     const asset = Bun.file(path.join(clientDir, pathname.slice(1)));
 
     if ((request.method === "GET" || request.method === "HEAD") && (await asset.exists())) {
-      return new Response(request.method === "HEAD" ? null : asset);
+      const headers = new Headers();
+
+      if (asset.type) {
+        headers.set("content-type", asset.type);
+      }
+
+      headers.set("content-length", String(asset.size));
+
+      return new Response(request.method === "HEAD" ? null : asset, { headers });
     }
 
     return app.fetch(request);

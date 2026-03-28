@@ -25,6 +25,8 @@ describe("deployment docs", () => {
 
     expect(bunDoc).toContain('import app from "./dist/server/index.js";');
     expect(bunDoc).toContain("await asset.exists()");
+    expect(bunDoc).toContain('headers.set("content-length", String(asset.size));');
+    expect(bunDoc).toContain('headers.set("content-type", asset.type);');
     expect(bunDoc).toContain('url.pathname === "/" ? "/index.html" : url.pathname');
     expect(bunDoc).toContain("embedAssets");
 
@@ -36,6 +38,8 @@ describe("deployment docs", () => {
     expect(denoDoc).toContain('import app from "./dist/server/index.js";');
     expect(denoDoc).toContain("satisfies Deno.ServeDefaultExport");
     expect(denoDoc).toContain("embedAssets: true");
+    expect(denoDoc).toContain("# Local preview");
+    expect(denoDoc).toContain("# Production deploy");
     expect(denoDoc).toContain("deployctl deploy");
   });
 });
