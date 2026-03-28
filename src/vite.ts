@@ -17,7 +17,6 @@ import path from "node:path";
 import picomatch from "picomatch";
 import { glob } from "tinyglobby";
 import ts from "typescript";
-import { isFetchableDevEnvironment } from "vite";
 
 import type { ApiRouteMethod } from "./index";
 
@@ -552,26 +551,18 @@ export async function renderView(node, metadata = {}) {
       server.watcher.on("change", onFileChange);
       server.watcher.on("unlink", onFileAddOrUnlink);
 
-      const rscEnv = server.environments.rsc;
-
-      if (rscEnv && isFetchableDevEnvironment(rscEnv)) {
-        server.middlewares.use((request, response, next) => {
-          void handleLitzFetchableRequest(rscEnv, request, response, next);
-        });
-      } else {
-        server.middlewares.use((request, response, next) => {
-          void handleLitzResourceRequest(server, resourceManifest, request, response, next);
-        });
-        server.middlewares.use((request, response, next) => {
-          void handleLitzRouteRequest(server, routeManifest, request, response, next);
-        });
-        server.middlewares.use((request, response, next) => {
-          void handleLitzApiRequest(server, apiManifest, request, response, next);
-        });
-        server.middlewares.use((request, response, next) => {
-          void handleLitzDocumentRequest(server, request, response, next);
-        });
-      }
+      server.middlewares.use((request, response, next) => {
+        void handleLitzResourceRequest(server, resourceManifest, request, response, next);
+      });
+      server.middlewares.use((request, response, next) => {
+        void handleLitzRouteRequest(server, routeManifest, request, response, next);
+      });
+      server.middlewares.use((request, response, next) => {
+        void handleLitzApiRequest(server, apiManifest, request, response, next);
+      });
+      server.middlewares.use((request, response, next) => {
+        void handleLitzDocumentRequest(server, request, response, next);
+      });
     },
 
     async handleHotUpdate(context) {
@@ -1465,25 +1456,10 @@ type BatchedLoaderResponseEntry = {
   };
 };
 
-export async function handleLitzFetchableRequest(
-  rscEnv: { dispatchFetch(request: Request): Promise<Response> },
-  request: IncomingMessage,
-  response: ServerResponse,
-  next: Connect.NextFunction,
-): Promise<void> {
-  try {
-    const fetchRequest = await createNodeRequest(request);
-    const fetchResponse = await rscEnv.dispatchFetch(fetchRequest);
+function hasRunnableRscEnvironment(server: ViteDevServer): boolean {
+  const env = server.environments.rsc as Record<string, unknown> | undefined;
 
-    if (fetchResponse.status === 404 && !request.url?.startsWith("/_litzjs/")) {
-      next();
-      return;
-    }
-
-    await writeFetchResponseToNode(response, fetchResponse);
-  } catch (error) {
-    next(error);
-  }
+  return typeof env?.runner === "object" && env.runner !== null;
 }
 
 export async function handleLitzResourceRequest(
@@ -1494,6 +1470,11 @@ export async function handleLitzResourceRequest(
   next: Connect.NextFunction,
 ): Promise<void> {
   let viewId = "litzjs#view";
+
+  if (!hasRunnableRscEnvironment(server)) {
+    next();
+    return;
+  }
 
   if (!request.url?.startsWith("/_litzjs/resource")) {
     next();
@@ -1613,6 +1594,11 @@ export async function handleLitzRouteRequest(
   next: Connect.NextFunction,
 ): Promise<void> {
   let viewId = "litzjs#view";
+
+  if (!hasRunnableRscEnvironment(server)) {
+    next();
+    return;
+  }
 
   if (!request.url?.startsWith("/_litzjs/route") && !request.url?.startsWith("/_litzjs/action")) {
     next();
@@ -1799,6 +1785,11 @@ async function handleLitzDocumentRequest(
   response: ServerResponse,
   next: Connect.NextFunction,
 ): Promise<void> {
+  if (!hasRunnableRscEnvironment(server)) {
+    next();
+    return;
+  }
+
   const url = request.url ?? "/";
   const requestUrl = new URL(url, "http://litzjs.local");
 
@@ -1849,6 +1840,11 @@ export async function handleLitzApiRequest(
   response: ServerResponse,
   next: Connect.NextFunction,
 ): Promise<void> {
+  if (!hasRunnableRscEnvironment(server)) {
+    next();
+    return;
+  }
+
   const requestUrl = request.url ? new URL(request.url, "http://litzjs.local") : null;
 
   if (!requestUrl) {
