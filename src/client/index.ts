@@ -125,11 +125,34 @@ const routeModulePrefetchCache = new Map<string, Promise<LoadedRoute | null>>();
 const routeDataPrefetchCache = new Map<string, Promise<void>>();
 const layoutChainCache = new WeakMap<LoadedLayout, LoadedLayout[]>();
 const pathParamNamesCache = new Map<string, string[]>();
+const LITZ_NAVIGATION_STATE_KEY = "__litzjsNavigation";
+const LITZ_ORIGINAL_HISTORY_STATE_KEY = "__litzjsOriginalState";
 
-interface MountAppOptions {
+interface ScrollPosition {
+  readonly x: number;
+  readonly y: number;
+}
+
+interface ManagedNavigationState {
+  readonly scrollX: number;
+  readonly scrollY: number;
+}
+
+interface PendingNavigation {
+  readonly type: "push" | "replace" | "pop";
+}
+
+interface ManagedNavigationBehavior {
+  readonly scrollRestoration: boolean;
+  readonly focusManagement: boolean;
+}
+
+export interface MountAppOptions {
   readonly component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
   readonly layout?: LayoutReference;
   readonly notFound?: React.ComponentType;
+  readonly scrollRestoration?: boolean;
+  readonly focusManagement?: boolean;
 }
 
 for (const entry of manifest) {
@@ -232,6 +255,10 @@ export function mountApp(element: Element, options?: MountAppOptions): void {
         component: resolvedOptions?.component,
         layout: resolvedOptions?.layout,
         notFound: resolvedOptions?.notFound,
+        navigationBehavior: {
+          scrollRestoration: resolvedOptions?.scrollRestoration !== false,
+          focusManagement: resolvedOptions?.focusManagement !== false,
+        },
       }),
     );
   });
@@ -246,6 +273,97 @@ function normalizeMountAppOptions(options?: MountAppOptions): MountAppOptions | 
   }
 
   return options;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getScrollPosition(): ScrollPosition {
+  return {
+    x: window.scrollX,
+    y: window.scrollY,
+  };
+}
+
+function withManagedNavigationState(
+  state: unknown,
+  position: ScrollPosition,
+): Record<string, unknown> {
+  const managedState: ManagedNavigationState = {
+    scrollX: position.x,
+    scrollY: position.y,
+  };
+
+  if (isRecord(state)) {
+    return {
+      ...state,
+      [LITZ_NAVIGATION_STATE_KEY]: managedState,
+    };
+  }
+
+  if (state == null) {
+    return {
+      [LITZ_NAVIGATION_STATE_KEY]: managedState,
+    };
+  }
+
+  return {
+    [LITZ_NAVIGATION_STATE_KEY]: managedState,
+    [LITZ_ORIGINAL_HISTORY_STATE_KEY]: state,
+  };
+}
+
+function readManagedNavigationState(state: unknown): ManagedNavigationState | null {
+  if (!isRecord(state)) {
+    return null;
+  }
+
+  const managedState = state[LITZ_NAVIGATION_STATE_KEY];
+
+  if (!isRecord(managedState)) {
+    return null;
+  }
+
+  const scrollX = managedState.scrollX;
+  const scrollY = managedState.scrollY;
+
+  return typeof scrollX === "number" && typeof scrollY === "number"
+    ? {
+        scrollX,
+        scrollY,
+      }
+    : null;
+}
+
+function persistCurrentScrollPosition(): void {
+  window.history.replaceState(
+    withManagedNavigationState(window.history.state, getScrollPosition()),
+    "",
+    window.location.href,
+  );
+}
+
+function restoreManagedScrollPosition(): void {
+  const savedPosition = readManagedNavigationState(window.history.state);
+
+  window.scrollTo(savedPosition?.scrollX ?? 0, savedPosition?.scrollY ?? 0);
+}
+
+function focusMainLandmark(): void {
+  const mainLandmark = document.querySelector("main, [role='main']");
+
+  if (!(mainLandmark instanceof HTMLElement)) {
+    return;
+  }
+
+  if (!mainLandmark.hasAttribute("tabindex")) {
+    mainLandmark.setAttribute("tabindex", "-1");
+  }
+
+  mainLandmark.focus({
+    preventScroll: true,
+  });
 }
 
 export function useNavigate(): (href: string, options?: { replace?: boolean }) => void {
@@ -301,11 +419,16 @@ function LitzApp(props: {
   component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
   layout?: LayoutReference;
   notFound?: React.ComponentType;
+  navigationBehavior: ManagedNavigationBehavior;
 }): React.ReactElement {
   const [location, setLocation] = React.useState(() => window.location.href);
+  const pendingNavigationRef = React.useRef<PendingNavigation | null>(null);
 
   React.useEffect(() => {
     function handlePopState(): void {
+      pendingNavigationRef.current = {
+        type: "pop",
+      };
       React.startTransition(() => {
         setLocation(window.location.href);
       });
@@ -315,17 +438,67 @@ function LitzApp(props: {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  const navigate = React.useCallback((next: string, replace = false) => {
-    if (replace) {
-      window.history.replaceState(null, "", next);
-    } else {
-      window.history.pushState(null, "", next);
+  React.useEffect(() => {
+    if (!props.navigationBehavior.scrollRestoration) {
+      return;
     }
 
-    React.startTransition(() => {
-      setLocation(window.location.href);
+    const previousScrollRestoration = window.history.scrollRestoration;
+
+    window.history.scrollRestoration = "manual";
+    persistCurrentScrollPosition();
+
+    const handleScroll = () => {
+      persistCurrentScrollPosition();
+    };
+
+    window.addEventListener("scroll", handleScroll, {
+      passive: true,
     });
-  }, []);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, [props.navigationBehavior.scrollRestoration]);
+
+  const navigate = React.useCallback(
+    (next: string, replace = false) => {
+      if (props.navigationBehavior.scrollRestoration) {
+        persistCurrentScrollPosition();
+      }
+
+      pendingNavigationRef.current = {
+        type: replace ? "replace" : "push",
+      };
+
+      if (replace) {
+        window.history.replaceState(
+          props.navigationBehavior.scrollRestoration
+            ? withManagedNavigationState(window.history.state, getScrollPosition())
+            : null,
+          "",
+          next,
+        );
+      } else {
+        window.history.pushState(
+          props.navigationBehavior.scrollRestoration
+            ? withManagedNavigationState(null, {
+                x: 0,
+                y: 0,
+              })
+            : null,
+          "",
+          next,
+        );
+      }
+
+      React.startTransition(() => {
+        setLocation(window.location.href);
+      });
+    },
+    [props.navigationBehavior.scrollRestoration],
+  );
 
   const navigationValue = React.useMemo(
     () => ({
@@ -350,6 +523,8 @@ function LitzApp(props: {
     navigate,
     component: props.component,
     notFound: props.notFound,
+    navigationBehavior: props.navigationBehavior,
+    pendingNavigationRef,
   });
 
   const content = props.layout
@@ -376,6 +551,8 @@ function RouteHost(props: {
   navigate(this: void, next: string, replace?: boolean): void;
   component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
   notFound?: React.ComponentType;
+  navigationBehavior: ManagedNavigationBehavior;
+  pendingNavigationRef: React.MutableRefObject<PendingNavigation | null>;
 }): React.ReactElement {
   const navigate = React.useCallback(
     (next: string, replace?: boolean) => {
@@ -570,6 +747,38 @@ function RouteHost(props: {
           reloadImpl,
           setPageState,
         );
+
+  React.useLayoutEffect(() => {
+    const pendingNavigation = props.pendingNavigationRef.current;
+
+    if (!pendingNavigation || (matched && !renderedRoute) || displayLocation !== props.location) {
+      return;
+    }
+
+    props.pendingNavigationRef.current = null;
+
+    if (props.navigationBehavior.scrollRestoration) {
+      if (pendingNavigation.type === "push") {
+        window.scrollTo(0, 0);
+      } else if (pendingNavigation.type === "pop") {
+        restoreManagedScrollPosition();
+      }
+    }
+
+    if (!props.navigationBehavior.focusManagement) {
+      return;
+    }
+
+    focusMainLandmark();
+  }, [
+    displayLocation,
+    matched,
+    props.location,
+    props.navigationBehavior.focusManagement,
+    props.navigationBehavior.scrollRestoration,
+    props.pendingNavigationRef,
+    renderedRoute,
+  ]);
 
   return React.createElement(
     getMatchesContext().Provider,
