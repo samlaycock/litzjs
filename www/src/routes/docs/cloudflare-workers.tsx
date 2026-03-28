@@ -13,20 +13,26 @@ function DocsDeploymentPage() {
       <title>Cloudflare Workers | Litz</title>
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">Cloudflare Workers</h1>
       <p className="text-xl text-neutral-300 mb-8">
-        Deploy the client as static assets and route framework traffic through a Worker.
+        Deploy the built client as Cloudflare static assets and route only the Litz transport plus
+        API traffic through a Worker.
       </p>
       <p className="text-neutral-400 mb-4">The general approach is:</p>
       <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-8">
         <li>
           build client assets to <code className="text-sky-400">dist/client</code>
         </li>
-        <li>run framework traffic through a Worker</li>
-        <li>let the platform serve the SPA document and static assets where appropriate</li>
+        <li>
+          run <code className="text-sky-400">/_litzjs/*</code> and{" "}
+          <code className="text-sky-400">/api/*</code> through the Worker first
+        </li>
+        <li>let Cloudflare serve the SPA shell and static assets from the asset pipeline</li>
       </ul>
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Litz server entry</h2>
-        <p className="text-neutral-400 mb-4">Create a small server entry:</p>
+        <p className="text-neutral-400 mb-4">
+          Your framework server entry stays thin and focuses on request context and error handling:
+        </p>
         <CodeBlock
           language="ts"
           code={`import { createServer } from "litzjs/server";
@@ -42,28 +48,22 @@ export default createServer({
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Worker entry</h2>
         <p className="text-neutral-400 mb-4">
-          The Worker should route internal framework traffic and API traffic to the Litz server
-          handler:
+          The Worker wrapper should send only the internal Litz transport and explicit API traffic
+          to the handler. Everything else can fall back to Cloudflare&apos;s asset pipeline:
         </p>
         <CodeBlock
           language="ts"
           code={`import app from "./server";
 
 export default {
-  async fetch(request, env) {
+  fetch(request, env) {
     const pathname = new URL(request.url).pathname;
 
-    if (pathname.startsWith("_litzjs/") || pathname.startsWith("/api/")) {
-      return app(request);
+    if (pathname.startsWith("/_litzjs/") || pathname.startsWith("/api/")) {
+      return app.fetch(request);
     }
 
-    const assetResponse = await env.ASSETS.fetch(request);
-
-    if (assetResponse.status !== 404) {
-      return assetResponse;
-    }
-
-    return app(request);
+    return env.ASSETS.fetch(request);
   },
 };`}
         />
@@ -71,20 +71,44 @@ export default {
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Wrangler configuration</h2>
-        <p className="text-neutral-400 mb-4">Example shape:</p>
+        <p className="text-neutral-400 mb-4">
+          Configure Wrangler so framework requests run worker-first, while SPA shell requests still
+          get the static asset fallback:
+        </p>
         <CodeBlock
           language="json"
           code={`{
   "name": "litz-docs",
-  "main": "./deploy-worker.mjs",
-  "compatibility_date": "2026-03-17",
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-03-27",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    "directory": "./dist/client",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/_litzjs/*", "/api/*"]
   }
 }`}
         />
+        <p className="text-neutral-400 mt-4 mb-4">
+          If you use the Cloudflare Vite plugin, it can infer{" "}
+          <code className="text-sky-400">assets.directory</code> from the Vite output. If you are
+          not using the plugin, set <code className="text-sky-400">assets.directory</code> to{" "}
+          <code className="text-sky-400">"./dist/client"</code> yourself.
+        </p>
+      </section>
+
+      <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Build and deploy commands</h2>
+        <CodeBlock
+          language="bash"
+          code={`vite build
+wrangler dev
+wrangler deploy`}
+        />
+        <p className="text-neutral-400 mt-4 mb-4">
+          Build first so Wrangler uploads the current client bundle and Worker entry together. The
+          same split applies in development and production.
+        </p>
       </section>
 
       <section className="mb-12">
@@ -106,9 +130,8 @@ export default {
           to <code className="text-sky-400">dist/client</code>.
         </p>
         <p className="text-neutral-400 mb-4">
-          Server output depends on whether you provide a custom server entry. For this docs app,
-          using a custom server entry means the platform is responsible for serving client assets
-          while the server handler focuses on routes, resources, and API traffic.
+          The Worker entry remains responsible for routing requests. The Litz server entry focuses
+          on the transport endpoints, route actions, route loaders, resources, and API traffic.
         </p>
       </section>
 
@@ -120,7 +143,7 @@ export default {
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "wrangler dev",
     "deploy": "vite build && wrangler deploy"
   }
 }`}
@@ -134,6 +157,11 @@ export default {
           <li>the app typechecks</li>
           <li>the Vite build completes</li>
           <li>the Worker bundle resolves correctly</li>
+          <li>
+            <code className="text-sky-400">/_litzjs/*</code> and{" "}
+            <code className="text-sky-400">/api/*</code> are routed with{" "}
+            <code className="text-sky-400">run_worker_first</code>
+          </li>
           <li>Wrangler dry-run succeeds</li>
         </ul>
       </section>

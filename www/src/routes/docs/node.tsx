@@ -13,140 +13,270 @@ function DocsNodePage() {
       <title>Node.js | Litz</title>
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">Node.js</h1>
       <p className="text-xl text-neutral-300 mb-8">
-        Deploy Litz apps to Node.js with Express, Fastify, or as a standalone server.
+        Deploy Litz apps to Node.js by serving <code className="text-sky-400">dist/client</code> as
+        static files and forwarding everything else to the built Litz handler in{" "}
+        <code className="text-sky-400">dist/server/index.js</code>.
       </p>
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Server entry</h2>
-        <p className="text-neutral-400 mb-4">Create your Litz server entry:</p>
+        <p className="text-neutral-400 mb-4">
+          Keep your Litz server entry small. Vite injects the discovered manifest during{" "}
+          <code className="text-sky-400">vite build</code>:
+        </p>
         <CodeBlock
           language="ts"
           code={`import { createServer } from "litzjs/server";
 
 export default createServer({
   async createContext(request) {
-    // Parse cookies, sessions, etc.
-    return { userId: null };
+    return {
+      requestId: request.headers.get("x-request-id"),
+    };
   },
-  onError(error) {
-    console.error("Server error:", error);
+  onError(error, context) {
+    console.error("Node deployment error", { error, context });
   },
 });`}
         />
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Standalone server</h2>
-        <p className="text-neutral-400 mb-4">Run directly with Node.js:</p>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Production shape</h2>
+        <p className="text-neutral-400 mb-4">A production build gives you two outputs:</p>
+        <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
+          <li>
+            <code className="text-sky-400">dist/client</code> for the document shell and browser
+            assets
+          </li>
+          <li>
+            <code className="text-sky-400">dist/server/index.js</code> for the fetch-style Litz
+            handler
+          </li>
+        </ul>
+        <p className="text-neutral-400 mb-4">
+          In Node, the production job is always the same: serve{" "}
+          <code className="text-sky-400">dist/client</code> directly, convert Node requests into web{" "}
+          <code className="text-sky-400">Request</code> objects, then call{" "}
+          <code className="text-sky-400">app.fetch(request)</code>.
+        </p>
+        <p className="text-neutral-400 mb-4">
+          If you do not want a separate static file server, enable{" "}
+          <code className="text-sky-400">embedAssets</code> in your Vite config and keep the
+          adapters below, but remove the filesystem asset-serving branches.
+        </p>
+      </section>
+
+      <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Shared Node adapter</h2>
+        <p className="text-neutral-400 mb-4">
+          Reuse one adapter helper across bare Node, Express, or Fastify so request streaming and
+          response streaming behave the same in production:
+        </p>
         <CodeBlock
           language="ts"
-          code={`import app from "./server/index.ts";
-import http from "node:http";
+          code={`import type { IncomingMessage, ServerResponse } from "node:http";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
-const server = http.createServer((req, res) => {
-  // Convert Node http request to Fetch API Request
-  const request = new Request(req.url!, {
-    method: req.method,
-    headers: Object.fromEntries(Object.entries(req.headers)),
-  });
+const METHODS_WITHOUT_BODY = new Set(["GET", "HEAD"]);
 
-  app.fetch(request).then((response) => {
-    res.statusCode = response.status;
-    response.headers.forEach((value, key) => res.setHeader(key, value));
-    
-    if (response.body) {
-      const reader = response.body.getReader();
-      reader.read().then(({ done, value }) => {
-        res.end(Buffer.from(value));
-      });
-    } else {
-      res.end();
+export function toWebRequest(request: IncomingMessage, origin: string) {
+  const url = new URL(request.url ?? "/", origin);
+  const headers = new Headers();
+
+  for (const [name, value] of Object.entries(request.headers)) {
+    if (value === undefined) {
+      continue;
     }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        headers.append(name, item);
+      }
+
+      continue;
+    }
+
+    headers.set(name, value);
+  }
+
+  const method = request.method ?? "GET";
+  const hasBody = !METHODS_WITHOUT_BODY.has(method);
+
+  return new Request(url, {
+    method,
+    headers,
+    body: hasBody ? (Readable.toWeb(request) as BodyInit) : undefined,
+    duplex: hasBody ? "half" : undefined,
   });
+}
+
+export async function sendWebResponse(response: Response, reply: ServerResponse) {
+  reply.statusCode = response.status;
+  response.headers.forEach((value, name) => reply.setHeader(name, value));
+
+  if (!response.body) {
+    reply.end();
+    return;
+  }
+
+  await pipeline(Readable.fromWeb(response.body), reply);
+}`}
+        />
+      </section>
+
+      <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Standalone Node server</h2>
+        <p className="text-neutral-400 mb-4">
+          Use this when you want to run only Node&apos;s built-in HTTP server in production:
+        </p>
+        <CodeBlock
+          language="ts"
+          code={`import http from "node:http";
+import { createReadStream } from "node:fs";
+import path from "node:path";
+import app from "./dist/server/index.js";
+import { sendWebResponse, toWebRequest } from "./node-adapter.js";
+
+const port = Number(process.env.PORT ?? 3000);
+const clientDir = path.resolve("dist/client");
+
+const server = http.createServer(async (req, res) => {
+  try {
+    const pathname = new URL(req.url ?? "/", "http://internal").pathname;
+
+    const isStaticFile = pathname !== "/" && (pathname.split("/").at(-1) ?? "").includes(".");
+
+    if (isStaticFile) {
+      createReadStream(path.join(clientDir, pathname.slice(1))).pipe(res);
+      return;
+    }
+
+    const host = req.headers.host ?? \`localhost:\${port}\`;
+    const response = await app.fetch(toWebRequest(req, \`http://\${host}\`));
+    await sendWebResponse(response, res);
+  } catch (error) {
+    console.error("Node adapter error", error);
+    res.statusCode = 500;
+    res.end("Internal Server Error");
+  }
 });
 
-server.listen(3000, () => {
-  console.log("Server running on http://localhost:3000");
+server.listen(port, () => {
+  console.log(\`Node server listening on http://localhost:\${port}\`);
 });`}
         />
         <p className="text-neutral-400 mt-4 mb-4">
-          Note: For production, consider using a proper adapter like{" "}
-          <code className="text-sky-400">fetch</code> to convert http.IncomingMessage to Request.
+          This recipe is production-safe for the Litz transport because it preserves request method,
+          headers, request bodies, and streamed responses. Add your own cache headers around the
+          static asset branch if you need aggressive CDN behavior.
         </p>
       </section>
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">With Express</h2>
+        <p className="text-neutral-400 mb-4">
+          Express is the most direct Node deployment path when you want explicit static asset
+          handling and middleware:
+        </p>
         <CodeBlock
           language="ts"
           code={`import express from "express";
-import app from "./server";
+import path from "node:path";
+import app from "./dist/server/index.js";
+import { sendWebResponse, toWebRequest } from "./node-adapter.js";
 
 const server = express();
+const clientDir = path.resolve("dist/client");
+const port = Number(process.env.PORT ?? 3000);
 
-// Serve static files from dist/client
-server.use(express.static("dist/client"));
+server.disable("x-powered-by");
+server.use(
+  "/assets",
+  express.static(path.join(clientDir, "assets"), {
+    immutable: true,
+    maxAge: "1y",
+  }),
+);
+server.use(express.static(clientDir, { index: false }));
 
-// Litz handles all other requests
-server.use((req, res) => {
-  // Convert express request to Fetch API Request
-  const protocol = req.protocol === "https" ? "https" : "http";
-  const request = new Request(\`\${protocol}://\${req.get("host")}\${req.originalUrl}\`, {
-    method: req.method,
-    headers: Object.fromEntries(Object.entries(req.headers)) as HeadersInit,
-  });
-
-  app.fetch(request).then((response) => {
-    res.status(response.status);
-    response.headers.forEach((value, key) => res.setHeader(key, value));
-    
-    if (response.body) {
-      response.body.pipe(res);
-    } else {
-      res.end();
-    }
-  });
+server.use(async (req, res, next) => {
+  try {
+    const origin = \`\${req.protocol}://\${req.get("host")}\`;
+    const response = await app.fetch(toWebRequest(req, origin));
+    await sendWebResponse(response, res);
+  } catch (error) {
+    next(error);
+  }
 });
 
-server.listen(3000);`}
+server.listen(port, () => {
+  console.log(\`Express server listening on http://localhost:\${port}\`);
+});`}
         />
       </section>
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">With Fastify</h2>
+        <p className="text-neutral-400 mb-4">
+          Fastify works well when you want Fastify plugins around the same Litz handler. Register{" "}
+          <code className="text-sky-400">@fastify/static</code> for the built client output, then
+          hand off unmatched requests to the fetch handler:
+        </p>
         <CodeBlock
           language="ts"
           code={`import Fastify from "fastify";
-import app from "./server";
+import fastifyStatic from "@fastify/static";
+import path from "node:path";
+import app from "./dist/server/index.js";
+import { sendWebResponse, toWebRequest } from "./node-adapter.js";
 
 const server = Fastify({ logger: true });
+const clientDir = path.resolve("dist/client");
 
-server.get("*", async (request, reply) => {
-  const response = await app.fetch(request.raw.url);
-  reply.status(response.status);
-  response.headers.forEach((value, key) => reply.header(key, value));
-  return response.body;
+await server.register(fastifyStatic, {
+  root: path.join(clientDir, "assets"),
+  prefix: "/assets/",
 });
 
-server.listen({ port: 3000 });`}
+await server.register(fastifyStatic, {
+  root: clientDir,
+  decorateReply: false,
+  wildcard: false,
+  index: false,
+});
+
+server.all("*", async (request, reply) => {
+  reply.hijack();
+
+  const origin = \`\${request.protocol}://\${request.headers.host}\`;
+  const response = await app.fetch(toWebRequest(request.raw, origin));
+  await sendWebResponse(response, reply.raw);
+});
+
+await server.listen({
+  host: "0.0.0.0",
+  port: Number(process.env.PORT ?? 3000),
+});`}
         />
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Production build</h2>
-        <CodeBlock language="bash" code={`vite build`} />
-        <p className="text-neutral-400 mt-4 mb-4">This generates:</p>
-        <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
-          <li>
-            <code className="text-sky-400">dist/client</code> — browser bundle
-          </li>
-          <li>
-            <code className="text-sky-400">dist/server</code> — server bundle
-          </li>
-        </ul>
-        <p className="text-neutral-400 mb-4">
-          With a custom server entry, Litz outputs a self-contained server that handles all
-          requests.
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Build and start commands</h2>
+        <CodeBlock
+          language="bash"
+          code={`vite build
+node ./server/node-http.js
+# or
+node ./server/express.js
+# or
+node ./server/fastify.js`}
+        />
+        <p className="text-neutral-400 mt-4 mb-4">
+          Build first so the adapter imports the generated{" "}
+          <code className="text-sky-400">dist/server/index.js</code> bundle instead of the
+          source-only development entry.
         </p>
       </section>
 
@@ -158,9 +288,9 @@ server.listen({ port: 3000 });`}
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "start": "node server.js",
-    "start:express": "node server-express.js",
-    "start:fastify": "node server-fastify.js"
+    "start:node": "node ./server/node-http.js",
+    "start:express": "node ./server/express.js",
+    "start:fastify": "node ./server/fastify.js"
   }
 }`}
         />
@@ -171,8 +301,16 @@ server.listen({ port: 3000 });`}
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>App typechecks</li>
           <li>Vite build completes</li>
-          <li>Server starts without errors</li>
-          <li>Static assets are served correctly</li>
+          <li>The selected Node adapter starts without errors</li>
+          <li>
+            <code className="text-sky-400">/assets/*</code> is served directly from{" "}
+            <code className="text-sky-400">dist/client</code>
+          </li>
+          <li>Document requests still hydrate correctly in the browser</li>
+          <li>
+            <code className="text-sky-400">/_litzjs/*</code> and{" "}
+            <code className="text-sky-400">/api/*</code> still reach the server handler
+          </li>
         </ul>
       </section>
 
