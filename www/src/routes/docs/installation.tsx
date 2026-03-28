@@ -21,16 +21,16 @@ function DocsInstallationPage() {
         <p className="text-neutral-400 mb-4">Choose your package manager:</p>
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">Bun</h3>
-        <CodeBlock language="bash" code={`bun add litz`} />
+        <CodeBlock language="bash" code={`bun add litzjs`} />
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3 mt-6">npm</h3>
-        <CodeBlock language="bash" code={`npm install litz`} />
+        <CodeBlock language="bash" code={`npm install litzjs`} />
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3 mt-6">Yarn</h3>
-        <CodeBlock language="bash" code={`yarn add litz`} />
+        <CodeBlock language="bash" code={`yarn add litzjs`} />
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3 mt-6">pnpm</h3>
-        <CodeBlock language="bash" code={`pnpm add litz`} />
+        <CodeBlock language="bash" code={`pnpm add litzjs`} />
       </section>
 
       <section className="mb-12">
