@@ -249,7 +249,7 @@ const app = createServer({
     };
   },
   manifest: {
-    apiRoutes: [{ path: profileApi.path, api: profileApi }],
+    apiRoutes: [{ path: profileApi.path, api: profileApi as any }],
   },
 });
 

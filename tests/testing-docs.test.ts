@@ -21,6 +21,7 @@ describe("testing docs", () => {
     expect(testingDoc).toContain("const result = await loader({");
     expect(testingDoc).toContain("const response = await api.methods.GET({");
     expect(testingDoc).toContain("const response = await app.fetch(");
+    expect(testingDoc).toContain("apiRoutes: [{ path: profileApi.path, api: profileApi as any }],");
     expect(testingDoc).toContain("bun add -d @testing-library/react @testing-library/dom");
 
     expect(testingDoc).not.toContain('from "vitest"');
