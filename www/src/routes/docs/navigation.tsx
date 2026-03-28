@@ -82,7 +82,7 @@ function LogoutButton() {
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">useLocation()</h2>
         <p className="text-neutral-400 mb-4">
-          Import from <code className="text-sky-400">"litz"</code>. Returns an object with{" "}
+          Import from <code className="text-sky-400">"litzjs"</code>. Returns an object with{" "}
           <code className="text-sky-400">{"{ href, pathname, search, hash }"}</code>.
         </p>
         <CodeBlock
@@ -104,8 +104,8 @@ function LocationDebug() {
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">usePathname()</h2>
         <p className="text-neutral-400 mb-4">
-          Import from <code className="text-sky-400">"litz"</code>. Returns the current pathname as
-          a string. This is a convenience shortcut when you only need the path.
+          Import from <code className="text-sky-400">"litzjs"</code>. Returns the current pathname
+          as a string. This is a convenience shortcut when you only need the path.
         </p>
         <CodeBlock
           language="tsx"
@@ -127,7 +127,7 @@ function NavLink(props: { href: string; children: React.ReactNode }) {
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">useMatches()</h2>
         <p className="text-neutral-400 mb-4">
-          Import from <code className="text-sky-400">"litz"</code>. Returns an array of matched
+          Import from <code className="text-sky-400">"litzjs"</code>. Returns an array of matched
           route info objects: <code className="text-sky-400">{"{ id, path, params, search }"}</code>
           . This is useful for building breadcrumbs or conditional UI based on the current route
           hierarchy.
