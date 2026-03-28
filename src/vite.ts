@@ -17,6 +17,7 @@ import path from "node:path";
 import picomatch from "picomatch";
 import { glob } from "tinyglobby";
 import ts from "typescript";
+import { isFetchableDevEnvironment } from "vite";
 
 import type { ApiRouteMethod } from "./index";
 
@@ -551,18 +552,26 @@ export async function renderView(node, metadata = {}) {
       server.watcher.on("change", onFileChange);
       server.watcher.on("unlink", onFileAddOrUnlink);
 
-      server.middlewares.use((request, response, next) => {
-        void handleLitzResourceRequest(server, resourceManifest, request, response, next);
-      });
-      server.middlewares.use((request, response, next) => {
-        void handleLitzRouteRequest(server, routeManifest, request, response, next);
-      });
-      server.middlewares.use((request, response, next) => {
-        void handleLitzApiRequest(server, apiManifest, request, response, next);
-      });
-      server.middlewares.use((request, response, next) => {
-        void handleLitzDocumentRequest(server, request, response, next);
-      });
+      const rscEnv = server.environments.rsc;
+
+      if (rscEnv && isFetchableDevEnvironment(rscEnv)) {
+        server.middlewares.use((request, response, next) => {
+          void handleLitzFetchableRequest(rscEnv, request, response, next);
+        });
+      } else {
+        server.middlewares.use((request, response, next) => {
+          void handleLitzResourceRequest(server, resourceManifest, request, response, next);
+        });
+        server.middlewares.use((request, response, next) => {
+          void handleLitzRouteRequest(server, routeManifest, request, response, next);
+        });
+        server.middlewares.use((request, response, next) => {
+          void handleLitzApiRequest(server, apiManifest, request, response, next);
+        });
+        server.middlewares.use((request, response, next) => {
+          void handleLitzDocumentRequest(server, request, response, next);
+        });
+      }
     },
 
     async handleHotUpdate(context) {
@@ -1455,6 +1464,27 @@ type BatchedLoaderResponseEntry = {
     digest?: string;
   };
 };
+
+export async function handleLitzFetchableRequest(
+  rscEnv: { dispatchFetch(request: Request): Promise<Response> },
+  request: IncomingMessage,
+  response: ServerResponse,
+  next: Connect.NextFunction,
+): Promise<void> {
+  try {
+    const fetchRequest = await createNodeRequest(request);
+    const fetchResponse = await rscEnv.dispatchFetch(fetchRequest);
+
+    if (fetchResponse.status === 404 && !request.url?.startsWith("/_litzjs/")) {
+      next();
+      return;
+    }
+
+    await writeFetchResponseToNode(response, fetchResponse);
+  } catch (error) {
+    next(error);
+  }
+}
 
 export async function handleLitzResourceRequest(
   server: ViteDevServer,
