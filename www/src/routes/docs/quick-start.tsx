@@ -163,8 +163,11 @@ function ProfilePage() {
         >
           &larr; Installation
         </Link>
-        <Link href="/docs/routing" className="text-sky-500 hover:text-sky-400 transition-colors">
-          Routing &rarr;
+        <Link
+          href="/docs/configuration"
+          className="text-sky-500 hover:text-sky-400 transition-colors"
+        >
+          Configuration &rarr;
         </Link>
       </div>
     </>
