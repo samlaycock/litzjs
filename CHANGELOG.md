@@ -1,5 +1,23 @@
 # litzjs
 
+## 0.3.0
+
+### Minor Changes
+
+- ac56be6: Add managed client navigation scroll restoration and focus handoff, with `mountApp()` opt-outs for apps that need to control scroll or focus behavior themselves.
+
+### Patch Changes
+
+- 549c863: Support manifest discovery for route, layout, resource, and API exports that are re-exported or wrapped around their `define*` calls.
+- f1a1fa4: Guard route and API path matching against malformed percent-encoding so invalid path segments return clean 400 or unmatched results instead of throwing `URIError`.
+- 10dc311: Normalize invalid client loader and action responses into route faults so non-JSON bodies and malformed JSON no longer surface raw parse errors.
+- 09a9ff9: Keep settled client resource entries warm across real remounts by retaining them in the cache until idle-entry pruning evicts them.
+- 879761b: Avoid rebuilding a fresh TypeScript program for each client module projection by tracing top-level dependencies directly from the module AST.
+- 032b48c: Add first-class custom not-found handling to `mountApp()` and `createServer()` so apps can override unmatched client and server 404 responses.
+- cf64464: Make client route and resource submits abortable and ignore stale results after newer submits, navigation, or unmount.
+- 1c73571: Handle lazy client route module load failures as managed route faults so rejected imports and missing `route` exports render the framework error state instead of surfacing unhandled errors.
+- c0d1062: Batch internal route loader requests so layout and route loader chains can reuse one client round-trip while preserving ordered loader results and falling back to individual fetches when batching is unavailable.
+
 ## 0.2.0
 
 ### Minor Changes
