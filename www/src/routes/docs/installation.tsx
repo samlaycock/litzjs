@@ -191,12 +191,12 @@ export default defineConfig({
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Next steps</h2>
         <p className="text-neutral-400 mb-4">
-          Head to the{" "}
-          <Link href="/docs/quick-start" className="text-sky-400 hover:text-sky-300">
-            Quick Start
+          Head to{" "}
+          <Link href="/docs/first-app" className="text-sky-400 hover:text-sky-300">
+            First App
           </Link>{" "}
-          guide to get a running app in place before you fine-tune route discovery patterns and
-          server entry options in Configuration.
+          for the empty-directory walkthrough before you fine-tune route discovery patterns and
+          server entry options in Quick Start and Configuration.
         </p>
       </section>
 
@@ -204,11 +204,8 @@ export default defineConfig({
         <Link href="/docs" className="text-neutral-400 hover:text-sky-400 transition-colors">
           &larr; Introduction
         </Link>
-        <Link
-          href="/docs/quick-start"
-          className="text-sky-500 hover:text-sky-400 transition-colors"
-        >
-          Quick Start &rarr;
+        <Link href="/docs/first-app" className="text-sky-500 hover:text-sky-400 transition-colors">
+          First App &rarr;
         </Link>
       </div>
     </>

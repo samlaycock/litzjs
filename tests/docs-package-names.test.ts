@@ -11,27 +11,41 @@ function normalizeWhitespace(value: string) {
 }
 
 describe("getting started docs flow", () => {
-  test("guides readers through installation, quick start, then configuration", () => {
+  test("guides readers through installation, first app, quick start, then configuration", () => {
     const rootLayout = normalizeWhitespace(readDoc("www/src/routes/_layouts/root.tsx"));
     const installationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/installation.tsx"));
+    const firstAppDoc = normalizeWhitespace(readDoc("www/src/routes/docs/first-app.tsx"));
     const quickStartDoc = normalizeWhitespace(readDoc("www/src/routes/docs/quick-start.tsx"));
     const configurationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/configuration.tsx"));
 
     expect(rootLayout).toContain('{ title: "Introduction", path: "/docs" },');
     expect(rootLayout).toContain('{ title: "Installation", path: "/docs/installation" },');
+    expect(rootLayout).toContain('{ title: "First App", path: "/docs/first-app" },');
     expect(rootLayout).toContain('{ title: "Quick Start", path: "/docs/quick-start" },');
     expect(rootLayout).toContain('{ title: "Configuration", path: "/docs/configuration" },');
     expect(
       rootLayout.indexOf('{ title: "Installation", path: "/docs/installation" },'),
-    ).toBeLessThan(rootLayout.indexOf('{ title: "Quick Start", path: "/docs/quick-start" },'));
+    ).toBeLessThan(rootLayout.indexOf('{ title: "First App", path: "/docs/first-app" },'));
+    expect(rootLayout.indexOf('{ title: "First App", path: "/docs/first-app" },')).toBeLessThan(
+      rootLayout.indexOf('{ title: "Quick Start", path: "/docs/quick-start" },'),
+    );
     expect(rootLayout.indexOf('{ title: "Quick Start", path: "/docs/quick-start" },')).toBeLessThan(
       rootLayout.indexOf('{ title: "Configuration", path: "/docs/configuration" },'),
     );
 
-    expect(installationDoc).toContain('Link href="/docs/quick-start"');
-    expect(installationDoc).toContain("Quick Start");
-    expect(installationDoc).not.toContain('Link href="/docs/configuration"');
+    expect(installationDoc).toContain('Link href="/docs/first-app"');
+    expect(installationDoc).toContain("First App");
+    expect(installationDoc).not.toContain('Link href="/docs/quick-start"');
+    expect(firstAppDoc).toContain('defineRoute("/docs/first-app"');
+    expect(firstAppDoc).toContain("mkdir hello-litz");
+    expect(firstAppDoc).toContain("bun add litzjs react react-dom");
+    expect(firstAppDoc).toContain('import { litz } from "litzjs/vite";');
+    expect(firstAppDoc).toContain(
+      'Open <code className="text-sky-400">http://localhost:5173</code>.',
+    );
+    expect(firstAppDoc).toContain('Link href="/docs/quick-start"');
     expect(quickStartDoc).toContain('Link href="/docs/configuration"');
+    expect(quickStartDoc).toContain('Link href="/docs/first-app"');
     expect(quickStartDoc).toContain("Configuration &rarr;");
     expect(quickStartDoc).not.toContain('Link href="/docs/routing"');
     expect(configurationDoc).toContain('Link href="/docs/quick-start"');

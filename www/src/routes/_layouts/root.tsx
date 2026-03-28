@@ -11,6 +11,7 @@ const DOCS_NAV = [
     items: [
       { title: "Introduction", path: "/docs" },
       { title: "Installation", path: "/docs/installation" },
+      { title: "First App", path: "/docs/first-app" },
       { title: "Quick Start", path: "/docs/quick-start" },
       { title: "Configuration", path: "/docs/configuration" },
     ],
