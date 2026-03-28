@@ -158,6 +158,10 @@ function collectImportBindings(imports: readonly ts.ImportDeclaration[]): Set<st
       continue;
     }
 
+    if (statement.importClause.isTypeOnly) {
+      continue;
+    }
+
     if (statement.importClause.name) {
       bindings.add(statement.importClause.name.text);
     }
@@ -174,6 +178,10 @@ function collectImportBindings(imports: readonly ts.ImportDeclaration[]): Set<st
     }
 
     for (const element of namedBindings.elements) {
+      if (element.isTypeOnly) {
+        continue;
+      }
+
       bindings.add(element.name.text);
     }
   }
