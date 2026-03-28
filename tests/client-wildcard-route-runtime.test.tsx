@@ -69,6 +69,13 @@ function HomeRoute(): React.ReactElement {
       <button id="navigate-missing" type="button" onClick={() => navigate("/missing")}>
         Open missing route
       </button>
+      <button
+        id="replace-home-search"
+        type="button"
+        onClick={() => navigate("/?tab=activity", { replace: true })}
+      >
+        Replace home search
+      </button>
     </main>
   );
 }
@@ -698,6 +705,73 @@ describe("client wildcard route runtime", () => {
     expect(window.location.pathname).toBe("/docs/getting-started/install");
     expect(window.scrollY).toBe(220);
     expect(document.activeElement?.id).not.toBe("docs-main");
+  });
+
+  test("does not move focus for replace navigations that update the URL in place", async () => {
+    clientModule = await import("../src/client/index");
+
+    await act(async () => {
+      clientModule?.mountApp(container!);
+      await flushApp();
+    });
+
+    const replaceButton = document.getElementById(
+      "replace-home-search",
+    ) as HTMLButtonElement | null;
+
+    replaceButton?.focus();
+
+    await act(async () => {
+      replaceButton?.click();
+      await flushApp();
+    });
+
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("?tab=activity");
+    expect(window.history.length).toBe(1);
+    expect(document.activeElement?.id).toBe("replace-home-search");
+  });
+
+  test("throttles scroll-position persistence writes during continuous scrolling", async () => {
+    clientModule = await import("../src/client/index");
+
+    await act(async () => {
+      clientModule?.mountApp(container!);
+      await flushApp();
+    });
+
+    const originalReplaceState = window.history.replaceState.bind(window.history);
+    let replaceStateCalls = 0;
+
+    window.history.replaceState = ((data: unknown, unused: string, url?: string | URL | null) => {
+      replaceStateCalls += 1;
+      return originalReplaceState(data, unused, url);
+    }) as typeof window.history.replaceState;
+
+    try {
+      await act(async () => {
+        for (const offset of [40, 80, 120, 160, 200]) {
+          window.scrollTo(0, offset);
+          window.dispatchEvent(new Event("scroll"));
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        await flushApp();
+      });
+    } finally {
+      window.history.replaceState = originalReplaceState;
+    }
+
+    expect(replaceStateCalls).toBe(1);
+    expect(
+      (
+        window.history.state as {
+          __litzjsNavigation?: {
+            scrollY?: number;
+          };
+        } | null
+      )?.__litzjsNavigation?.scrollY,
+    ).toBe(200);
   });
 
   test("warns when passed a wrapper component instead of the options object", async () => {
