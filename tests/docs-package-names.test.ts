@@ -28,17 +28,22 @@ describe("docs package names", () => {
   test("installation docs list the full peer dependency surface and compatibility matrix", () => {
     const installationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/installation.tsx"));
 
+    expect(installationDoc).toContain("bun add react react-dom");
+    expect(installationDoc).toContain("npm install react react-dom");
+    expect(installationDoc).toContain("yarn add react react-dom");
+    expect(installationDoc).toContain("pnpm add react react-dom");
+
     expect(installationDoc).toContain("bun add -d typescript vite @vitejs/plugin-rsc");
     expect(installationDoc).toContain("npm install -D typescript vite @vitejs/plugin-rsc");
     expect(installationDoc).toContain("yarn add -D typescript vite @vitejs/plugin-rsc");
     expect(installationDoc).toContain("pnpm add -D typescript vite @vitejs/plugin-rsc");
 
     expect(installationDoc).toContain("Compatibility matrix");
-    expect(installationDoc).toContain("react</code>");
-    expect(installationDoc).toContain("react-dom</code>");
-    expect(installationDoc).toContain("typescript</code>");
-    expect(installationDoc).toContain("vite</code>");
-    expect(installationDoc).toContain("@vitejs/plugin-rsc</code>");
+    expect(installationDoc).toContain('packageName: "react"');
+    expect(installationDoc).toContain('packageName: "react-dom"');
+    expect(installationDoc).toContain('packageName: "typescript"');
+    expect(installationDoc).toContain('packageName: "vite"');
+    expect(installationDoc).toContain('packageName: "@vitejs/plugin-rsc"');
     expect(installationDoc).toContain("^19");
     expect(installationDoc).toContain("^6.0.2");
     expect(installationDoc).toContain("^8");
