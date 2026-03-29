@@ -291,9 +291,19 @@ await server.register(fastifyStatic, {
 server.all("*", async (request, reply) => {
   reply.hijack();
 
-  const origin = \`\${request.protocol}://\${request.headers.host}\`;
-  const response = await app.fetch(toWebRequest(request.raw, origin));
-  await sendWebResponse(response, reply.raw);
+  try {
+    const origin = \`\${request.protocol}://\${request.headers.host}\`;
+    const response = await app.fetch(toWebRequest(request.raw, origin));
+    await sendWebResponse(response, reply.raw);
+  } catch (error) {
+    request.log.error(error);
+
+    if (!reply.raw.writableEnded && !reply.raw.destroyed) {
+      reply.raw.statusCode = 500;
+      reply.raw.setHeader("content-type", "text/plain; charset=utf-8");
+      reply.raw.end("Internal Server Error");
+    }
+  }
 });
 
 await server.listen({
@@ -301,6 +311,12 @@ await server.listen({
   port: Number(process.env.PORT ?? 3000),
 });`}
         />
+        <p className="text-neutral-400 mt-4 mb-4">
+          Once you call <code className="text-sky-400">reply.hijack()</code>, Fastify no longer owns
+          error handling for that request. Keep the explicit{" "}
+          <code className="text-sky-400">try/catch</code>, log failures, and write the fallback{" "}
+          <code className="text-sky-400">500</code> response yourself.
+        </p>
       </section>
 
       <section className="mb-12">

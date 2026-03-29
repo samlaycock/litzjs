@@ -90,7 +90,7 @@ export default {
           code={`{
   "tasks": {
     "build": "vite build",
-    "start": "deno serve ./server.ts",
+    "start": "vite build && deno serve ./server.ts",
     "check": "deno check ./server.ts"
   },
   "imports": {
@@ -141,7 +141,7 @@ deployctl deploy --project=my-litz-app --entrypoint=server.ts`}
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "start": "deno serve ./server.ts",
+    "start": "vite build && deno serve ./server.ts",
     "deploy": "vite build && deployctl deploy --project=my-litz-app --entrypoint=server.ts"
   }
 }`}
