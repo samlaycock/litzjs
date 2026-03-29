@@ -19,6 +19,8 @@ describe("deployment docs", () => {
     expect(nodeDoc).toContain("Readable.toWeb");
     expect(nodeDoc).toContain('express.static(path.join(clientDir, "assets")');
     expect(nodeDoc).toContain("reply.hijack()");
+    expect(nodeDoc).toContain("request.log.error(error);");
+    expect(nodeDoc).toContain('reply.raw.end("Internal Server Error");');
     expect(nodeDoc).toContain('const isStaticFile = pathname.startsWith("/assets/");');
     expect(nodeDoc).toContain("await pipeline(createReadStream");
     expect(nodeDoc).toContain("res.writableEnded || res.destroyed");
@@ -41,6 +43,7 @@ describe("deployment docs", () => {
     expect(denoDoc).toContain("embedAssets: true");
     expect(denoDoc).toContain("# Local preview");
     expect(denoDoc).toContain("# Production deploy");
+    expect(denoDoc).toContain('"start": "vite build && deno serve ./server.ts"');
     expect(denoDoc).toContain("deployctl deploy");
   });
 });
