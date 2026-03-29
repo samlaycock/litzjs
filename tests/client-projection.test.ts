@@ -229,4 +229,24 @@ export const route = defineRoute("/", {
       mock.restore();
     }
   });
+
+  test("appends a hot accept handler for projected route modules", () => {
+    const source = `
+import { defineRoute } from "litzjs";
+
+function Page() {
+  return <main>Home</main>;
+}
+
+export const route = defineRoute("/", {
+  component: Page,
+});
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/home.tsx", source);
+
+    expect(projected).toContain("import.meta.hot.accept((mod) =>");
+    expect(projected).toContain('kind: "route"');
+    expect(projected).toContain("definition: mod.route");
+  });
 });

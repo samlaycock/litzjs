@@ -69,16 +69,18 @@ export type LitzClientBindings = {
   ): React.ComponentType<any>;
 };
 
-let clientBindings: LitzClientBindings | null = null;
+declare global {
+  var __litzjsClientBindings: LitzClientBindings | null | undefined;
+}
 
 export function installClientBindings(bindings: LitzClientBindings): void {
-  clientBindings = bindings;
+  globalThis.__litzjsClientBindings = bindings;
 }
 
 export function getClientBindings(): LitzClientBindings | null {
-  return clientBindings;
+  return globalThis.__litzjsClientBindings ?? null;
 }
 
 export function resetClientBindings(): void {
-  clientBindings = null;
+  globalThis.__litzjsClientBindings = null;
 }

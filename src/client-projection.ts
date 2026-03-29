@@ -87,8 +87,9 @@ export function createClientModuleProjection(filePath: string, source: string): 
   const moduleSource = [...printedImports, ...placeholder, ...transformedStatements]
     .map((statement) => printer.printNode(ts.EmitHint.Unspecified, statement, sourceFile))
     .join("\n\n");
+  const hmrAcceptSource = createProjectionHotAcceptSource(rootStatement);
 
-  return `${moduleSource}\n`;
+  return `${moduleSource}${hmrAcceptSource}\n`;
 }
 
 function findProjectionRootStatement(sourceFile: ts.SourceFile): ts.Statement | null {
@@ -122,6 +123,39 @@ function findProjectionRootStatement(sourceFile: ts.SourceFile): ts.Statement | 
   }
 
   return null;
+}
+
+function createProjectionHotAcceptSource(rootStatement: ts.Statement): string {
+  if (!ts.isVariableStatement(rootStatement)) {
+    return "\n";
+  }
+
+  const declaration = rootStatement.declarationList.declarations[0];
+
+  if (!declaration || !ts.isIdentifier(declaration.name)) {
+    return "\n";
+  }
+
+  const exportName = declaration.name.text;
+  const supportedKinds = new Set(["route", "layout", "resource", "api"]);
+
+  if (!supportedKinds.has(exportName)) {
+    return "\n";
+  }
+
+  return `
+
+if (import.meta.hot) {
+  import.meta.hot.accept((mod) => {
+    if (mod?.${exportName}) {
+      globalThis.__litzjsHandleClientDefinitionHotUpdate?.({
+        kind: ${JSON.stringify(exportName)},
+        definition: mod.${exportName},
+      });
+    }
+  });
+}
+`;
 }
 
 function collectTopLevelDeclarations(sourceFile: ts.SourceFile): Map<string, ts.Statement> {

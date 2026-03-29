@@ -14,6 +14,8 @@ import {
 import { createSearchParamRecord, type SearchParamRecord } from "../search-params";
 import { isAbortError } from "./abort-error";
 import { installClientBindings } from "./bindings";
+import { getLocationContext, getMatchesContext, getNavigationContext } from "./contexts";
+import { getLitzHotContext, subscribeToRscHotUpdates, type ClientDefinitionHotUpdate } from "./hmr";
 import { createLinkComponent } from "./link";
 import { fetchRouteLoadersInParallel, processLoaderResults } from "./loader-fetch";
 import { applySearchParams, shouldPrefetchLink } from "./navigation";
@@ -92,7 +94,11 @@ type LoadedLayout = {
 type ManifestEntry = {
   id: string;
   path: string;
+  moduleFile?: string;
   load: () => Promise<{
+    route?: LoadedRoute;
+  }>;
+  hotLoad?: () => Promise<{
     route?: LoadedRoute;
   }>;
 };
@@ -102,23 +108,6 @@ const exactManifestEntries = new Map<string, ManifestEntry>();
 const dynamicManifestEntries: ManifestEntry[] = [];
 const ROUTE_CACHE_LIMIT = 200;
 const ROUTE_MODULE_CACHE_LIMIT = Math.max(manifest.length, 1);
-let navigationContext: React.Context<{
-  navigate(href: string, options?: { replace?: boolean }): void;
-} | null> | null = null;
-let locationContext: React.Context<{
-  href: string;
-  pathname: string;
-  search: URLSearchParams;
-  hash: string;
-} | null> | null = null;
-let matchesContext: React.Context<
-  Array<{
-    id: string;
-    path: string;
-    params: Record<string, string>;
-    search: URLSearchParams;
-  }>
-> | null = null;
 const routeCache = new Map<string, LoaderHookResult>();
 const routeModuleCache = new Map<string, LoadedRoute>();
 const routeModulePrefetchCache = new Map<string, Promise<LoadedRoute | null>>();
@@ -164,88 +153,6 @@ for (const entry of manifest) {
   }
 }
 
-function getNavigationContext(): React.Context<{
-  navigate(href: string, options?: { replace?: boolean }): void;
-} | null> {
-  if (!navigationContext) {
-    const createContext = (
-      React as typeof React & {
-        createContext?: typeof React.createContext;
-      }
-    ).createContext;
-
-    if (!createContext) {
-      throw new Error("Litz client navigation is not available in this environment.");
-    }
-
-    navigationContext = createContext<{
-      navigate(href: string, options?: { replace?: boolean }): void;
-    } | null>(null);
-  }
-
-  return navigationContext;
-}
-
-function getMatchesContext(): React.Context<
-  Array<{
-    id: string;
-    path: string;
-    params: Record<string, string>;
-    search: URLSearchParams;
-  }>
-> {
-  if (!matchesContext) {
-    const createContext = (
-      React as typeof React & {
-        createContext?: typeof React.createContext;
-      }
-    ).createContext;
-
-    if (!createContext) {
-      throw new Error("Litz client matches are not available in this environment.");
-    }
-
-    matchesContext = createContext<
-      Array<{
-        id: string;
-        path: string;
-        params: Record<string, string>;
-        search: URLSearchParams;
-      }>
-    >([]);
-  }
-
-  return matchesContext;
-}
-
-function getLocationContext(): React.Context<{
-  href: string;
-  pathname: string;
-  search: URLSearchParams;
-  hash: string;
-} | null> {
-  if (!locationContext) {
-    const createContext = (
-      React as typeof React & {
-        createContext?: typeof React.createContext;
-      }
-    ).createContext;
-
-    if (!createContext) {
-      throw new Error("Litz client location is not available in this environment.");
-    }
-
-    locationContext = createContext<{
-      href: string;
-      pathname: string;
-      search: URLSearchParams;
-      hash: string;
-    } | null>(null);
-  }
-
-  return locationContext;
-}
-
 export function mountApp(element: Element, options?: MountAppOptions): void {
   const resolvedOptions = normalizeMountAppOptions(options);
 
@@ -263,6 +170,16 @@ export function mountApp(element: Element, options?: MountAppOptions): void {
       }),
     );
   });
+}
+
+function clearClientHotUpdateCaches(): void {
+  routeCache.clear();
+  routeDataPrefetchCache.clear();
+}
+
+function clearClientRouteModuleCaches(): void {
+  routeModuleCache.clear();
+  routeModulePrefetchCache.clear();
 }
 
 function normalizeMountAppOptions(options?: MountAppOptions): MountAppOptions | undefined {
@@ -423,6 +340,7 @@ function LitzApp(props: {
   navigationBehavior: ManagedNavigationBehavior;
 }): React.ReactElement {
   const [location, setLocation] = React.useState(() => window.location.href);
+  const [hotUpdateVersion, setHotUpdateVersion] = React.useState(0);
   const pendingNavigationRef = React.useRef<PendingNavigation | null>(null);
   const scrollPersistTimeoutRef = React.useRef<number | null>(null);
   const lastScrollPersistTimeRef = React.useRef(0);
@@ -454,6 +372,38 @@ function LitzApp(props: {
       persistScrollPositionNow();
     }, SCROLL_POSITION_PERSIST_INTERVAL_MS - elapsed);
   }, [persistScrollPositionNow]);
+
+  React.useEffect(() => {
+    const previousHandler = globalThis.__litzjsHandleClientDefinitionHotUpdate;
+
+    globalThis.__litzjsHandleClientDefinitionHotUpdate = (update: ClientDefinitionHotUpdate) => {
+      if (update.kind === "route" && isLoadedRoute(update.definition)) {
+        routeModuleCache.set(update.definition.id, update.definition);
+        routeModulePrefetchCache.delete(update.definition.id);
+      } else {
+        clearClientRouteModuleCaches();
+      }
+
+      React.startTransition(() => {
+        setHotUpdateVersion((current) => current + 1);
+      });
+    };
+
+    return () => {
+      globalThis.__litzjsHandleClientDefinitionHotUpdate = previousHandler;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    return subscribeToRscHotUpdates(getLitzHotContext(), () => {
+      void Promise.resolve().finally(() => {
+        clearClientHotUpdateCaches();
+        React.startTransition(() => {
+          setHotUpdateVersion((current) => current + 1);
+        });
+      });
+    });
+  }, []);
 
   React.useEffect(() => {
     function handlePopState(): void {
@@ -558,14 +508,20 @@ function LitzApp(props: {
     };
   }, [location]);
 
-  const routeHost = React.createElement(RouteHost, {
-    location,
-    navigate,
-    component: props.component,
-    notFound: props.notFound,
-    navigationBehavior: props.navigationBehavior,
-    pendingNavigationRef,
-  });
+  const routeHost = React.createElement(
+    React.Fragment,
+    {
+      key: hotUpdateVersion,
+    },
+    React.createElement(RouteHost, {
+      location,
+      navigate,
+      component: props.component,
+      notFound: props.notFound,
+      navigationBehavior: props.navigationBehavior,
+      pendingNavigationRef,
+    }),
+  );
 
   const content = props.layout
     ? React.createElement(props.layout.component, null, routeHost)
@@ -856,6 +812,19 @@ function findMatch(pathname: string): {
 
 function DefaultNotFoundPage(): React.ReactElement {
   return React.createElement("main", null, React.createElement("h1", null, "Not Found"));
+}
+
+function isLoadedRoute(value: unknown): value is LoadedRoute {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "path" in value &&
+    typeof value.path === "string" &&
+    "component" in value &&
+    typeof value.component === "function"
+  );
 }
 
 type MatchErrorInfo = Extract<ActionHookResult, { kind: "fault" }>;
