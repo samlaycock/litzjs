@@ -293,7 +293,13 @@ export default createServer({
       }
 
       if (id === RESOLVED_LITZ_BROWSER_ENTRY_ID) {
-        return `import ${JSON.stringify(toImportSpecifier(root, browserEntryPath))};`;
+        return `
+if (import.meta.hot) {
+  globalThis.__litzjsViteHot = import.meta.hot;
+}
+
+import ${JSON.stringify(toImportSpecifier(root, browserEntryPath))};
+`;
       }
 
       if (id === RESOLVED_LITZ_RSC_RENDERER_ID) {
@@ -565,12 +571,22 @@ export async function renderView(node, metadata = {}) {
       });
     },
 
-    async handleHotUpdate(context) {
-      if (!/\.(ts|tsx)$/.test(context.file)) {
+    hotUpdate(options) {
+      if (this.environment.name !== "client" || options.type !== "update") {
         return;
       }
 
-      return context.modules;
+      if (!/\.(ts|tsx)$/.test(options.file)) {
+        return;
+      }
+
+      const cleanId = normalizeViteModuleId(options.file);
+
+      if (!clientProjectedFiles.has(cleanId)) {
+        return;
+      }
+
+      return collectClientHotUpdateModules(this.environment, options.file, options.modules, root);
     },
 
     async transform(code, id) {
@@ -1169,12 +1185,15 @@ function createRouteManifestModule(
 
   const lines = manifest.map((route, index) => {
     const importPath = toImportSpecifier(root, route.modulePath);
+    const resolvedModuleFile = path.resolve(root, route.modulePath);
 
     return [
       `  {`,
       `    id: ${JSON.stringify(route.id)},`,
       `    path: ${JSON.stringify(route.path)},`,
-      `    load: () => import(${JSON.stringify(importPath)})`,
+      `    moduleFile: ${JSON.stringify(resolvedModuleFile)},`,
+      `    load: () => import(${JSON.stringify(importPath)}),`,
+      `    hotLoad: () => import(/* @vite-ignore */ ${JSON.stringify(`${importPath}?t=`)} + Date.now())`,
       `  }${index === manifest.length - 1 ? "" : ","}`,
     ].join("\n");
   });
@@ -1396,6 +1415,40 @@ function invalidateVirtualModule(server: ViteDevServer, id: string): void {
   if (module) {
     server.moduleGraph.invalidateModule(module);
   }
+}
+
+function collectClientHotUpdateModules<TModule extends { id: string | null }>(
+  environment: {
+    moduleGraph: {
+      getModuleById(id: string): TModule | undefined;
+      getModulesByFile(file: string): Set<TModule> | undefined;
+    };
+  },
+  file: string,
+  modules: readonly TModule[],
+  root: string,
+): TModule[] | undefined {
+  const collectedModules = new Set(modules);
+
+  for (const module of environment.moduleGraph.getModulesByFile(file) ?? []) {
+    collectedModules.add(module);
+  }
+
+  const relativeModulePath = normalizeRelativePath(root, file);
+  const importSpecifier = toImportSpecifier(root, relativeModulePath);
+  const directImportModule = environment.moduleGraph.getModuleById(importSpecifier);
+
+  if (directImportModule) {
+    collectedModules.add(directImportModule);
+  }
+
+  const normalizedModule = environment.moduleGraph.getModuleById(normalizeViteModuleId(file));
+
+  if (normalizedModule) {
+    collectedModules.add(normalizedModule);
+  }
+
+  return collectedModules.size > 0 ? [...collectedModules] : undefined;
 }
 
 function normalizeRelativePath(root: string, file: string): string {
