@@ -74,7 +74,7 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
 
   const navContent = (
     <nav className="flex flex-col">
-      <div className="sticky top-0 z-10 bg-neutral-950 px-4 pt-6 pb-4">
+      <div className="sticky top-0 z-10 bg-neutral-950 px-4 pt-6 pb-6">
         <label
           htmlFor="docs-search"
           className="mb-2 block text-xs uppercase tracking-[0.2em] text-neutral-500"
