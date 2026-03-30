@@ -754,6 +754,61 @@ describe("dev server abort signal lifecycle", () => {
 
     expect(capturedSignal!.aborted).toBe(true);
   });
+
+  test("API routes load through the RSC environment runner", async () => {
+    const ssrLoadModule = mock(async () => {
+      throw new Error("API routes should not use server.ssrLoadModule().");
+    });
+    const resolveId = mock(async (id: string) => ({ id: `resolved:${id}` }));
+    const importModule = mock(async (id: string) => {
+      expect(id).toContain("src/api/test.ts");
+
+      return {
+        api: {
+          methods: {
+            GET() {
+              return new Response("ok");
+            },
+          },
+        },
+      };
+    });
+    const server = {
+      config: { root: "/fake-root" },
+      ssrFixStacktrace: mock(() => {}),
+      ssrLoadModule,
+      environments: {
+        rsc: {
+          pluginContainer: {
+            resolveId,
+          },
+          runner: {
+            import: importModule,
+          },
+        },
+      },
+    } as unknown as ViteDevServer;
+    const request = createMockRequest({
+      url: "/api/test",
+      method: "GET",
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzApiRequest(
+      server,
+      [{ path: "/api/test", modulePath: "src/api/test.ts" }],
+      request,
+      response,
+      next,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.getBody()).toBe("ok");
+    expect(resolveId).toHaveBeenCalledTimes(1);
+    expect(importModule).toHaveBeenCalledTimes(1);
+    expect(ssrLoadModule).not.toHaveBeenCalled();
+  });
 });
 
 describe("dev server error masking", () => {

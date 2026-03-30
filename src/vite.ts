@@ -1917,32 +1917,30 @@ export async function handleLitzApiRequest(
   }
 
   try {
-    const module = await server.ssrLoadModule(
-      toImportSpecifier(server.config.root, matched.modulePath),
-    );
-    const api = module.api as
-      | {
-          input?: RuntimeInputValidation;
-          middleware?: DevMiddlewareHandler<unknown, Response>[];
-          methods?: Partial<
-            Record<
-              ApiRouteMethod,
-              (context: {
-                request: Request;
-                params: Record<string, string>;
-                signal: AbortSignal;
-                context: unknown;
-                input: {
-                  params: unknown;
-                  search: unknown;
-                  headers: unknown;
-                  body: unknown;
-                };
-              }) => Promise<Response> | Response
-            >
-          >;
-        }
-      | undefined;
+    const module = await loadLitzServerModule<{
+      api?: {
+        input?: RuntimeInputValidation;
+        middleware?: DevMiddlewareHandler<unknown, Response>[];
+        methods?: Partial<
+          Record<
+            ApiRouteMethod,
+            (context: {
+              request: Request;
+              params: Record<string, string>;
+              signal: AbortSignal;
+              context: unknown;
+              input: {
+                params: unknown;
+                search: unknown;
+                headers: unknown;
+                body: unknown;
+              };
+            }) => Promise<Response> | Response
+          >
+        >;
+      };
+    }>(server, toImportSpecifier(server.config.root, matched.modulePath));
+    const api = module.api;
 
     const method = (request.method ?? "GET").toUpperCase() as Exclude<ApiRouteMethod, "ALL">;
     const handler = api?.methods?.[method] ?? api?.methods?.ALL;
