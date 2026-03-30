@@ -10,6 +10,18 @@ function normalizeText(value: string): string {
   return value.replaceAll(/\s+/g, " ").trim();
 }
 
+function getHeadingText(heading: HTMLHeadingElement): string {
+  const clone = heading.cloneNode(true);
+
+  if (!(clone instanceof HTMLElement)) {
+    return "";
+  }
+
+  clone.querySelector("[data-doc-heading-anchor]")?.remove();
+
+  return normalizeText(clone.textContent ?? "");
+}
+
 function createSlug(text: string): string {
   const normalizedText = normalizeText(text)
     .toLowerCase()
@@ -35,10 +47,10 @@ function ensureAnchorLink(heading: HTMLHeadingElement, id: string): void {
 
   const anchor = document.createElement("a");
   anchor.href = `#${id}`;
-  anchor.setAttribute("aria-label", `Link to ${normalizeText(heading.textContent ?? "section")}`);
+  anchor.setAttribute("aria-label", `Link to ${getHeadingText(heading) || "section"}`);
   anchor.setAttribute("data-doc-heading-anchor", "true");
   anchor.className =
-    "ml-3 inline-flex size-7 items-center justify-center rounded-full border border-transparent text-sm text-sky-400/80 transition-colors hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400";
+    "ml-2 inline align-baseline text-[0.8em] text-current/50 leading-none transition-colors hover:text-sky-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400";
   anchor.textContent = "#";
   heading.append(anchor);
 }
@@ -48,7 +60,7 @@ export function synchronizeDocHeadings(root: ParentNode): readonly DocHeading[] 
   const headings = Array.from(root.querySelectorAll<HTMLHeadingElement>("h1, h2, h3"));
 
   return headings.flatMap((heading) => {
-    const text = normalizeText(heading.textContent ?? "");
+    const text = getHeadingText(heading);
 
     if (!text) {
       return [];
