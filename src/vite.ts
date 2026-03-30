@@ -20,6 +20,7 @@ import ts from "typescript";
 
 import type { ApiRouteMethod } from "./index";
 
+import { joinBasePath, normalizeBasePath, resolveBasePathname } from "./base-path";
 import { createClientModuleProjection } from "./client-projection";
 import {
   createApiResponseFromResult,
@@ -95,6 +96,7 @@ const RESOLVED_LITZ_RSC_RENDERER_ID = "\0virtual:litzjs:rsc-renderer";
  */
 export function litz(options: LitzPluginOptions = {}): Plugin[] {
   let root = process.cwd();
+  let configuredBase = "/";
   let browserEntryPath = "src/main.tsx";
   let serverEntryPath: string | null = null;
   let serverEntryFilePath: string | null = null;
@@ -180,6 +182,7 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
 
     async configResolved(config) {
       root = config.root;
+      configuredBase = normalizeBasePath(config.base);
       outputRootDir = path.resolve(root, config.build.outDir || "dist");
       clientOutDir = path.resolve(
         root,
@@ -263,7 +266,12 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
     // browser entries wire up the framework's server and client entry points.
     load(id) {
       if (id === RESOLVED_ROUTE_MANIFEST_ID) {
-        return createRouteManifestModule(routeManifest, root, this.environment.name === "client");
+        return createRouteManifestModule(
+          routeManifest,
+          root,
+          this.environment.name === "client",
+          configuredBase,
+        );
       }
 
       if (id === RESOLVED_RESOURCE_MANIFEST_ID) {
@@ -284,6 +292,7 @@ import { createServer } from "litzjs/server";
 import { serverManifest } from ${JSON.stringify(SERVER_MANIFEST_ID)};
 
 export default createServer({
+  base: ${JSON.stringify(configuredBase)},
   manifest: serverManifest,
   createContext() {
     return undefined;
@@ -298,7 +307,9 @@ if (import.meta.hot) {
   globalThis.__litzjsViteHot = import.meta.hot;
 }
 
-import ${JSON.stringify(toImportSpecifier(root, browserEntryPath))};
+globalThis.__litzjsBaseUrl = ${JSON.stringify(configuredBase)};
+
+import ${JSON.stringify(toBrowserImportSpecifier(root, browserEntryPath, configuredBase))};
 `;
       }
 
@@ -558,16 +569,23 @@ export async function renderView(node, metadata = {}) {
       server.watcher.on("unlink", onFileAddOrUnlink);
 
       server.middlewares.use((request, response, next) => {
-        void handleLitzResourceRequest(server, resourceManifest, request, response, next);
+        void handleLitzResourceRequest(
+          server,
+          resourceManifest,
+          request,
+          response,
+          next,
+          configuredBase,
+        );
       });
       server.middlewares.use((request, response, next) => {
-        void handleLitzRouteRequest(server, routeManifest, request, response, next);
+        void handleLitzRouteRequest(server, routeManifest, request, response, next, configuredBase);
       });
       server.middlewares.use((request, response, next) => {
-        void handleLitzApiRequest(server, apiManifest, request, response, next);
+        void handleLitzApiRequest(server, apiManifest, request, response, next, configuredBase);
       });
       server.middlewares.use((request, response, next) => {
-        void handleLitzDocumentRequest(server, request, response, next);
+        void handleLitzDocumentRequest(server, request, response, next, configuredBase);
       });
     },
 
@@ -597,7 +615,7 @@ export async function renderView(node, metadata = {}) {
         serverEntryFilePath &&
         cleanId === serverEntryFilePath
       ) {
-        const transformed = injectServerManifestIntoServerEntry(cleanId, code);
+        const transformed = injectServerManifestIntoServerEntry(cleanId, code, configuredBase);
 
         if (!transformed) {
           return null;
@@ -662,6 +680,7 @@ export async function renderView(node, metadata = {}) {
             serverOutDir,
             clientOutDir,
             options.embedAssets ?? false,
+            configuredBase,
           );
 
           if (!hasFinalizedServerArtifacts) {
@@ -689,6 +708,7 @@ export async function renderView(node, metadata = {}) {
         serverOutDir,
         clientOutDir,
         inlineClientAssets,
+        configuredBase,
       );
     },
   };
@@ -1162,6 +1182,7 @@ function createRouteManifestModule(
   manifest: DiscoveredRoute[],
   root: string,
   lazy: boolean,
+  base: string,
 ): string {
   if (!lazy) {
     const imports: string[] = [];
@@ -1184,7 +1205,7 @@ function createRouteManifestModule(
   }
 
   const lines = manifest.map((route, index) => {
-    const importPath = toImportSpecifier(root, route.modulePath);
+    const importPath = toBrowserImportSpecifier(root, route.modulePath, base);
     const resolvedModuleFile = path.resolve(root, route.modulePath);
 
     return [
@@ -1221,7 +1242,11 @@ function createClientProjectedFileSet(
  * helper that merges in the route/resource/API manifest. Returns `null` if no
  * `createServer` import is found.
  */
-function injectServerManifestIntoServerEntry(filePath: string, source: string): string | null {
+function injectServerManifestIntoServerEntry(
+  filePath: string,
+  source: string,
+  base: string,
+): string | null {
   const scriptKind = filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const sourceFile = ts.createSourceFile(
     filePath,
@@ -1333,6 +1358,10 @@ function injectServerManifestIntoServerEntry(filePath: string, source: string): 
                       ts.factory.createToken(ts.SyntaxKind.QuestionQuestionToken),
                       ts.factory.createObjectLiteralExpression(),
                     ),
+                  ),
+                  ts.factory.createPropertyAssignment(
+                    ts.factory.createIdentifier("base"),
+                    ts.factory.createStringLiteral(base),
                   ),
                 ],
                 true,
@@ -1459,6 +1488,10 @@ function toImportSpecifier(root: string, relativeModulePath: string): string {
   return `/@fs/${absolutePath.split(path.sep).join("/")}`;
 }
 
+function toBrowserImportSpecifier(root: string, relativeModulePath: string, base: string): string {
+  return joinBasePath(base, toImportSpecifier(root, relativeModulePath));
+}
+
 function toProjectImportSpecifier(relativeModulePath: string): string {
   return `/${relativeModulePath}`;
 }
@@ -1520,15 +1553,18 @@ export async function handleLitzResourceRequest(
   request: IncomingMessage,
   response: ServerResponse,
   next: Connect.NextFunction,
+  base = "/",
 ): Promise<void> {
   let viewId = "litzjs#view";
+  const requestUrl = request.url ? new URL(request.url, "http://litzjs.local") : null;
+  const pathname = requestUrl ? resolveBasePathname(requestUrl.pathname, base) : "/";
 
   if (!hasRunnableRscEnvironment(server)) {
     next();
     return;
   }
 
-  if (!request.url?.startsWith("/_litzjs/resource")) {
+  if (pathname !== "/_litzjs/resource") {
     next();
     return;
   }
@@ -1644,15 +1680,18 @@ export async function handleLitzRouteRequest(
   request: IncomingMessage,
   response: ServerResponse,
   next: Connect.NextFunction,
+  base = "/",
 ): Promise<void> {
   let viewId = "litzjs#view";
+  const requestUrl = request.url ? new URL(request.url, "http://litzjs.local") : null;
+  const pathname = requestUrl ? resolveBasePathname(requestUrl.pathname, base) : "/";
 
   if (!hasRunnableRscEnvironment(server)) {
     next();
     return;
   }
 
-  if (!request.url?.startsWith("/_litzjs/route") && !request.url?.startsWith("/_litzjs/action")) {
+  if (pathname !== "/_litzjs/route" && pathname !== "/_litzjs/action") {
     next();
     return;
   }
@@ -1670,8 +1709,7 @@ export async function handleLitzRouteRequest(
     const routePath = body.path;
     const targetId = body.target;
     const targetIds = body.targets?.filter((value): value is string => typeof value === "string");
-    const operation =
-      body.operation ?? (request.url.startsWith("/_litzjs/action") ? "action" : "loader");
+    const operation = body.operation ?? (pathname === "/_litzjs/action" ? "action" : "loader");
     const entry = manifest.find((route) => route.path === routePath);
 
     if (!routePath || !entry) {
@@ -1836,6 +1874,7 @@ async function handleLitzDocumentRequest(
   request: IncomingMessage,
   response: ServerResponse,
   next: Connect.NextFunction,
+  base = "/",
 ): Promise<void> {
   if (!hasRunnableRscEnvironment(server)) {
     next();
@@ -1844,18 +1883,23 @@ async function handleLitzDocumentRequest(
 
   const url = request.url ?? "/";
   const requestUrl = new URL(url, "http://litzjs.local");
+  const pathname = resolveBasePathname(requestUrl.pathname, base);
 
   if (request.method !== "GET" && request.method !== "HEAD") {
     next();
     return;
   }
 
-  if (url.startsWith("/_litzjs/") || url.startsWith("/@") || url.startsWith("/node_modules/")) {
+  if (
+    pathname.startsWith("/_litzjs/") ||
+    pathname.startsWith("/@") ||
+    pathname.startsWith("/node_modules/")
+  ) {
     next();
     return;
   }
 
-  if (path.extname(url)) {
+  if (path.extname(pathname)) {
     next();
     return;
   }
@@ -1891,6 +1935,7 @@ export async function handleLitzApiRequest(
   request: IncomingMessage,
   response: ServerResponse,
   next: Connect.NextFunction,
+  base = "/",
 ): Promise<void> {
   if (!hasRunnableRscEnvironment(server)) {
     next();
@@ -1898,6 +1943,7 @@ export async function handleLitzApiRequest(
   }
 
   const requestUrl = request.url ? new URL(request.url, "http://litzjs.local") : null;
+  const pathname = requestUrl ? resolveBasePathname(requestUrl.pathname, base) : null;
 
   if (!requestUrl) {
     next();
@@ -1909,7 +1955,9 @@ export async function handleLitzApiRequest(
     return;
   }
 
-  const matched = manifest.find((entry) => matchPathPattern(entry.path, requestUrl.pathname));
+  const matched = manifest.find((entry) =>
+    matchPathPattern(entry.path, pathname ?? requestUrl.pathname),
+  );
 
   if (!matched) {
     next();
@@ -2712,6 +2760,7 @@ function finalizeServerArtifacts(
   serverOutDir: string,
   clientOutDir: string,
   inlineClientAssets: boolean,
+  base: string,
 ): boolean {
   let rscEntrySource: string;
   let rscAssetsManifestSource: string;
@@ -2782,7 +2831,7 @@ function finalizeServerArtifacts(
 
   try {
     wrapperSource = inlineClientAssets
-      ? createInlineAssetServerWrapper(inlinedServerSource, documentHtml, clientAssets)
+      ? createInlineAssetServerWrapper(inlinedServerSource, documentHtml, clientAssets, base)
       : createServerModuleWrapper(inlinedServerSource);
   } catch {
     return false;
@@ -3048,12 +3097,14 @@ function createInlineAssetServerWrapper(
   serverModuleSource: string,
   documentHtml: string,
   clientAssets: EmbeddedClientAsset[],
+  base: string,
 ): string {
   const serializedClientAssets = JSON.stringify(clientAssets);
   const serializedDocumentHtml = JSON.stringify(documentHtml);
   const { source, handlerName } = transformServerModuleSource(serverModuleSource);
 
   return [
+    `const LITZ_BASE_PATH = ${JSON.stringify(base)};`,
     `const LITZ_DOCUMENT_HTML = ${serializedDocumentHtml};`,
     `const LITZ_CLIENT_ASSETS = new Map(${serializedClientAssets}.map((asset) => [asset.path, asset]));`,
     "",
@@ -3087,6 +3138,22 @@ function createInlineAssetServerWrapper(
     "  });",
     "}",
     "",
+    "function __litzjsStripBasePath(pathname) {",
+    "  if (LITZ_BASE_PATH === '/') {",
+    "    return pathname;",
+    "  }",
+    "",
+    "  if (pathname === LITZ_BASE_PATH || pathname === `${LITZ_BASE_PATH}/`) {",
+    "    return '/';",
+    "  }",
+    "",
+    "  if (pathname.startsWith(`${LITZ_BASE_PATH}/`)) {",
+    "    return pathname.slice(LITZ_BASE_PATH.length) || '/';",
+    "  }",
+    "",
+    "  return pathname;",
+    "}",
+    "",
     "function __litzjsShouldServeDocument(request, pathname) {",
     "  if (pathname.startsWith('/_litzjs/') || pathname.startsWith('/api/')) {",
     "    return false;",
@@ -3104,13 +3171,14 @@ function createInlineAssetServerWrapper(
     "",
     "async function handle(request) {",
     "  const url = new URL(request.url);",
-    "  const asset = LITZ_CLIENT_ASSETS.get(url.pathname);",
+    "  const pathname = __litzjsStripBasePath(url.pathname);",
+    "  const asset = LITZ_CLIENT_ASSETS.get(pathname);",
     "",
     "  if ((request.method === 'GET' || request.method === 'HEAD') && asset) {",
     "    return __litzjsCreateStaticAssetResponse(asset, request);",
     "  }",
     "",
-    "  if ((request.method === 'GET' || request.method === 'HEAD') && __litzjsShouldServeDocument(request, url.pathname)) {",
+    "  if ((request.method === 'GET' || request.method === 'HEAD') && __litzjsShouldServeDocument(request, pathname)) {",
     "    return new Response(request.method === 'HEAD' ? null : LITZ_DOCUMENT_HTML, {",
     "      status: 200,",
     "      headers: {",

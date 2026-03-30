@@ -968,6 +968,7 @@ const serverGroups: readonly ReferenceGroupSpec[] = [
   createContext?(request: Request): Promise<TContext> | TContext;
   onError?(error: unknown, context: TContext | undefined): void;
   manifest?: ServerManifest;
+  base?: string;
   document?: Response | string | ((request: Request) => Promise<Response | string | null | undefined> | Response | string | null | undefined);
   notFound?: Response | string | ((request: Request) => Promise<Response | string | null | undefined> | Response | string | null | undefined);
   assets?: (request: Request) => Promise<Response | null | undefined> | Response | null | undefined;

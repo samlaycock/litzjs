@@ -1,5 +1,6 @@
 import type { ApiRouteMethod } from "../index";
 
+import { normalizeBasePath, resolveBasePathname } from "../base-path";
 import {
   createApiResponseFromResult,
   isServerResultLike,
@@ -136,6 +137,7 @@ export type CreateServerOptions<TContext = unknown> = {
   createContext?(request: Request): Promise<TContext> | TContext;
   onError?(error: unknown, context: TContext | undefined): void;
   manifest?: ServerManifest;
+  base?: string;
   document?: DocumentResponseOption;
   notFound?: DocumentResponseOption;
   assets?: (request: Request) => Promise<Response | null | undefined> | Response | null | undefined;
@@ -145,9 +147,11 @@ export function createServer<TContext = unknown>(
   options: CreateServerOptions<TContext> = {},
 ): { fetch(request: Request): Promise<Response> } {
   const manifest = options.manifest ?? {};
+  const basePath = normalizeBasePath(options.base);
 
   async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    const pathname = resolveBasePathname(url.pathname, basePath);
     let contextLoaded = false;
     let contextValue: TContext | undefined;
 
@@ -166,7 +170,7 @@ export function createServer<TContext = unknown>(
     }
 
     try {
-      if (url.pathname === "/_litzjs/resource") {
+      if (pathname === "/_litzjs/resource") {
         return await handleResourceRequest(
           request,
           manifest.resources ?? [],
@@ -176,17 +180,23 @@ export function createServer<TContext = unknown>(
         );
       }
 
-      if (url.pathname === "/_litzjs/route" || url.pathname === "/_litzjs/action") {
+      if (pathname === "/_litzjs/route" || pathname === "/_litzjs/action") {
         return await handleRouteRequest(
           request,
           manifest.routes ?? [],
           getContext,
           (error, context) => options.onError?.(error, context),
           () => (contextLoaded ? contextValue : undefined),
+          basePath,
         );
       }
 
-      const apiResponse = await handleApiRequest(request, manifest.apiRoutes ?? [], getContext);
+      const apiResponse = await handleApiRequest(
+        request,
+        manifest.apiRoutes ?? [],
+        getContext,
+        basePath,
+      );
 
       if (apiResponse) {
         return apiResponse;
@@ -199,8 +209,8 @@ export function createServer<TContext = unknown>(
           return toHeadResponseIfNeeded(request, assetResponse);
         }
 
-        if (shouldServeDocument(request, url.pathname)) {
-          const matchedRoute = hasMatchingDocumentRoute(manifest.routes ?? [], url.pathname);
+        if (shouldServeDocument(request, pathname)) {
+          const matchedRoute = hasMatchingDocumentRoute(manifest.routes ?? [], pathname);
           const primaryResponse = matchedRoute
             ? await createDocumentResponse(options.document, request, 200)
             : await createDocumentResponse(options.notFound, request, 404);
@@ -373,6 +383,7 @@ async function handleRouteRequest<TContext>(
   getContext: () => Promise<TContext | undefined>,
   reportError?: (error: unknown, context: TContext | undefined) => void,
   getLoadedContext?: () => TContext | undefined,
+  base?: string,
 ): Promise<Response> {
   let viewId = "litzjs#view";
 
@@ -385,8 +396,9 @@ async function handleRouteRequest<TContext>(
     const routePath = body.path;
     const targetId = body.target;
     const targetIds = body.targets?.filter((value): value is string => typeof value === "string");
+    const requestPathname = resolveBasePathname(new URL(request.url).pathname, base);
     const operation =
-      body.operation ?? (new URL(request.url).pathname === "/_litzjs/action" ? "action" : "loader");
+      body.operation ?? (requestPathname === "/_litzjs/action" ? "action" : "loader");
     const entry = routes.find((route) => route.path === routePath);
 
     if (!routePath || !entry?.route) {
@@ -475,13 +487,15 @@ async function handleApiRequest<TContext>(
   request: Request,
   apiRoutes: ApiModule[],
   getContext: () => Promise<TContext | undefined>,
+  base?: string,
 ): Promise<Response | null> {
   try {
     const url = new URL(request.url);
+    const pathname = resolveBasePathname(url.pathname, base);
     const matched = apiRoutes
       .map((candidate) => ({
         entry: candidate,
-        params: matchPathname(candidate.path, url.pathname),
+        params: matchPathname(candidate.path, pathname),
       }))
       .find((candidate) => candidate.params !== null);
 

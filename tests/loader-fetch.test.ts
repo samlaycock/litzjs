@@ -5,6 +5,8 @@ import type { LoaderHookResult } from "../src/index";
 
 const mockFetch = mock<typeof fetch>();
 const originalFetch = globalThis.fetch;
+const baseUrlTarget = globalThis as typeof globalThis & { __litzjsBaseUrl?: string };
+const originalBaseUrl = baseUrlTarget.__litzjsBaseUrl;
 
 import { processLoaderResults } from "../src/client/loader-fetch";
 
@@ -38,9 +40,58 @@ beforeEach(() => {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  baseUrlTarget.__litzjsBaseUrl = originalBaseUrl;
 });
 
 describe("fetchRouteLoadersInParallel", () => {
+  test("uses the configured client base for internal route loader requests", async () => {
+    baseUrlTarget.__litzjsBaseUrl = "/app/";
+    mockFetch.mockResolvedValue(
+      createTransportResponse({
+        kind: "data",
+        data: "ok",
+        revalidate: [],
+      }),
+    );
+
+    const { fetchRouteLoader } = await import("../src/client/runtime");
+
+    await fetchRouteLoader("/test", {
+      params: {},
+      search: new URLSearchParams(),
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0]?.[0]).toBe("/app/_litzjs/route");
+  });
+
+  test("uses the configured client base for internal route action requests", async () => {
+    baseUrlTarget.__litzjsBaseUrl = "/app/";
+    mockFetch.mockResolvedValue(
+      createTransportResponse({
+        kind: "data",
+        data: "ok",
+        revalidate: [],
+      }),
+    );
+
+    const { fetchRouteAction } = await import("../src/client/runtime");
+    const payload = new FormData();
+    payload.append("name", "Litz");
+
+    await fetchRouteAction(
+      "/test",
+      {
+        params: {},
+        search: new URLSearchParams(),
+      },
+      payload,
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0]?.[0]).toBe("/app/_litzjs/action");
+  });
+
   test("fetches all loaders in a single batched request", async () => {
     const baseRequest = {
       params: { id: "7" },
