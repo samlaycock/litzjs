@@ -16,6 +16,7 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [tocHeadings, setTocHeadings] = useState<readonly DocHeading[]>([]);
+  const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
   const filteredDocsNav = filterDocsNav(DOCS_NAV, searchQuery);
 
   useEffect(() => {
@@ -30,12 +31,80 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
       return;
     }
 
-    const frame = window.requestAnimationFrame(() => {
+    let frame = window.requestAnimationFrame(() => {
       setTocHeadings(synchronizeDocHeadings(article));
     });
+    const observer = new MutationObserver(() => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        setTocHeadings(synchronizeDocHeadings(article));
+      });
+    });
 
-    return () => window.cancelAnimationFrame(frame);
+    observer.observe(article, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+    };
   }, [pathname]);
+
+  useEffect(() => {
+    const article = articleRef.current;
+
+    if (!article || tocHeadings.length === 0) {
+      setActiveHeadingId(null);
+      return;
+    }
+
+    function updateActiveHeading(): void {
+      const headingElements = tocHeadings.flatMap((heading) => {
+        const element = article.querySelector<HTMLElement>(`#${CSS.escape(heading.id)}`);
+
+        if (!element) {
+          return [];
+        }
+
+        const scrollMarginTop = Number.parseFloat(getComputedStyle(element).scrollMarginTop);
+
+        return [
+          {
+            id: heading.id,
+            top: element.getBoundingClientRect().top,
+            threshold: Number.isFinite(scrollMarginTop) ? scrollMarginTop : 0,
+          },
+        ];
+      });
+
+      if (headingElements.length === 0) {
+        setActiveHeadingId(null);
+        return;
+      }
+
+      const currentHeading =
+        headingElements.find((heading) => heading.top >= heading.threshold) ??
+        headingElements[headingElements.length - 1];
+      const activeId =
+        headingElements.findLast((heading) => heading.top <= heading.threshold)?.id ??
+        currentHeading.id;
+
+      setActiveHeadingId((currentId) => (currentId === activeId ? currentId : activeId));
+    }
+
+    updateActiveHeading();
+
+    window.addEventListener("scroll", updateActiveHeading, { passive: true });
+    window.addEventListener("resize", updateActiveHeading);
+
+    return () => {
+      window.removeEventListener("scroll", updateActiveHeading);
+      window.removeEventListener("resize", updateActiveHeading);
+    };
+  }, [pathname, tocHeadings]);
 
   const navSections =
     filteredDocsNav.length > 0 ? (
@@ -53,7 +122,7 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
                     setMobileMenuOpen(false);
                     setSearchQuery("");
                   }}
-                  className={`block rounded px-2 py-1 text-sm transition-colors ${
+                  className={`block px-2 py-1 text-sm transition-colors ${
                     pathname === item.path
                       ? "bg-neutral-800 text-sky-500"
                       : "text-neutral-300 hover:bg-neutral-800/50 hover:text-sky-400"
@@ -67,7 +136,7 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
         </div>
       ))
     ) : (
-      <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-900/40 px-4 py-5 text-sm text-neutral-400">
+      <div className="border border-dashed border-neutral-800 bg-neutral-900/40 px-4 py-5 text-sm text-neutral-400">
         No docs pages match <span className="text-neutral-200">“{searchQuery}”</span>.
       </div>
     );
@@ -87,7 +156,7 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
           placeholder="Search sections and pages"
-          className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+          className="w-full border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
         />
       </div>
       <div className="flex flex-col gap-6 px-4 pb-6">{navSections}</div>
@@ -149,11 +218,11 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
         {navContent}
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1">
         <div className="mx-auto max-w-6xl px-6 py-6 md:px-8 md:py-8">
           {tocHeadings.length > 0 ? (
-            <div className="mb-8 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-5 xl:hidden">
-              <DocsTableOfContents headings={tocHeadings} />
+            <div className="mb-8 hidden border border-neutral-800 bg-neutral-900/40 p-5 md:block xl:hidden">
+              <DocsTableOfContents headings={tocHeadings} activeHeadingId={activeHeadingId} />
             </div>
           ) : null}
 
@@ -162,12 +231,12 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
               {children}
             </article>
 
-            <aside className="hidden xl:block">
-              <div
-                className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-5"
-                style={{ position: "sticky", top: "calc(var(--site-header-height) + 2rem)" }}
-              >
-                <DocsTableOfContents headings={tocHeadings} />
+            <aside
+              className="hidden self-start xl:sticky xl:block"
+              style={{ top: "calc(var(--site-header-height) + 2rem)" }}
+            >
+              <div className="border border-neutral-800 bg-neutral-900/40 p-5">
+                <DocsTableOfContents headings={tocHeadings} activeHeadingId={activeHeadingId} />
               </div>
             </aside>
           </div>
@@ -179,9 +248,10 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
 
 interface DocsTableOfContentsProps {
   readonly headings: readonly DocHeading[];
+  readonly activeHeadingId: string | null;
 }
 
-function DocsTableOfContents({ headings }: DocsTableOfContentsProps) {
+function DocsTableOfContents({ headings, activeHeadingId }: DocsTableOfContentsProps) {
   return (
     <div>
       <p className="mb-3 text-xs uppercase tracking-[0.2em] text-neutral-500">On this page</p>
@@ -191,8 +261,15 @@ function DocsTableOfContents({ headings }: DocsTableOfContentsProps) {
             <a
               key={heading.id}
               href={`#${heading.id}`}
-              className={`rounded-lg px-3 py-2 text-sm transition-colors hover:bg-neutral-800/70 hover:text-sky-300 ${
-                heading.level === 3 ? "ml-4 text-neutral-400" : "text-neutral-200"
+              aria-current={heading.id === activeHeadingId ? "location" : undefined}
+              className={`px-3 py-2 text-sm transition-colors hover:bg-neutral-800/70 hover:text-sky-300 ${
+                heading.level === 3 ? "ml-4" : ""
+              } ${
+                heading.id === activeHeadingId
+                  ? "bg-neutral-800 text-sky-400"
+                  : heading.level === 3
+                    ? "text-neutral-400"
+                    : "text-neutral-200"
               }`}
             >
               {heading.text}

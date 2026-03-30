@@ -1067,7 +1067,7 @@ export default defineConfig({
 
 function SignatureBlock({ signature }: { signature: string }) {
   return (
-    <pre className="rounded border border-neutral-800 bg-neutral-950/70 p-4 text-sm leading-6 text-sky-200 whitespace-pre-wrap overflow-x-auto mb-4">
+    <pre className="border border-neutral-800 bg-neutral-950/70 p-4 text-sm leading-6 text-sky-200 whitespace-pre-wrap overflow-x-auto mb-4">
       <code>{signature}</code>
     </pre>
   );
@@ -1075,7 +1075,7 @@ function SignatureBlock({ signature }: { signature: string }) {
 
 function ReferenceEntry({ entry }: { entry: ReferenceEntrySpec }) {
   return (
-    <article className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-6">
+    <article className="border border-neutral-800 bg-neutral-900/40 p-6">
       <h4 className="text-lg font-semibold text-neutral-50 mb-3">{entry.name}</h4>
       <SignatureBlock signature={entry.signature} />
       <p className="text-neutral-300 mb-4">{entry.summary}</p>
@@ -1152,7 +1152,7 @@ function ApiReference() {
         <code className="text-sky-400">src/vite.ts</code>.
       </p>
 
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-6 mb-12">
+      <div className="border border-neutral-800 bg-neutral-900/40 p-6 mb-12">
         <h2 className="text-xl font-semibold text-neutral-100 mb-4">Reading This Page</h2>
         <ul className="list-disc list-inside space-y-2 text-neutral-400">
           <li>Signatures and shapes mirror the public entrypoints rather than internal helpers.</li>

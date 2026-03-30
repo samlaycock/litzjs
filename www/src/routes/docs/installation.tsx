@@ -113,7 +113,7 @@ pnpm add -D typescript vite @vitejs/plugin-rsc`}
           These ranges mirror the current <code className="text-sky-400">litzjs</code> peer
           dependency declarations.
         </p>
-        <div className="overflow-x-auto rounded-lg border border-neutral-800 mb-4">
+        <div className="overflow-x-auto border border-neutral-800 mb-4">
           <table className="min-w-full text-left text-sm text-neutral-300">
             <thead className="bg-neutral-900/70 text-neutral-200">
               <tr>

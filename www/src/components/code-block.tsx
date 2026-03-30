@@ -56,11 +56,11 @@ export function CodeBlock({ code, language = "ts" }: CodeBlockProps) {
     copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy";
 
   return (
-    <div className="relative rounded-xl border border-neutral-800 bg-neutral-900 pr-20">
+    <div className="relative border border-neutral-800 bg-neutral-900 pr-20">
       <button
         type="button"
         onClick={onCopy}
-        className="absolute top-3 right-3 z-10 rounded-full border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors hover:border-sky-500/40 hover:bg-neutral-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+        className="absolute top-3 right-3 z-10 border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors hover:border-sky-500/40 hover:bg-neutral-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
         aria-label={`${copyLabel} code sample`}
       >
         {copyLabel}
