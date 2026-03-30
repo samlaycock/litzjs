@@ -80,9 +80,17 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(false)}
-            className="rounded-lg border border-neutral-800 px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-neutral-300 transition-colors hover:border-sky-500/40 hover:text-sky-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+            className="rounded-lg border border-neutral-800 p-2 text-neutral-300 transition-colors hover:border-sky-500/40 hover:text-sky-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+            aria-label="Close documentation navigation"
           >
-            Close
+            <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
         <label
