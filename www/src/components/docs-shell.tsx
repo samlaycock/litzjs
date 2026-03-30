@@ -75,24 +75,6 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
   const navContent = (
     <nav className="flex flex-col">
       <div className="sticky top-0 z-10 bg-neutral-950 px-4 pt-6 pb-6">
-        <div className="mb-3 flex items-center justify-between md:hidden">
-          <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Documentation</p>
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(false)}
-            className="p-1 text-neutral-400 transition-colors hover:text-sky-400"
-            aria-label="Close documentation navigation"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
         <label
           htmlFor="docs-search"
           className="mb-2 block text-xs uppercase tracking-[0.2em] text-neutral-500"
@@ -114,50 +96,51 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
 
   return (
     <div className="flex flex-1 flex-col md:flex-row">
-      <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3 md:hidden">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Documentation</p>
-          <p className="text-sm text-neutral-300">Browse pages and jump within this guide</p>
+      <div className="relative md:hidden">
+        <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Documentation</p>
+            <p className="text-sm text-neutral-300">Browse pages and jump within this guide</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            className="p-1 text-neutral-400 transition-colors hover:text-sky-400"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="docs-navigation"
+            aria-label="Toggle documentation navigation"
+          >
+            {mobileMenuOpen ? (
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            ) : (
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
+              </svg>
+            )}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setMobileMenuOpen((open) => !open)}
-          className="p-1 text-neutral-400 transition-colors hover:text-sky-400"
-          aria-expanded={mobileMenuOpen}
-          aria-controls="docs-navigation"
-          aria-label="Toggle documentation navigation"
-        >
-          {mobileMenuOpen ? (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          ) : (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
-          )}
-        </button>
-      </div>
 
-      {mobileMenuOpen ? (
-        <div
-          id="docs-navigation"
-          className="absolute right-0 left-0 z-40 max-h-[calc(100vh-var(--site-header-height))] overflow-y-auto border-b border-neutral-800 bg-neutral-950 md:hidden"
-          style={{ top: "var(--site-header-height)" }}
-        >
-          {navContent}
-        </div>
-      ) : null}
+        {mobileMenuOpen ? (
+          <div
+            id="docs-navigation"
+            className="absolute top-full right-0 left-0 z-40 max-h-[calc(100vh-var(--site-header-height)-3.5rem)] overflow-y-auto border-b border-neutral-800 bg-neutral-950"
+          >
+            {navContent}
+          </div>
+        ) : null}
+      </div>
 
       <aside
         className="hidden h-[calc(100vh-var(--site-header-height))] w-72 shrink-0 overflow-y-auto border-r border-neutral-800 md:sticky md:block"
