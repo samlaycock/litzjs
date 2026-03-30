@@ -11,6 +11,13 @@ interface DocsShellProps {
   readonly children: React.ReactNode;
 }
 
+interface DocsNavContentProps {
+  readonly navSections: React.ReactNode;
+  readonly searchId: string;
+  readonly searchQuery: string;
+  setSearchQuery: (searchQuery: string) => void;
+}
+
 export function DocsShell({ pathname, children }: DocsShellProps) {
   const articleRef = useRef<HTMLElement | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -61,9 +68,11 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
       return;
     }
 
+    const articleElement = article;
+
     function updateActiveHeading(): void {
       const headingElements = tocHeadings.flatMap((heading) => {
-        const element = article.querySelector<HTMLElement>(`#${CSS.escape(heading.id)}`);
+        const element = articleElement.querySelector<HTMLElement>(`#${CSS.escape(heading.id)}`);
 
         if (!element) {
           return [];
@@ -88,9 +97,21 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
       const currentHeading =
         headingElements.find((heading) => heading.top >= heading.threshold) ??
         headingElements[headingElements.length - 1];
-      const activeId =
-        headingElements.findLast((heading) => heading.top <= heading.threshold)?.id ??
-        currentHeading.id;
+      let activeId = currentHeading?.id ?? null;
+
+      for (let index = headingElements.length - 1; index >= 0; index -= 1) {
+        const heading = headingElements[index];
+
+        if (heading && heading.top <= heading.threshold) {
+          activeId = heading.id;
+          break;
+        }
+      }
+
+      if (!activeId) {
+        setActiveHeadingId(null);
+        return;
+      }
 
       setActiveHeadingId((currentId) => (currentId === activeId ? currentId : activeId));
     }
@@ -141,28 +162,6 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
       </div>
     );
 
-  const navContent = (
-    <nav className="flex flex-col">
-      <div className="sticky top-0 z-10 bg-neutral-950 px-4 pt-6 pb-6">
-        <label
-          htmlFor="docs-search"
-          className="mb-2 block text-xs uppercase tracking-[0.2em] text-neutral-500"
-        >
-          Search docs
-        </label>
-        <input
-          id="docs-search"
-          type="search"
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Search sections and pages"
-          className="w-full border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-        />
-      </div>
-      <div className="flex flex-col gap-6 px-4 pb-6">{navSections}</div>
-    </nav>
-  );
-
   return (
     <div className="flex flex-1 flex-col md:flex-row">
       <div className="relative md:hidden">
@@ -206,7 +205,12 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
             id="docs-navigation"
             className="absolute top-full right-0 left-0 z-40 max-h-[calc(100vh-var(--site-header-height)-3.5rem)] overflow-y-auto border-b border-neutral-800 bg-neutral-950"
           >
-            {navContent}
+            <DocsNavContent
+              navSections={navSections}
+              searchId="docs-search-mobile"
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+            />
           </div>
         ) : null}
       </div>
@@ -215,7 +219,12 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
         className="hidden h-[calc(100vh-var(--site-header-height))] w-72 shrink-0 overflow-y-auto border-r border-neutral-800 md:sticky md:block"
         style={{ top: "var(--site-header-height)" }}
       >
-        {navContent}
+        <DocsNavContent
+          navSections={navSections}
+          searchId="docs-search-desktop"
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
       </aside>
 
       <main className="min-w-0 flex-1">
@@ -243,6 +252,35 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
         </div>
       </main>
     </div>
+  );
+}
+
+function DocsNavContent({
+  navSections,
+  searchId,
+  searchQuery,
+  setSearchQuery,
+}: DocsNavContentProps) {
+  return (
+    <nav className="flex flex-col">
+      <div className="sticky top-0 z-10 bg-neutral-950 px-4 pt-6 pb-6">
+        <label
+          htmlFor={searchId}
+          className="mb-2 block text-xs uppercase tracking-[0.2em] text-neutral-500"
+        >
+          Search docs
+        </label>
+        <input
+          id={searchId}
+          type="search"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Search sections and pages"
+          className="w-full border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+        />
+      </div>
+      <div className="flex flex-col gap-6 px-4 pb-6">{navSections}</div>
+    </nav>
   );
 }
 

@@ -21,8 +21,12 @@ async function copyToClipboard(value: string): Promise<void> {
   textarea.style.left = "-9999px";
   document.body.append(textarea);
   textarea.select();
-  document.execCommand("copy");
+  const copied = document.execCommand("copy");
   textarea.remove();
+
+  if (!copied) {
+    throw new Error("execCommand copy failed");
+  }
 }
 
 export function CodeBlock({ code, language = "ts" }: CodeBlockProps) {
