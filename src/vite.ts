@@ -1192,8 +1192,7 @@ function createRouteManifestModule(
       `    id: ${JSON.stringify(route.id)},`,
       `    path: ${JSON.stringify(route.path)},`,
       `    moduleFile: ${JSON.stringify(resolvedModuleFile)},`,
-      `    load: () => import(${JSON.stringify(importPath)}),`,
-      `    hotLoad: () => import(/* @vite-ignore */ ${JSON.stringify(`${importPath}?t=`)} + Date.now())`,
+      `    load: () => import(${JSON.stringify(importPath)})`,
       `  }${index === manifest.length - 1 ? "" : ","}`,
     ].join("\n");
   });

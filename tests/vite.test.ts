@@ -249,6 +249,82 @@ export default createServer({ helper });
 });
 
 describe("dev server hot updates", () => {
+  test("client route manifests include module files without unused hotLoad handlers", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-route-manifest-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      mkdirSync(path.join(root, "src", "routes"), { recursive: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "index.tsx"),
+        'import { defineRoute } from "litzjs";\n\nexport const route = defineRoute("/", {\n  component() {\n    return null;\n  },\n});\n',
+        "utf8",
+      );
+
+      const plugin = litz().find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.resolveId || !plugin.load) {
+        throw new Error("Expected litzjs/vite route-manifest hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const resolveId =
+        typeof plugin.resolveId === "function" ? plugin.resolveId : plugin.resolveId.handler;
+      const load = typeof plugin.load === "function" ? plugin.load : plugin.load.handler;
+      const pluginContext = {} as never;
+
+      await configResolved.call(pluginContext, {
+        root,
+        command: "serve",
+        build: {
+          outDir: "dist",
+        },
+        environments: {
+          client: {
+            build: {
+              outDir: path.join("dist", "client"),
+            },
+          },
+          rsc: {
+            build: {
+              outDir: path.join("dist", "server"),
+              rollupOptions: {
+                output: {
+                  codeSplitting: false,
+                },
+              },
+            },
+          },
+        },
+      } as never);
+
+      const resolvedId = resolveId.call(
+        pluginContext,
+        "virtual:litzjs:route-manifest",
+        undefined,
+        {} as never,
+      );
+      const manifestSource = load.call(
+        {
+          environment: {
+            name: "client",
+          },
+        } as never,
+        resolvedId as string,
+        {} as never,
+      );
+
+      expect(manifestSource).toContain("moduleFile:");
+      expect(manifestSource).not.toContain("hotLoad:");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("returns client modules for projected route updates in the client environment", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-hot-update-"));
 

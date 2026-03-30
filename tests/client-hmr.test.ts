@@ -123,4 +123,20 @@ describe("client HMR helpers", () => {
       ),
     ).toEqual(new Set(["/app/src/components/card.tsx", "/app/src/routes/index.tsx"]));
   });
+
+  test("maps vite:beforeUpdate paths for non-src project layouts back to absolute source files", () => {
+    expect(
+      getBrowserHotUpdatedFiles(
+        {
+          updates: [
+            {
+              path: "/app/components/card.tsx?t=123",
+              acceptedPath: "/app/routes/index.tsx?t=123",
+            },
+          ],
+        },
+        "/project",
+      ),
+    ).toEqual(new Set(["/project/app/components/card.tsx", "/project/app/routes/index.tsx"]));
+  });
 });
