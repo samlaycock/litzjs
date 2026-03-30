@@ -80,10 +80,10 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
           <button
             type="button"
             onClick={() => setMobileMenuOpen(false)}
-            className="rounded-lg border border-neutral-800 p-2 text-neutral-300 transition-colors hover:border-sky-500/40 hover:text-sky-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+            className="p-1 text-neutral-400 transition-colors hover:text-sky-400"
             aria-label="Close documentation navigation"
           >
-            <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -122,13 +122,13 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
         <button
           type="button"
           onClick={() => setMobileMenuOpen((open) => !open)}
-          className="rounded-lg border border-neutral-800 p-2 text-neutral-300 transition-colors hover:border-sky-500/40 hover:text-sky-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+          className="p-1 text-neutral-400 transition-colors hover:text-sky-400"
           aria-expanded={mobileMenuOpen}
           aria-controls="docs-navigation"
           aria-label="Toggle documentation navigation"
         >
           {mobileMenuOpen ? (
-            <svg className="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -137,7 +137,7 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
               />
             </svg>
           ) : (
-            <svg className="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
