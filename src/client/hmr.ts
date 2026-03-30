@@ -44,18 +44,23 @@ function normalizeBrowserModulePath(path: string): string {
 
 function toAbsoluteFilePathFromBrowserModulePath(
   path: string,
-  sourceRoot: string | null,
+  projectRoot: string | null,
 ): string | null {
-  if (!sourceRoot || !path.startsWith("/src/")) {
+  if (
+    !projectRoot ||
+    !path.startsWith("/") ||
+    path.startsWith("/@") ||
+    path.startsWith("/node_modules/")
+  ) {
     return null;
   }
 
-  return `${sourceRoot}${path}`;
+  return `${projectRoot.replace(/\/$/, "")}${path}`;
 }
 
 export function getBrowserHotUpdatedFiles(
   data: unknown,
-  sourceRoot: string | null,
+  projectRoot: string | null,
 ): ReadonlySet<string> {
   const updatedFiles = new Set<string>();
 
@@ -77,7 +82,7 @@ export function getBrowserHotUpdatedFiles(
       .map((value) => normalizeBrowserModulePath(value));
 
     for (const normalizedPath of normalizedPaths) {
-      const absoluteFilePath = toAbsoluteFilePathFromBrowserModulePath(normalizedPath, sourceRoot);
+      const absoluteFilePath = toAbsoluteFilePathFromBrowserModulePath(normalizedPath, projectRoot);
 
       if (absoluteFilePath) {
         updatedFiles.add(absoluteFilePath);

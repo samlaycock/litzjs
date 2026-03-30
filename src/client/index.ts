@@ -15,7 +15,12 @@ import { createSearchParamRecord, type SearchParamRecord } from "../search-param
 import { isAbortError } from "./abort-error";
 import { installClientBindings } from "./bindings";
 import { getLocationContext, getMatchesContext, getNavigationContext } from "./contexts";
-import { getLitzHotContext, subscribeToRscHotUpdates, type ClientDefinitionHotUpdate } from "./hmr";
+import {
+  getLitzHotContext,
+  shouldRefreshRouteModuleFromRscUpdate,
+  subscribeToRscHotUpdates,
+  type ClientDefinitionHotUpdate,
+} from "./hmr";
 import { createLinkComponent } from "./link";
 import { fetchRouteLoadersInParallel, processLoaderResults } from "./loader-fetch";
 import { applySearchParams, shouldPrefetchLink } from "./navigation";
@@ -98,12 +103,14 @@ type ManifestEntry = {
   load: () => Promise<{
     route?: LoadedRoute;
   }>;
-  hotLoad?: () => Promise<{
-    route?: LoadedRoute;
-  }>;
 };
 
 const manifest = sortByPathSpecificity(routeManifest as ManifestEntry[]);
+const routeModuleFiles = new Set(
+  manifest
+    .map((entry) => entry.moduleFile)
+    .filter((value): value is string => typeof value === "string"),
+);
 const exactManifestEntries = new Map<string, ManifestEntry>();
 const dynamicManifestEntries: ManifestEntry[] = [];
 const ROUTE_CACHE_LIMIT = 200;
@@ -395,8 +402,12 @@ function LitzApp(props: {
   }, []);
 
   React.useEffect(() => {
-    return subscribeToRscHotUpdates(getLitzHotContext(), () => {
-      void Promise.resolve().finally(() => {
+    return subscribeToRscHotUpdates(getLitzHotContext(), (data) => {
+      if (!shouldRefreshRouteModuleFromRscUpdate(data, routeModuleFiles)) {
+        return;
+      }
+
+      void Promise.resolve().then(() => {
         clearClientHotUpdateCaches();
         React.startTransition(() => {
           setHotUpdateVersion((current) => current + 1);
