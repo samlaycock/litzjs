@@ -43,6 +43,6 @@ describe("troubleshooting docs", () => {
 
     expect(troubleshootingDoc).not.toContain("Try simplifying your code to isolate the issue");
     expect(troubleshootingDoc).not.toContain("Sometimes needed after adding new routes");
-    expect(troubleshootingDoc).not.toContain("Check console for runtime errors");
+    expect(troubleshootingDoc).not.toContain("Check the browser console for runtime errors");
   });
 });
