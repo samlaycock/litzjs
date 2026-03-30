@@ -53,10 +53,10 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
                     setMobileMenuOpen(false);
                     setSearchQuery("");
                   }}
-                  className={`block rounded-lg px-3 py-2 text-sm transition-colors ${
+                  className={`block rounded px-2 py-1 text-sm transition-colors ${
                     pathname === item.path
-                      ? "bg-sky-500/10 text-sky-300"
-                      : "text-neutral-300 hover:bg-neutral-800/70 hover:text-sky-300"
+                      ? "bg-neutral-800 text-sky-500"
+                      : "text-neutral-300 hover:bg-neutral-800/50 hover:text-sky-400"
                   }`}
                 >
                   {item.title}
