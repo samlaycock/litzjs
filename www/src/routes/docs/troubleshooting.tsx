@@ -12,177 +12,332 @@ function DocsTroubleshootingPage() {
     <>
       <title>Troubleshooting | Litz</title>
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">Troubleshooting</h1>
-      <p className="text-xl text-neutral-300 mb-8">Common issues and how to resolve them.</p>
-
-      <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Loader not running</h2>
-        <p className="text-neutral-400 mb-4">
-          If your loader doesn't execute, check these common causes:
-        </p>
-        <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
-          <li>
-            <strong>Missing server() wrapper</strong> — Loaders must be wrapped in{" "}
-            <code className="text-sky-400">server()</code> to run on the server
-          </li>
-          <li>
-            <strong>Route not discovered</strong> — Ensure your route file matches the discovery
-            pattern
-          </li>
-          <li>
-            <strong>defineRoute not exported</strong> — The route must export a{" "}
-            <code className="text-sky-400">route</code> constant
-          </li>
-        </ul>
-        <CodeBlock
-          language="tsx"
-          code={`// ✅ Correct - loader wrapped in server()
-export const route = defineRoute("/users", {
-  loader: server(async () => {
-    return data({ users: [] });
-  }),
-});
-
-// ❌ Wrong - missing server() wrapper
-export const route = defineRoute("/users", {
-  loader: async () => {
-    // This runs on client, not server
-    return data({ users: [] });
-  },
-});`}
-        />
-      </section>
-
-      <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Action not firing</h2>
-        <p className="text-neutral-400 mb-4">If your form action doesn't trigger:</p>
-        <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
-          <li>
-            <strong>Use route.Form or resource.Form</strong> — Regular HTML forms won't trigger
-            actions
-          </li>
-          <li>
-            <strong>Check method attribute</strong> — Actions respond to{" "}
-            <code className="text-sky-400">POST</code> by default
-          </li>
-          <li>
-            <strong>Verify server() wrapper</strong> — Actions must also be wrapped in{" "}
-            <code className="text-sky-400">server()</code>
-          </li>
-        </ul>
-        <CodeBlock
-          language="tsx"
-          code={`// ✅ Correct - use route.Form
-export const route = defineRoute("/submit", {
-  action: server(async ({ request }) => {
-    // handle form submission
-  }),
-});
-
-function MyPage() {
-  return (
-    <route.Form method="post">
-      <button type="submit">Submit</button>
-    </route.Form>
-  );
-}`}
-        />
-      </section>
-
-      <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">404 on valid route</h2>
-        <p className="text-neutral-400 mb-4">If you're getting 404s on routes that should exist:</p>
-        <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
-          <li>
-            <strong>Check file location</strong> — Routes must be in{" "}
-            <code className="text-sky-400">src/routes/</code> (or your configured routes directory)
-          </li>
-          <li>
-            <strong>File extension matters</strong> — Use <code className="text-sky-400">.tsx</code>{" "}
-            for components, <code className="text-sky-400">.ts</code> for API routes
-          </li>
-          <li>
-            <strong>Path must match defineRoute</strong> — The path in{" "}
-            <code className="text-sky-400">defineRoute("/path", ...)</code> must match the URL
-          </li>
-          <li>
-            <strong>Restart dev server</strong> — Sometimes needed after adding new routes
-          </li>
-        </ul>
-      </section>
+      <p className="text-xl text-neutral-300 mb-8">
+        Start with the symptom you can already observe. These entries map common Litz failures to
+        the exact fix and the docs page that goes deeper.
+      </p>
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">
-          Type errors with route hooks
+          Build fails with package or import errors
         </h2>
-        <p className="text-neutral-400 mb-4">If TypeScript can't infer types:</p>
+        <p className="text-neutral-400 mb-4">
+          Start here when Bun, Vite, or your editor reports messages like{" "}
+          <code className="text-sky-400">Cannot find package "litzjs"</code>,{" "}
+          <code className="text-sky-400">Cannot find package "litz"</code>,{" "}
+          <code className="text-sky-400">Cannot resolve import "litzjs/server"</code>, or{" "}
+          <code className="text-sky-400">Cannot resolve import "litzjs/client"</code>.
+        </p>
         <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
           <li>
-            <strong>Use server() wrapper</strong> — Type inference requires the{" "}
-            <code className="text-sky-400">server()</code> wrapper on loaders/actions
+            Install <code className="text-sky-400">litzjs</code>, not the older package name{" "}
+            <code className="text-sky-400">litz</code>.
           </li>
           <li>
-            <strong>Check your data() returns</strong> — Ensure you're returning proper shapes from
-            loaders
+            Import runtime APIs from their published entry points:
+            <code className="text-sky-400">"litzjs"</code>,{" "}
+            <code className="text-sky-400">"litzjs/client"</code>,{" "}
+            <code className="text-sky-400">"litzjs/server"</code>, and{" "}
+            <code className="text-sky-400">"litzjs/vite"</code>.
           </li>
           <li>
-            <strong>Route must be module-exported</strong> — The route needs to be exported as a
-            constant
-          </li>
-        </ul>
-      </section>
-
-      <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">HMR not working</h2>
-        <p className="text-neutral-400 mb-4">If hot module replacement isn't working:</p>
-        <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
-          <li>
-            <strong>Check console for errors</strong> — Vite errors can break HMR
-          </li>
-          <li>
-            <strong>File must be in routes/api/resources</strong> — Changes to other files may not
-            trigger HMR
-          </li>
-          <li>
-            <strong>Try restarting dev server</strong> — Sometimes gets into a broken state
-          </li>
-        </ul>
-      </section>
-
-      <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Context is undefined</h2>
-        <p className="text-neutral-400 mb-4">If context is undefined in your handlers:</p>
-        <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
-          <li>
-            <strong>Check createServer has createContext</strong> — Context must be defined in your
-            server entry
-          </li>
-          <li>
-            <strong>Production build context</strong> — In production, ensure your server entry is
-            being used
+            If the package resolves but React or the Vite plugin does not, revisit the peer
+            dependency list on the installation page.
           </li>
         </ul>
         <CodeBlock
           language="ts"
-          code={`// server.ts - ensure createContext is defined
-import { createServer } from "litzjs/server";
+          code={`bun add litzjs react react-dom
+bun add -d typescript vite @vitejs/plugin-rsc
 
-export default createServer({
-  createContext(request) {
-    // This provides context to all handlers
-    return { userId: request.headers.get("x-user-id") };
-  },
-});`}
+import { defineRoute, server } from "litzjs";
+import { Link } from "litzjs/client";
+import { createServer } from "litzjs/server";
+import { litz } from "litzjs/vite";`}
         />
+        <p className="text-neutral-400 mt-4">
+          Need the full install matrix? Read{" "}
+          <Link href="/docs/installation" className="text-sky-400 hover:text-sky-300">
+            Installation
+          </Link>
+          .
+        </p>
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Getting help</h2>
-        <p className="text-neutral-400 mb-4">If you're still stuck:</p>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">
+          You get a 404 for a route that should exist
+        </h2>
+        <p className="text-neutral-400 mb-4">
+          This usually shows up as a page-level 404, or as an internal JSON fault containing{" "}
+          <code className="text-sky-400">Route not found.</code> or{" "}
+          <code className="text-sky-400">Route target not found.</code>
+        </p>
+        <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
+          <li>
+            Export <code className="text-sky-400">route</code> from the module and define the URL in{" "}
+            <code className="text-sky-400">defineRoute("/path", ...)</code>.
+          </li>
+          <li>
+            Keep page routes inside the configured route globs. The default is{" "}
+            <code className="text-sky-400">{"src/routes/**/*.{ts,tsx}"}</code>, excluding the{" "}
+            <code className="text-sky-400">api</code> and{" "}
+            <code className="text-sky-400">resources</code> subdirectories.
+          </li>
+          <li>
+            If you moved routes into a custom folder, update the Vite plugin{" "}
+            <code className="text-sky-400">routes</code> option so discovery can see them.
+          </li>
+        </ul>
+        <CodeBlock
+          language="ts"
+          code={`import { defineConfig } from "vite";
+import { litz } from "litzjs/vite";
+import { defineRoute } from "litzjs";
+
+export default defineConfig({
+  plugins: [
+    litz({
+      routes: ["app/pages/**/*.{ts,tsx}"],
+    }),
+  ],
+});
+
+export const route = defineRoute("/dashboard", {
+  component: DashboardPage,
+});`}
+        />
+        <p className="text-neutral-400 mt-4">
+          For route shape and discovery rules, see{" "}
+          <Link href="/docs/routing" className="text-sky-400 hover:text-sky-300">
+            Routing
+          </Link>{" "}
+          and{" "}
+          <Link href="/docs/configuration" className="text-sky-400 hover:text-sky-300">
+            Configuration
+          </Link>
+          .
+        </p>
+      </section>
+
+      <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">
+          Loader or action code never reaches the server
+        </h2>
+        <p className="text-neutral-400 mb-4">
+          If a loader never resolves, an action submit appears to do nothing, or server-only code
+          leaks into the browser bundle, the missing piece is usually the{" "}
+          <code className="text-sky-400">server(async () =&gt; ...)</code> wrapper.
+        </p>
+        <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
+          <li>
+            Wrap every loader and action in <code className="text-sky-400">server()</code>. Plain{" "}
+            <code className="text-sky-400">async () =&gt; ...</code> functions are not treated as
+            server handlers.
+          </li>
+          <li>
+            Submit actions through <code className="text-sky-400">route.Form</code> or{" "}
+            <code className="text-sky-400">resource.Form</code> so the framework can target the
+            correct action endpoint.
+          </li>
+          <li>
+            Keep database, filesystem, and secret-bearing logic inside the{" "}
+            <code className="text-sky-400">server()</code> closure.
+          </li>
+        </ul>
+        <CodeBlock
+          language="tsx"
+          code={`import { data, defineRoute, server } from "litzjs";
+
+export const route = defineRoute("/users", {
+  loader: server(async () => {
+    return data({ users: await db.users.list() });
+  }),
+  action: server(async ({ request }) => {
+    const formData = await request.formData();
+    await db.users.create({ name: String(formData.get("name") ?? "") });
+    return data({ ok: true });
+  }),
+});
+
+function UsersPage() {
+  return (
+    <route.Form method="post">
+      <button type="submit">Create user</button>
+    </route.Form>
+  );
+}`}
+        />
+        <p className="text-neutral-400 mt-4">
+          Read{" "}
+          <Link href="/docs/loaders-and-actions" className="text-sky-400 hover:text-sky-300">
+            Loaders &amp; Actions
+          </Link>{" "}
+          and{" "}
+          <Link href="/docs/forms" className="text-sky-400 hover:text-sky-300">
+            Forms
+          </Link>{" "}
+          for the full request lifecycle.
+        </p>
+      </section>
+
+      <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">
+          Requests to <code className="text-sky-400">/_litzjs/*</code> fail
+        </h2>
+        <p className="text-neutral-400 mb-4">
+          Check this section when the network tab shows failures for{" "}
+          <code className="text-sky-400">"/_litzjs/route"</code>,{" "}
+          <code className="text-sky-400">"/_litzjs/action"</code>, or{" "}
+          <code className="text-sky-400">"/_litzjs/resource"</code>, or when the response body says{" "}
+          <code className="text-sky-400">Resource not found.</code> or{" "}
+          <code className="text-sky-400">Route not found.</code>
+        </p>
+        <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
+          <li>
+            Your runtime must forward every <code className="text-sky-400">/_litzjs/*</code> request
+            to the Litz handler instead of treating it as a static asset or CDN miss.
+          </li>
+          <li>
+            Custom Bun, Node, or proxy wrappers must still call{" "}
+            <code className="text-sky-400">app.fetch(request)</code> for internal transport requests
+            and <code className="text-sky-400">/api/*</code>.
+          </li>
+          <li>
+            On Cloudflare Workers, ensure your static asset configuration does not intercept the
+            framework transport before the Worker runs.
+          </li>
+        </ul>
+        <CodeBlock
+          language="ts"
+          code={`import path from "node:path";
+import app from "./dist/server/index.js";
+
+const clientDir = path.resolve("dist/client");
+
+Bun.serve({
+  async fetch(request) {
+    const url = new URL(request.url);
+    const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
+    const asset = Bun.file(path.join(clientDir, pathname.slice(1)));
+
+    if ((request.method === "GET" || request.method === "HEAD") && (await asset.exists())) {
+      return new Response(request.method === "HEAD" ? null : asset);
+    }
+
+    return app.fetch(request);
+  },
+});`}
+        />
+        <p className="text-neutral-400 mt-4">
+          Check{" "}
+          <Link href="/docs/server-configuration" className="text-sky-400 hover:text-sky-300">
+            Server Configuration
+          </Link>
+          ,{" "}
+          <Link href="/docs/bun" className="text-sky-400 hover:text-sky-300">
+            Bun
+          </Link>
+          ,{" "}
+          <Link href="/docs/node" className="text-sky-400 hover:text-sky-300">
+            Node.js
+          </Link>
+          , and{" "}
+          <Link href="/docs/cloudflare-workers" className="text-sky-400 hover:text-sky-300">
+            Cloudflare Workers
+          </Link>{" "}
+          for runtime-specific wiring.
+        </p>
+      </section>
+
+      <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">
+          The app builds, but deployment is missing HTML, JS, or CSS
+        </h2>
+        <p className="text-neutral-400 mb-4">
+          Production deployments commonly fail in one of two ways: only the server bundle is
+          deployed and <code className="text-sky-400">dist/client</code> never gets served, or the
+          runtime starts the wrong entry file instead of{" "}
+          <code className="text-sky-400">dist/server/index.js</code>.
+        </p>
+        <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
+          <li>
+            If you want separate static files, deploy both{" "}
+            <code className="text-sky-400">dist/client</code> and{" "}
+            <code className="text-sky-400">dist/server/index.js</code>.
+          </li>
+          <li>
+            If your platform only runs a single server artifact, enable{" "}
+            <code className="text-sky-400">embedAssets: true</code>.
+          </li>
+          <li>
+            If your server entry is not <code className="text-sky-400">src/server.ts</code>, point
+            the Vite plugin at the real file with{" "}
+            <code className="text-sky-400">server: "..."</code>.
+          </li>
+        </ul>
+        <CodeBlock
+          language="ts"
+          code={`// vite.config.ts
+import { defineConfig } from "vite";
+import { litz } from "litzjs/vite";
+
+export default defineConfig({
+  plugins: [
+    litz({
+      server: "src/server.ts",
+      embedAssets: true,
+    }),
+  ],
+});
+
+// src/server.ts
+import { createServer } from "litzjs/server";
+
+export default createServer();`}
+        />
+        <p className="text-neutral-400 mt-4">
+          Use the deployment guide for your target runtime:{" "}
+          <Link href="/docs/bun" className="text-sky-400 hover:text-sky-300">
+            Bun
+          </Link>
+          ,{" "}
+          <Link href="/docs/node" className="text-sky-400 hover:text-sky-300">
+            Node.js
+          </Link>
+          ,{" "}
+          <Link href="/docs/deno-deploy" className="text-sky-400 hover:text-sky-300">
+            Deno Deploy
+          </Link>
+          , or{" "}
+          <Link href="/docs/cloudflare-workers" className="text-sky-400 hover:text-sky-300">
+            Cloudflare Workers
+          </Link>
+          .
+        </p>
+      </section>
+
+      <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">
+          What to capture before asking for help
+        </h2>
+        <p className="text-neutral-400 mb-4">
+          A useful bug report starts with the exact symptom, not just &quot;it doesn&apos;t
+          work.&quot;
+        </p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
-          <li>Check the browser console for runtime errors</li>
-          <li>Check the terminal for server-side errors</li>
-          <li>Try simplifying your code to isolate the issue</li>
-          <li>Search existing GitHub issues</li>
+          <li>
+            The exact error text, including whether it mentions a package path or a transport URL
+          </li>
+          <li>
+            The request URL if it failed under <code className="text-sky-400">/_litzjs/*</code>
+          </li>
+          <li>The import statement or route file path involved in the failure</li>
+          <li>
+            Which runtime you are deploying to and whether you serve{" "}
+            <code className="text-sky-400">dist/client</code> or use{" "}
+            <code className="text-sky-400">embedAssets</code>
+          </li>
         </ul>
       </section>
 
