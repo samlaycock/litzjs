@@ -46,11 +46,13 @@ function DocsTroubleshootingPage() {
           </li>
         </ul>
         <CodeBlock
-          language="ts"
+          language="bash"
           code={`bun add litzjs react react-dom
-bun add -d typescript vite @vitejs/plugin-rsc
-
-import { defineRoute, server } from "litzjs";
+bun add -d typescript vite @vitejs/plugin-rsc`}
+        />
+        <CodeBlock
+          language="ts"
+          code={`import { defineRoute, server } from "litzjs";
 import { Link } from "litzjs/client";
 import { createServer } from "litzjs/server";
 import { litz } from "litzjs/vite";`}
@@ -91,9 +93,9 @@ import { litz } from "litzjs/vite";`}
         </ul>
         <CodeBlock
           language="ts"
-          code={`import { defineConfig } from "vite";
+          code={`// vite.config.ts
+import { defineConfig } from "vite";
 import { litz } from "litzjs/vite";
-import { defineRoute } from "litzjs";
 
 export default defineConfig({
   plugins: [
@@ -102,6 +104,9 @@ export default defineConfig({
     }),
   ],
 });
+
+// app/pages/dashboard.tsx
+import { defineRoute } from "litzjs";
 
 export const route = defineRoute("/dashboard", {
   component: DashboardPage,
