@@ -37,9 +37,44 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
     return () => window.cancelAnimationFrame(frame);
   }, [pathname]);
 
+  const navSections =
+    filteredDocsNav.length > 0 ? (
+      filteredDocsNav.map((section) => (
+        <div key={section.title}>
+          <h3 className="mb-2 text-xs uppercase tracking-wider text-neutral-400">
+            {section.title}
+          </h3>
+          <ul className="flex flex-col gap-1">
+            {section.items.map((item) => (
+              <li key={item.path}>
+                <Link
+                  href={item.path}
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setSearchQuery("");
+                  }}
+                  className={`block rounded-lg px-3 py-2 text-sm transition-colors ${
+                    pathname === item.path
+                      ? "bg-sky-500/10 text-sky-300"
+                      : "text-neutral-300 hover:bg-neutral-800/70 hover:text-sky-300"
+                  }`}
+                >
+                  {item.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))
+    ) : (
+      <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-900/40 px-4 py-5 text-sm text-neutral-400">
+        No docs pages match <span className="text-neutral-200">“{searchQuery}”</span>.
+      </div>
+    );
+
   const navContent = (
-    <nav className="flex flex-col gap-6">
-      <div className="sticky top-0 z-10 -mx-1 bg-neutral-950/95 px-1 pb-4 backdrop-blur">
+    <nav className="flex flex-col">
+      <div className="sticky top-0 z-10 bg-neutral-950 px-4 pt-6 pb-4">
         <label
           htmlFor="docs-search"
           className="mb-2 block text-xs uppercase tracking-[0.2em] text-neutral-500"
@@ -55,40 +90,7 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
           className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
         />
       </div>
-
-      {filteredDocsNav.length > 0 ? (
-        filteredDocsNav.map((section) => (
-          <div key={section.title}>
-            <h3 className="mb-2 text-xs uppercase tracking-wider text-neutral-400">
-              {section.title}
-            </h3>
-            <ul className="flex flex-col gap-1">
-              {section.items.map((item) => (
-                <li key={item.path}>
-                  <Link
-                    href={item.path}
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      setSearchQuery("");
-                    }}
-                    className={`block rounded-lg px-3 py-2 text-sm transition-colors ${
-                      pathname === item.path
-                        ? "bg-sky-500/10 text-sky-300"
-                        : "text-neutral-300 hover:bg-neutral-800/70 hover:text-sky-300"
-                    }`}
-                  >
-                    {item.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))
-      ) : (
-        <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-900/40 px-4 py-5 text-sm text-neutral-400">
-          No docs pages match <span className="text-neutral-200">“{searchQuery}”</span>.
-        </div>
-      )}
+      <div className="flex flex-col gap-6 px-4 pb-6">{navSections}</div>
     </nav>
   );
 
@@ -132,7 +134,7 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
       {mobileMenuOpen ? (
         <div
           id="docs-navigation"
-          className="absolute right-0 left-0 z-40 max-h-[calc(100vh-var(--site-header-height))] overflow-y-auto border-b border-neutral-800 bg-neutral-950 px-4 py-4 md:hidden"
+          className="absolute right-0 left-0 z-40 max-h-[calc(100vh-var(--site-header-height))] overflow-y-auto border-b border-neutral-800 bg-neutral-950 md:hidden"
           style={{ top: "var(--site-header-height)" }}
         >
           {navContent}
@@ -140,7 +142,7 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
       ) : null}
 
       <aside
-        className="hidden h-[calc(100vh-var(--site-header-height))] w-72 shrink-0 overflow-y-auto border-r border-neutral-800 px-4 py-6 md:sticky md:block"
+        className="hidden h-[calc(100vh-var(--site-header-height))] w-72 shrink-0 overflow-y-auto border-r border-neutral-800 md:sticky md:block"
         style={{ top: "var(--site-header-height)" }}
       >
         {navContent}
