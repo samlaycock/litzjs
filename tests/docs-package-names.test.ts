@@ -12,25 +12,25 @@ function normalizeWhitespace(value: string) {
 
 describe("getting started docs flow", () => {
   test("guides readers through installation, first app, quick start, then configuration", () => {
-    const rootLayout = normalizeWhitespace(readDoc("www/src/routes/_layouts/root.tsx"));
+    const docsNav = normalizeWhitespace(readDoc("www/src/components/docs-nav.ts"));
     const installationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/installation.tsx"));
     const firstAppDoc = normalizeWhitespace(readDoc("www/src/routes/docs/first-app.tsx"));
     const quickStartDoc = normalizeWhitespace(readDoc("www/src/routes/docs/quick-start.tsx"));
     const configurationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/configuration.tsx"));
 
-    expect(rootLayout).toContain('{ title: "Introduction", path: "/docs" },');
-    expect(rootLayout).toContain('{ title: "Installation", path: "/docs/installation" },');
-    expect(rootLayout).toContain('{ title: "First App", path: "/docs/first-app" },');
-    expect(rootLayout).toContain('{ title: "Quick Start", path: "/docs/quick-start" },');
-    expect(rootLayout).toContain('{ title: "Configuration", path: "/docs/configuration" },');
-    expect(
-      rootLayout.indexOf('{ title: "Installation", path: "/docs/installation" },'),
-    ).toBeLessThan(rootLayout.indexOf('{ title: "First App", path: "/docs/first-app" },'));
-    expect(rootLayout.indexOf('{ title: "First App", path: "/docs/first-app" },')).toBeLessThan(
-      rootLayout.indexOf('{ title: "Quick Start", path: "/docs/quick-start" },'),
+    expect(docsNav).toContain('{ title: "Introduction", path: "/docs" },');
+    expect(docsNav).toContain('{ title: "Installation", path: "/docs/installation" },');
+    expect(docsNav).toContain('{ title: "First App", path: "/docs/first-app" },');
+    expect(docsNav).toContain('{ title: "Quick Start", path: "/docs/quick-start" },');
+    expect(docsNav).toContain('{ title: "Configuration", path: "/docs/configuration" },');
+    expect(docsNav.indexOf('{ title: "Installation", path: "/docs/installation" },')).toBeLessThan(
+      docsNav.indexOf('{ title: "First App", path: "/docs/first-app" },'),
     );
-    expect(rootLayout.indexOf('{ title: "Quick Start", path: "/docs/quick-start" },')).toBeLessThan(
-      rootLayout.indexOf('{ title: "Configuration", path: "/docs/configuration" },'),
+    expect(docsNav.indexOf('{ title: "First App", path: "/docs/first-app" },')).toBeLessThan(
+      docsNav.indexOf('{ title: "Quick Start", path: "/docs/quick-start" },'),
+    );
+    expect(docsNav.indexOf('{ title: "Quick Start", path: "/docs/quick-start" },')).toBeLessThan(
+      docsNav.indexOf('{ title: "Configuration", path: "/docs/configuration" },'),
     );
 
     expect(installationDoc).toContain('Link href="/docs/first-app"');

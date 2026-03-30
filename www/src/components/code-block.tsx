@@ -1,29 +1,69 @@
 "use client";
 
 import CodeEditor from "@uiw/react-textarea-code-editor";
-import { useCallback, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface CodeBlockProps {
   code: string;
   language?: string;
 }
 
-export function CodeBlock({ code, language = "ts" }: CodeBlockProps) {
-  const [copied, setCopied] = useState(false);
+async function copyToClipboard(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
 
-  const onCopy = useCallback(async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [code]);
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "absolute";
+  textarea.style.left = "-9999px";
+  document.body.append(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
+export function CodeBlock({ code, language = "ts" }: CodeBlockProps) {
+  const resetTimerRef = useRef<number | null>(null);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current !== null) {
+        window.clearTimeout(resetTimerRef.current);
+      }
+    };
+  }, []);
+
+  async function onCopy(): Promise<void> {
+    if (resetTimerRef.current !== null) {
+      window.clearTimeout(resetTimerRef.current);
+    }
+
+    try {
+      await copyToClipboard(code);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+
+    resetTimerRef.current = window.setTimeout(() => setCopyState("idle"), 2000);
+  }
+
+  const copyLabel =
+    copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy";
 
   return (
-    <div className="relative group rounded bg-neutral-900 border border-neutral-800">
+    <div className="relative rounded-xl border border-neutral-800 bg-neutral-900 pr-20">
       <button
+        type="button"
         onClick={onCopy}
-        className="absolute top-2 right-2 px-2 py-1 text-xs bg-neutral-700 text-neutral-300 rounded opacity-0 z-10 group-hover:opacity-100 transition-opacity hover:bg-neutral-600"
+        className="absolute top-3 right-3 z-10 rounded-full border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors hover:border-sky-500/40 hover:bg-neutral-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+        aria-label={`${copyLabel} code sample`}
       >
-        {copied ? "Copied!" : "Copy"}
+        {copyLabel}
       </button>
       <CodeEditor
         value={code}
