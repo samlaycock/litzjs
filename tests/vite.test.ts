@@ -491,6 +491,227 @@ describe("dev server hot updates", () => {
       rmSync(root, { force: true, recursive: true });
     }
   });
+
+  test("prefixes client route manifest imports with the configured base", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-route-manifest-base-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      mkdirSync(path.join(root, "src", "routes"), { recursive: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "index.tsx"),
+        'import { defineRoute } from "litzjs";\n\nexport const route = defineRoute("/", {\n  component() {\n    return null;\n  },\n});\n',
+        "utf8",
+      );
+
+      const plugin = litz().find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.resolveId || !plugin.load) {
+        throw new Error("Expected litzjs/vite route-manifest hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const resolveId =
+        typeof plugin.resolveId === "function" ? plugin.resolveId : plugin.resolveId.handler;
+      const load = typeof plugin.load === "function" ? plugin.load : plugin.load.handler;
+      const pluginContext = {} as never;
+
+      await configResolved.call(pluginContext, {
+        root,
+        base: "/app/",
+        command: "serve",
+        build: {
+          outDir: "dist",
+        },
+        environments: {
+          client: {
+            build: {
+              outDir: path.join("dist", "client"),
+            },
+          },
+          rsc: {
+            build: {
+              outDir: path.join("dist", "server"),
+              rollupOptions: {
+                output: {
+                  codeSplitting: false,
+                },
+              },
+            },
+          },
+        },
+      } as never);
+
+      const resolvedId = resolveId.call(
+        pluginContext,
+        "virtual:litzjs:route-manifest",
+        undefined,
+        {} as never,
+      );
+      const manifestSource = load.call(
+        {
+          environment: {
+            name: "client",
+          },
+        } as never,
+        resolvedId as string,
+        {} as never,
+      ) as string;
+
+      expect(manifestSource).toContain('import("/app/@fs/');
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  test("prefixes the generated browser entry import with the configured base", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-base-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+
+      const plugin = litz().find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.resolveId || !plugin.load) {
+        throw new Error("Expected litzjs/vite browser-entry hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const resolveId =
+        typeof plugin.resolveId === "function" ? plugin.resolveId : plugin.resolveId.handler;
+      const load = typeof plugin.load === "function" ? plugin.load : plugin.load.handler;
+      const pluginContext = {} as never;
+
+      await configResolved.call(pluginContext, {
+        root,
+        base: "/app/",
+        command: "serve",
+        build: {
+          outDir: "dist",
+        },
+        environments: {
+          client: {
+            build: {
+              outDir: path.join("dist", "client"),
+            },
+          },
+          rsc: {
+            build: {
+              outDir: path.join("dist", "server"),
+              rollupOptions: {
+                output: {
+                  codeSplitting: false,
+                },
+              },
+            },
+          },
+        },
+      } as never);
+
+      const resolvedId = resolveId.call(
+        pluginContext,
+        "virtual:litzjs:browser-entry",
+        undefined,
+        {} as never,
+      );
+      const browserEntrySource = load.call(
+        {
+          environment: {
+            name: "client",
+          },
+        } as never,
+        resolvedId as string,
+        {} as never,
+      ) as string;
+
+      expect(browserEntrySource).toContain('import "/app/@fs/');
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  test("injects the configured base into transformed server entries", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-base-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      writeFileSync(
+        path.join(root, "src", "server.ts"),
+        'import { createServer } from "litzjs/server";\n\nexport default createServer();\n',
+        "utf8",
+      );
+
+      const plugin = litz().find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.transform) {
+        throw new Error("Expected litzjs/vite transform hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const transform =
+        typeof plugin.transform === "function" ? plugin.transform : plugin.transform.handler;
+      const pluginContext = {
+        environment: {
+          name: "rsc",
+        },
+      } as never;
+
+      await configResolved.call(
+        {} as never,
+        {
+          root,
+          base: "/app/",
+          command: "serve",
+          build: {
+            outDir: "dist",
+          },
+          environments: {
+            client: {
+              build: {
+                outDir: path.join("dist", "client"),
+              },
+            },
+            rsc: {
+              build: {
+                outDir: path.join("dist", "server"),
+                rollupOptions: {
+                  output: {
+                    codeSplitting: false,
+                  },
+                },
+              },
+            },
+          },
+        } as never,
+      );
+
+      const result = await transform.call(
+        pluginContext,
+        'import { createServer } from "litzjs/server";\n\nexport default createServer();\n',
+        path.join(root, "src", "server.ts"),
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          code: expect.stringContaining('base: "/app"'),
+        }),
+      );
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
 });
 
 function createMockViteDevServer(
@@ -573,6 +794,128 @@ function createMockResponse(): ServerResponse & { getBody(): string } {
 }
 
 describe("dev server abort signal lifecycle", () => {
+  test("matches base-prefixed internal resource requests", async () => {
+    let capturedHref = "";
+    const server = createMockViteDevServer(async () => ({
+      resource: {
+        async loader({ request }: { request: Request }) {
+          capturedHref = request.url;
+          return {
+            kind: "data",
+            data: { ok: true },
+          };
+        },
+      },
+    }));
+    const request = createMockRequest({
+      url: "/app/_litzjs/resource",
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        path: "/resources/config",
+        operation: "loader",
+        request: {},
+      }),
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzResourceRequest(
+      server,
+      [
+        {
+          path: "/resources/config",
+          modulePath: "src/resources/config.ts",
+          hasLoader: true,
+          hasAction: false,
+          hasComponent: false,
+        },
+      ],
+      request,
+      response,
+      next,
+      "/app/",
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(capturedHref).toBe("http://localhost:5173/resources/config");
+  });
+
+  test("matches base-prefixed internal route requests", async () => {
+    let capturedHref = "";
+    const server = createMockViteDevServer(async () => ({
+      route: {
+        async loader({ request }: { request: Request }) {
+          capturedHref = request.url;
+          return {
+            kind: "data",
+            data: { ok: true },
+          };
+        },
+      },
+    }));
+    const request = createMockRequest({
+      url: "/app/_litzjs/route",
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        path: "/projects/:id",
+        target: "projects.show",
+        operation: "loader",
+        request: {
+          params: { id: "42" },
+        },
+      }),
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzRouteRequest(
+      server,
+      [{ id: "projects.show", path: "/projects/:id", modulePath: "src/routes/projects.ts" }],
+      request,
+      response,
+      next,
+      "/app/",
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(capturedHref).toBe("http://localhost:5173/projects/42");
+  });
+
+  test("matches base-prefixed API requests", async () => {
+    let capturedHref = "";
+    const server = createMockViteDevServer(async () => ({
+      api: {
+        methods: {
+          GET({ request }: { request: Request }) {
+            capturedHref = request.url;
+            return new Response("ok");
+          },
+        },
+      },
+    }));
+    const request = createMockRequest({
+      url: "/app/api/test",
+      method: "GET",
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzApiRequest(
+      server,
+      [{ path: "/api/test", modulePath: "src/api/test.ts" }],
+      request,
+      response,
+      next,
+      "/app/",
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.getBody()).toBe("ok");
+    expect(capturedHref).toBe("http://litzjs.local/app/api/test");
+  });
+
   test("rebuilds repeated query params for internal resource requests", async () => {
     let capturedTags: string[] = [];
     let capturedHref = "";

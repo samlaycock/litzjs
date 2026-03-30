@@ -188,4 +188,42 @@ describe("server not-found handling", () => {
     expect(response.headers.get("content-type")).toBe("image/svg+xml");
     expect(await response.text()).toBe("<svg />");
   });
+
+  test("matches document routes beneath the configured base path", async () => {
+    const server = createServer({
+      base: "/app/",
+      manifest: {
+        routes: [
+          {
+            id: "projects.show",
+            path: "/projects/:id",
+            route: {},
+          },
+        ],
+      },
+      document: '<!doctype html><html><body><div id="app">app</div></body></html>',
+      notFound: "<!doctype html><html><body><h1>Missing</h1></body></html>",
+    });
+
+    const matchedResponse = await server.fetch(
+      new Request("https://app.example.com/app/projects/42", {
+        headers: {
+          accept: "text/html",
+        },
+      }),
+    );
+
+    const missingResponse = await server.fetch(
+      new Request("https://app.example.com/app/missing", {
+        headers: {
+          accept: "text/html",
+        },
+      }),
+    );
+
+    expect(matchedResponse.status).toBe(200);
+    expect(await matchedResponse.text()).toContain('id="app"');
+    expect(missingResponse.status).toBe(404);
+    expect(await missingResponse.text()).toContain("<h1>Missing</h1>");
+  });
 });

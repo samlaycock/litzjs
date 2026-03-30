@@ -87,6 +87,67 @@ describe("server security", () => {
     expect(body.data.pathname).toBe("/projects/42");
   });
 
+  test("matches base-prefixed internal route actions", async () => {
+    const server = createServer({
+      base: "/app/",
+      manifest: {
+        routes: [
+          {
+            id: "projects.show",
+            path: "/projects/:id",
+            route: {
+              action(context: unknown) {
+                const { request } = context as { request: Request };
+
+                return {
+                  kind: "data",
+                  data: {
+                    href: request.url,
+                    pathname: new URL(request.url).pathname,
+                  },
+                };
+              },
+            },
+          },
+        ],
+      },
+    });
+    const actionRequest = createInternalActionRequestInit(
+      {
+        path: "/projects/:id",
+        operation: "action",
+        request: {
+          params: {
+            id: "42",
+          },
+        },
+      },
+      {
+        name: "Litz",
+      },
+    );
+
+    const response = await server.fetch(
+      new Request("https://app.example.com/app/_litzjs/action", {
+        method: "POST",
+        headers: actionRequest.headers,
+        body: actionRequest.body,
+      }),
+    );
+    const body = (await response.json()) as {
+      kind: "data";
+      data: {
+        href: string;
+        pathname: string;
+      };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.kind).toBe("data");
+    expect(body.data.href).toBe("https://app.example.com/projects/42");
+    expect(body.data.pathname).toBe("/projects/42");
+  });
+
   test("reuses the original request signal for route handlers", async () => {
     const server = createServer({
       manifest: {

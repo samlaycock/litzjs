@@ -19,6 +19,7 @@ import {
   type SearchParamRecord,
 } from "../search-params";
 import { isAbortError } from "./abort-error";
+import { resolveClientTransportPath } from "./base-url";
 import { applySearchParams } from "./navigation";
 import { sortRecord } from "./sort-record";
 import {
@@ -465,7 +466,7 @@ async function performPreparedResourceRequest(
     try {
       const response =
         operation === "action"
-          ? await fetch("/_litzjs/resource", {
+          ? await fetch(resolveClientTransportPath("/_litzjs/resource"), {
               method: "POST",
               ...createInternalActionRequestInit(
                 {
@@ -480,7 +481,7 @@ async function performPreparedResourceRequest(
               ),
               signal: actionController?.signal,
             })
-          : await fetch("/_litzjs/resource", {
+          : await fetch(resolveClientTransportPath("/_litzjs/resource"), {
               method: "POST",
               headers: {
                 "content-type": "application/json",

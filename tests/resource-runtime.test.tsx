@@ -28,6 +28,9 @@ type Deferred<T> = {
   resolve(value: T): void;
 };
 
+const baseUrlTarget = globalThis as typeof globalThis & { __litzjsBaseUrl?: string };
+const originalBaseUrl = baseUrlTarget.__litzjsBaseUrl;
+
 type IsExact<T, U> =
   (<Value>() => Value extends T ? 1 : 2) extends <Value>() => Value extends U ? 1 : 2
     ? (<Value>() => Value extends U ? 1 : 2) extends <Value>() => Value extends T ? 1 : 2
@@ -300,6 +303,7 @@ describe("resource runtime", () => {
     }
 
     globalThis.fetch = originalFetch;
+    baseUrlTarget.__litzjsBaseUrl = originalBaseUrl;
     resetClientBindings();
     container?.remove();
     cleanupDom?.();
@@ -394,6 +398,28 @@ describe("resource runtime", () => {
       "idle",
       "idle",
     ]);
+  });
+
+  test("uses the configured client base for internal resource requests", async () => {
+    const requestUrls: string[] = [];
+    baseUrlTarget.__litzjsBaseUrl = "/app/";
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      requestUrls.push(
+        input instanceof URL ? input.toString() : typeof input === "string" ? input : input.url,
+      );
+      return Response.json({
+        kind: "data",
+        data: { id: "user-base", count: 1 },
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<accountResource.Component params={{ id: "user-base" }} />);
+      await flushDom();
+    });
+
+    expect(requestUrls).toEqual(["/app/_litzjs/resource"]);
   });
 
   test("resource store preserves entries across unmount/remount cycles", async () => {

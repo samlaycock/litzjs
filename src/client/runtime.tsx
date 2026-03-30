@@ -9,6 +9,7 @@ import {
   createSearchParams,
   type SearchParamRecord,
 } from "../search-params";
+import { resolveClientTransportPath } from "./base-url";
 import {
   isRedirectSignal,
   isRouteLikeError,
@@ -23,7 +24,7 @@ export async function fetchRouteLoader(
   target?: string,
   signal?: AbortSignal,
 ): Promise<LoaderHookResult> {
-  const response = await fetch("/_litzjs/route", {
+  const response = await fetch(resolveClientTransportPath("/_litzjs/route"), {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -47,7 +48,7 @@ export async function fetchRouteLoaders(
   targets: readonly string[],
   signal?: AbortSignal,
 ): Promise<readonly PromiseSettledResult<LoaderHookResult>[]> {
-  const response = await fetch("/_litzjs/route", {
+  const response = await fetch(resolveClientTransportPath("/_litzjs/route"), {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -80,7 +81,7 @@ export async function fetchRouteAction(
     payload,
   );
 
-  const response = await fetch("/_litzjs/action", {
+  const response = await fetch(resolveClientTransportPath("/_litzjs/action"), {
     method: "POST",
     headers: actionRequest.headers,
     body: actionRequest.body,
