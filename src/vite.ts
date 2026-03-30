@@ -307,6 +307,9 @@ if (import.meta.hot) {
   globalThis.__litzjsViteHot = import.meta.hot;
 }
 
+// The imported app graph executes before this assignment, but the transport
+// helpers only read the value lazily during fetch calls, matching the existing
+// HMR global pattern above.
 globalThis.__litzjsBaseUrl = ${JSON.stringify(configuredBase)};
 
 import ${JSON.stringify(toBrowserImportSpecifier(root, browserEntryPath, configuredBase))};
@@ -1943,21 +1946,20 @@ export async function handleLitzApiRequest(
   }
 
   const requestUrl = request.url ? new URL(request.url, "http://litzjs.local") : null;
-  const pathname = requestUrl ? resolveBasePathname(requestUrl.pathname, base) : null;
 
   if (!requestUrl) {
     next();
     return;
   }
 
+  const pathname = resolveBasePathname(requestUrl.pathname, base);
+
   if (hasMalformedPathnameEncoding(requestUrl.pathname)) {
     sendBadRequest(response);
     return;
   }
 
-  const matched = manifest.find((entry) =>
-    matchPathPattern(entry.path, pathname ?? requestUrl.pathname),
-  );
+  const matched = manifest.find((entry) => matchPathPattern(entry.path, pathname));
 
   if (!matched) {
     next();

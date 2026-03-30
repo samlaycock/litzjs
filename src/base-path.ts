@@ -50,5 +50,8 @@ export function stripBasePath(pathname: string, base: string | undefined): strin
 }
 
 export function resolveBasePathname(pathname: string, base: string | undefined): string {
+  // Preserve the original pathname when it does not include the configured
+  // base so deployments behind a proxy that strips the mount prefix before
+  // forwarding still route internal Litz requests correctly.
   return stripBasePath(pathname, base) ?? pathname;
 }
