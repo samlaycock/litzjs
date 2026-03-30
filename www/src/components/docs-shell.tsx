@@ -75,6 +75,16 @@ export function DocsShell({ pathname, children }: DocsShellProps) {
   const navContent = (
     <nav className="flex flex-col">
       <div className="sticky top-0 z-10 bg-neutral-950 px-4 pt-6 pb-6">
+        <div className="mb-3 flex items-center justify-between md:hidden">
+          <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">Documentation</p>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            className="rounded-lg border border-neutral-800 px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-neutral-300 transition-colors hover:border-sky-500/40 hover:text-sky-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+          >
+            Close
+          </button>
+        </div>
         <label
           htmlFor="docs-search"
           className="mb-2 block text-xs uppercase tracking-[0.2em] text-neutral-500"
