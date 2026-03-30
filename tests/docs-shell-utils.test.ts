@@ -73,4 +73,29 @@ describe("docs shell utilities", () => {
       },
     ]);
   });
+
+  test("synchronizeDocHeadings avoids colliding with pre-existing heading ids", () => {
+    const dom = installTestDom();
+
+    try {
+      document.body.innerHTML = `
+        <article>
+          <h2 id="overview">Overview</h2>
+          <h2>Overview</h2>
+        </article>
+      `;
+
+      const headings = synchronizeDocHeadings(document.body);
+      const articleHeadings = Array.from(document.querySelectorAll("h2"));
+
+      expect(headings).toEqual([
+        { id: "overview", level: 2, text: "Overview" },
+        { id: "overview-2", level: 2, text: "Overview" },
+      ]);
+      expect(articleHeadings[0]?.id).toBe("overview");
+      expect(articleHeadings[1]?.id).toBe("overview-2");
+    } finally {
+      dom.cleanup();
+    }
+  });
 });

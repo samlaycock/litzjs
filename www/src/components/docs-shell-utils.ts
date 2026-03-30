@@ -66,10 +66,13 @@ export function synchronizeDocHeadings(root: ParentNode): readonly DocHeading[] 
       return [];
     }
 
-    const id = heading.id || createHeadingId(text, headingCounts);
+    const existingId = heading.id;
+    const id = existingId || createHeadingId(text, headingCounts);
 
-    if (!heading.id) {
+    if (!existingId) {
       heading.id = id;
+    } else {
+      headingCounts.set(id, (headingCounts.get(id) ?? 0) + 1);
     }
 
     heading.style.scrollMarginTop = "calc(var(--site-header-height) + 1rem)";
