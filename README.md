@@ -905,22 +905,14 @@ The Vite plugin injects the discovered server manifest automatically into that e
 
 ### Production Output
 
-When you run `vite build`, Litz always writes the browser assets to `dist/client`.
+When you run `vite build`, Litz writes the browser assets to `.output/public`.
 
-Server output is always `dist/server/index.js`. The Vite plugin injects the discovered server
+Server output is always `.output/server/index.mjs`. The Vite plugin injects the discovered server
 manifest into `createServer(...)` automatically.
 
-By default, your host server or platform is responsible for serving `dist/client` (for example
-through `express.static`, a CDN, or a platform asset binding).
-
-If you want a self-contained single-file deployment, enable `embedAssets`:
-
-```ts
-litz({ embedAssets: true });
-```
-
-This inlines the built document HTML and all client asset contents into the server bundle, so the
-server handler can serve `/` and `/assets/*` by itself without a separate static file server.
+Your host server or platform is responsible for serving `.output/public` (for example through
+`express.static`, a CDN, or a platform asset binding) while forwarding dynamic requests to
+`.output/server/index.mjs`.
 
 You can let Litz discover `src/server.ts` or `src/server/index.ts`, or configure a different path
 explicitly in `vite.config.ts`:

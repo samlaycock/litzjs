@@ -1017,14 +1017,13 @@ const viteGroups: readonly ReferenceGroupSpec[] = [
   api?: string[];
   resources?: string[];
   server?: string;
-  embedAssets?: boolean;
   rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
 };`,
         summary: "Options accepted by the main Vite plugin factory.",
       },
       {
         name: "litz",
-        signature: `litz(options?: LitzPluginOptions): Plugin[]`,
+        signature: `litz(options?: LitzPluginOptions): PluginOption`,
         summary:
           "Creates the Litz Vite plugin stack, including route/resource/API discovery plus the `@vitejs/plugin-rsc` integration.",
         example: {
@@ -1034,11 +1033,30 @@ import { litz } from "litzjs/vite";
 
 export default defineConfig({
   plugins: [
-    ...litz({
+    litz({
       routes: ["src/routes/**/*.{ts,tsx}"],
       server: "src/server.ts",
     }),
   ],
+});`,
+        },
+      },
+      {
+        name: "buildLitzApp",
+        signature: `buildLitzApp(inlineConfig?: InlineConfig): Promise<void>`,
+        summary:
+          "Runs the full multi-environment Litz production build through Vite's app builder API.",
+        details: [
+          "Use this for programmatic builds instead of calling `vite.build(...)` directly, so client, RSC, SSR, and Nitro outputs are orchestrated as one app build.",
+        ],
+        example: {
+          language: "ts",
+          code: `import path from "node:path";
+import { buildLitzApp } from "litzjs/vite";
+
+await buildLitzApp({
+  root: path.resolve("fixtures/rsc-smoke"),
+  configFile: path.resolve("fixtures/rsc-smoke/vite.config.ts"),
 });`,
         },
       },

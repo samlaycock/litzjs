@@ -1,4 +1,3 @@
-import { cloudflare } from "@cloudflare/vite-plugin";
 import path from "node:path";
 import { defineConfig } from "vite";
 
@@ -9,15 +8,7 @@ const packageRoot = path.resolve(__dirname, "../..");
 
 export default defineConfig({
   root: rootDir,
-  plugins: [
-    litz(),
-    cloudflare({
-      viteEnvironment: {
-        name: "rsc",
-        childEnvironments: ["ssr"],
-      },
-    }),
-  ],
+  plugins: [litz()],
   resolve: {
     alias: [
       {

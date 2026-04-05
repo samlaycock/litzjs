@@ -39,6 +39,11 @@
       "import": "./dist/server.mjs",
       "require": "./dist/server.js"
     },
+    "./server/nitro": {
+      "types": "./dist/server/nitro.d.ts",
+      "import": "./dist/server/nitro.mjs",
+      "require": "./dist/server/nitro.js"
+    },
     "./vite": {
       "types": "./dist/vite.d.ts",
       "import": "./dist/vite.mjs",
@@ -76,6 +81,7 @@
     "@vitejs/plugin-rsc": "0.5.21",
     "bun-types": "1.3.11",
     "happy-dom": "20.8.9",
+    "nitro": "3.0.260311-beta",
     "oxfmt": "0.42.0",
     "oxlint": "1.57.0",
     "oxlint-tsgolint": "0.18.1",
@@ -87,6 +93,7 @@
   },
   "peerDependencies": {
     "@vitejs/plugin-rsc": "^0.5.21",
+    "nitro": "^3",
     "react": "^19",
     "react-dom": "^19",
     "typescript": "^6.0.2",

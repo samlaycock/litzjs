@@ -29,7 +29,9 @@ describe("troubleshooting docs", () => {
     expect(troubleshootingDoc).toContain('"/_litzjs/resource"');
     expect(troubleshootingDoc).toContain("server(async");
     expect(troubleshootingDoc).toContain('import { createServer } from "litzjs/server";');
-    expect(troubleshootingDoc).toContain("embedAssets: true");
+    expect(troubleshootingDoc).toContain(".output/public");
+    expect(troubleshootingDoc).toContain(".output/server/index.mjs");
+    expect(troubleshootingDoc).not.toContain("embedAssets");
     expect(troubleshootingDoc).toContain('Link href="/docs/installation"');
     expect(troubleshootingDoc).toContain('Link href="/docs/configuration"');
     expect(troubleshootingDoc).toContain('Link href="/docs/routing"');

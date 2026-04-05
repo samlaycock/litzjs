@@ -13,33 +13,29 @@ function DocsDenoDeployPage() {
       <title>Deno Deploy | Litz</title>
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">Deno Deploy</h1>
       <p className="text-xl text-neutral-300 mb-8">
-        Deploy Litz apps to Deno Deploy with a single built server bundle. The recommended
-        production recipe is to embed client assets into the Litz server output, then export that
-        handler to Deno.
+        Deploy Litz apps to Deno Deploy by publishing the generated server handler and uploading
+        <code className="text-sky-400"> .output/public</code> as static assets alongside it.
       </p>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">
-          Enable a single deployable bundle
-        </h2>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Build outputs</h2>
         <p className="text-neutral-400 mb-4">
-          Deno Deploy is simplest when the server bundle also contains the document and client
-          assets. Enable <code className="text-sky-400">embedAssets</code> in the Vite config:
+          A production build gives you the same two artifacts as every Nitro-backed Litz runtime:
         </p>
-        <CodeBlock
-          language="ts"
-          code={`import { defineConfig } from "vite";
-import { litz } from "litzjs/vite";
-
-export default defineConfig({
-  plugins: [
-    ...litz({
-      server: "src/server.ts",
-      embedAssets: true,
-    }),
-  ],
-});`}
-        />
+        <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
+          <li>
+            <code className="text-sky-400">.output/public</code> for HTML and browser assets
+          </li>
+          <li>
+            <code className="text-sky-400">.output/server/index.mjs</code> for the fetch-style Litz
+            handler
+          </li>
+        </ul>
+        <p className="text-neutral-400 mb-4">
+          Deno Deploy needs both parts of that build. Upload{" "}
+          <code className="text-sky-400">.output/public</code> with your deployment so static files
+          are available at runtime, and use the generated server bundle as the dynamic entry point.
+        </p>
       </section>
 
       <section className="mb-12">
@@ -65,12 +61,12 @@ export default createServer({
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Deno entry point</h2>
         <p className="text-neutral-400 mb-4">
-          After <code className="text-sky-400">vite build</code>, re-export the built Litz handler
-          through a Deno entry module:
+          After <code className="text-sky-400">vite build</code>, re-export the generated Litz
+          handler through a Deno entry module:
         </p>
         <CodeBlock
           language="ts"
-          code={`import app from "./dist/server/index.js";
+          code={`import app from "./.output/server/index.mjs";
 
 export default {
   fetch(request: Request) {
@@ -112,7 +108,7 @@ export default {
 deno serve ./server.ts
 
 # Production deploy
-deployctl deploy --project=my-litz-app --entrypoint=server.ts`}
+deployctl deploy --project=my-litz-app --include=.output/public ./.output/server/index.mjs`}
         />
       </section>
 
@@ -123,12 +119,12 @@ deployctl deploy --project=my-litz-app --entrypoint=server.ts`}
         <p className="text-neutral-400 mt-4 mb-4">This generates:</p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>
-            <code className="text-sky-400">dist/client</code> — browser assets that are embedded
-            into the server bundle
+            <code className="text-sky-400">.output/public</code> — browser assets that must be
+            uploaded with the deployment
           </li>
           <li>
-            <code className="text-sky-400">dist/server/index.js</code> — the generated fetch handler
-            imported by <code className="text-sky-400">server.ts</code>
+            <code className="text-sky-400">.output/server/index.mjs</code> — the generated fetch
+            handler you publish to Deno Deploy
           </li>
         </ul>
       </section>
@@ -142,7 +138,7 @@ deployctl deploy --project=my-litz-app --entrypoint=server.ts`}
     "dev": "vite",
     "build": "vite build",
     "start": "vite build && deno serve ./server.ts",
-    "deploy": "vite build && deployctl deploy --project=my-litz-app --entrypoint=server.ts"
+    "deploy": "vite build && deployctl deploy --project=my-litz-app --include=.output/public ./.output/server/index.mjs"
   }
 }`}
         />
@@ -160,7 +156,7 @@ deployctl deploy --project=my-litz-app --entrypoint=server.ts`}
             <code className="text-sky-400">Deno.ServeDefaultExport</code>
           </li>
           <li>
-            The bundled app serves the document and client assets without a separate file host
+            <code className="text-sky-400">.output/public</code> is uploaded with the deployment
           </li>
         </ul>
       </section>

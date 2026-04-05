@@ -95,38 +95,20 @@ export default createServer();`}
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Production output</h2>
         <p className="text-neutral-400 mb-4">
           When you run <code className="text-sky-400">vite build</code>, Litz writes browser assets
-          to <code className="text-sky-400">dist/client</code> and produces a server bundle.
+          to <code className="text-sky-400">.output/public</code> and produces a server bundle.
         </p>
         <p className="text-neutral-400 mb-4">
-          Litz emits <code className="text-sky-400">dist/server/index.js</code> with the discovered
-          server manifest injected into <code className="text-sky-400">createServer()</code>. Your
-          platform is responsible for serving <code className="text-sky-400">dist/client</code> as
-          static files (via CDN, <code className="text-sky-400">express.static</code>, platform
-          asset binding, etc.).
+          Litz emits <code className="text-sky-400">.output/server/index.mjs</code> with the
+          discovered server manifest injected into{" "}
+          <code className="text-sky-400">createServer()</code>. Your platform is responsible for
+          serving <code className="text-sky-400">.output/public</code> as static files (via CDN,{" "}
+          <code className="text-sky-400">express.static</code>, platform asset binding, etc.).
         </p>
-        <h3 className="text-xl font-medium text-neutral-100 mb-3">Embedded assets</h3>
         <p className="text-neutral-400 mb-4">
-          For single-file deployments where a separate static file server is not available, enable{" "}
-          <code className="text-sky-400">embedAssets</code>:
-        </p>
-        <CodeBlock
-          language="tsx"
-          code={`import { defineConfig } from "vite";
-import { litz } from "litzjs/vite";
-
-export default defineConfig({
-  plugins: [
-    litz({
-      embedAssets: true,
-    }),
-  ],
-});`}
-        />
-        <p className="text-neutral-400 mt-4 mb-4">
-          This inlines the built document HTML and all client assets into the server bundle. The
-          handler serves <code className="text-sky-400">/</code> and{" "}
-          <code className="text-sky-400">/assets/*</code> by itself. This works with or without a
-          custom server entry.
+          If your runtime cannot read from the local filesystem directly, upload{" "}
+          <code className="text-sky-400">.output/public</code> through that platform&apos;s asset
+          pipeline and keep <code className="text-sky-400">.output/server/index.mjs</code> as the
+          dynamic request handler.
         </p>
       </section>
 

@@ -19,7 +19,7 @@ function DocsDeploymentPage() {
       <p className="text-neutral-400 mb-4">The general approach is:</p>
       <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-8">
         <li>
-          build client assets to <code className="text-sky-400">dist/client</code>
+          build client assets to <code className="text-sky-400">.output/public</code>
         </li>
         <li>
           run <code className="text-sky-400">/_litzjs/*</code> and{" "}
@@ -83,7 +83,7 @@ export default {
   "compatibility_date": "2026-03-27",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    "directory": "./dist/client",
+    "directory": "./.output/public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/_litzjs/*", "/api/*"]
@@ -93,8 +93,8 @@ export default {
         <p className="text-neutral-400 mt-4 mb-4">
           If you use the Cloudflare Vite plugin, keeping{" "}
           <code className="text-sky-400">assets.directory</code> aligned with{" "}
-          <code className="text-sky-400">dist/client</code> matches the generated output and keeps
-          the JSON example copy-pasteable.
+          <code className="text-sky-400">.output/public</code> matches the generated output and
+          keeps the JSON example copy-pasteable.
         </p>
       </section>
 
@@ -128,7 +128,7 @@ wrangler deploy`}
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Production output</h2>
         <p className="text-neutral-400 mb-4">
           When you run <code className="text-sky-400">vite build</code>, Litz writes browser assets
-          to <code className="text-sky-400">dist/client</code>.
+          to <code className="text-sky-400">.output/public</code>.
         </p>
         <p className="text-neutral-400 mb-4">
           The Worker entry remains responsible for routing requests. The Litz server entry focuses
