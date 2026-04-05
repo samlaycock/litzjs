@@ -48,10 +48,13 @@ export type RouteRuntimeState = RouteLocationState &
   RouteDataState &
   RouteActionsState;
 
-let routeLocationContext: React.Context<RouteLocationState | null> | null = null;
-let routeStatusContext: React.Context<RouteStatusState | null> | null = null;
-let routeDataContext: React.Context<RouteDataState | null> | null = null;
-let routeActionsContext: React.Context<RouteActionsState | null> | null = null;
+declare global {
+  var __litzjsRouteLocationContext: React.Context<RouteLocationState | null> | undefined;
+  var __litzjsRouteStatusContext: React.Context<RouteStatusState | null> | undefined;
+  var __litzjsRouteDataContext: React.Context<RouteDataState | null> | undefined;
+  var __litzjsRouteActionsContext: React.Context<RouteActionsState | null> | undefined;
+}
+
 const routeFormComponentCache = new Map<string, React.ComponentType<RouteFormProps>>();
 
 function createRuntimeContext<T>(name: string): React.Context<T | null> {
@@ -69,23 +72,38 @@ function createRuntimeContext<T>(name: string): React.Context<T | null> {
 }
 
 function getRouteLocationContext(): React.Context<RouteLocationState | null> {
-  routeLocationContext ??= createRuntimeContext<RouteLocationState>("Litz route location");
-  return routeLocationContext;
+  if (!globalThis.__litzjsRouteLocationContext) {
+    globalThis.__litzjsRouteLocationContext =
+      createRuntimeContext<RouteLocationState>("Litz route location");
+  }
+
+  return globalThis.__litzjsRouteLocationContext;
 }
 
 function getRouteStatusContext(): React.Context<RouteStatusState | null> {
-  routeStatusContext ??= createRuntimeContext<RouteStatusState>("Litz route status");
-  return routeStatusContext;
+  if (!globalThis.__litzjsRouteStatusContext) {
+    globalThis.__litzjsRouteStatusContext =
+      createRuntimeContext<RouteStatusState>("Litz route status");
+  }
+
+  return globalThis.__litzjsRouteStatusContext;
 }
 
 function getRouteDataContext(): React.Context<RouteDataState | null> {
-  routeDataContext ??= createRuntimeContext<RouteDataState>("Litz route data");
-  return routeDataContext;
+  if (!globalThis.__litzjsRouteDataContext) {
+    globalThis.__litzjsRouteDataContext = createRuntimeContext<RouteDataState>("Litz route data");
+  }
+
+  return globalThis.__litzjsRouteDataContext;
 }
 
 function getRouteActionsContext(): React.Context<RouteActionsState | null> {
-  routeActionsContext ??= createRuntimeContext<RouteActionsState>("Litz route actions");
-  return routeActionsContext;
+  if (!globalThis.__litzjsRouteActionsContext) {
+    globalThis.__litzjsRouteActionsContext =
+      createRuntimeContext<RouteActionsState>("Litz route actions");
+  }
+
+  return globalThis.__litzjsRouteActionsContext;
 }
 
 function requireActiveRouteSlice<T extends { id: string }>(routeId: string, value: T | null): T {
