@@ -97,10 +97,12 @@ const resourceStore = new Map<string, ResourceStoreEntry>();
 const resourceFormComponentCache = new Map<string, React.ComponentType<RouteFormProps>>();
 const resourceComponentCache = new Map<string, React.ComponentType<any>>();
 
-let resourceLocationContext: React.Context<ResourceLocationState | null> | null = null;
-let resourceStatusContext: React.Context<ResourceStatusState | null> | null = null;
-let resourceDataContext: React.Context<ResourceDataState | null> | null = null;
-let resourceActionsContext: React.Context<ResourceActionsState | null> | null = null;
+declare global {
+  var __litzjsResourceLocationContext: React.Context<ResourceLocationState | null> | undefined;
+  var __litzjsResourceStatusContext: React.Context<ResourceStatusState | null> | undefined;
+  var __litzjsResourceDataContext: React.Context<ResourceDataState | null> | undefined;
+  var __litzjsResourceActionsContext: React.Context<ResourceActionsState | null> | undefined;
+}
 
 function createRuntimeContext<T>(name: string): React.Context<T | null> {
   const createContext = (
@@ -117,23 +119,39 @@ function createRuntimeContext<T>(name: string): React.Context<T | null> {
 }
 
 function getResourceLocationContext(): React.Context<ResourceLocationState | null> {
-  resourceLocationContext ??= createRuntimeContext<ResourceLocationState>("Litz resource location");
-  return resourceLocationContext;
+  if (!globalThis.__litzjsResourceLocationContext) {
+    globalThis.__litzjsResourceLocationContext =
+      createRuntimeContext<ResourceLocationState>("Litz resource location");
+  }
+
+  return globalThis.__litzjsResourceLocationContext;
 }
 
 function getResourceStatusContext(): React.Context<ResourceStatusState | null> {
-  resourceStatusContext ??= createRuntimeContext<ResourceStatusState>("Litz resource status");
-  return resourceStatusContext;
+  if (!globalThis.__litzjsResourceStatusContext) {
+    globalThis.__litzjsResourceStatusContext =
+      createRuntimeContext<ResourceStatusState>("Litz resource status");
+  }
+
+  return globalThis.__litzjsResourceStatusContext;
 }
 
 function getResourceDataContext(): React.Context<ResourceDataState | null> {
-  resourceDataContext ??= createRuntimeContext<ResourceDataState>("Litz resource data");
-  return resourceDataContext;
+  if (!globalThis.__litzjsResourceDataContext) {
+    globalThis.__litzjsResourceDataContext =
+      createRuntimeContext<ResourceDataState>("Litz resource data");
+  }
+
+  return globalThis.__litzjsResourceDataContext;
 }
 
 function getResourceActionsContext(): React.Context<ResourceActionsState | null> {
-  resourceActionsContext ??= createRuntimeContext<ResourceActionsState>("Litz resource actions");
-  return resourceActionsContext;
+  if (!globalThis.__litzjsResourceActionsContext) {
+    globalThis.__litzjsResourceActionsContext =
+      createRuntimeContext<ResourceActionsState>("Litz resource actions");
+  }
+
+  return globalThis.__litzjsResourceActionsContext;
 }
 
 function requireActiveResourceSlice<T extends { id: string }>(
