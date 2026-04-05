@@ -1,5 +1,44 @@
 # litzjs
 
+## 0.4.0
+
+### Minor Changes
+
+- 8636868: Guard non-runnable RSC dev environments and support Cloudflare fixture builds in clean checkouts.
+
+  The Vite dev middleware now bypasses the in-process resource, route, API, and document handlers when the `rsc` environment has no runnable server module loader. This prevents crashes in non-runnable environments while preserving the existing runnable codepath.
+
+  The root development install now also includes `@cloudflare/vite-plugin`, which keeps the Cloudflare smoke fixture and related production helper tests working in clean CI checkouts.
+
+- 120dc19: Integrate Nitro as the server runtime layer, replacing the custom asset embedding and deployment adapter code. The Vite plugin now includes Nitro's Vite plugin, which provides 25+ deployment presets (Cloudflare Workers, AWS Lambda, Vercel, Node.js, etc.) out of the box. A new `litzjs/server/nitro` export provides `createNitroHandler()` for direct Nitro handler usage. The `embedAssets` option has been removed in favor of Nitro's built-in static asset serving.
+
+  The `litzjs/vite` entry now also exposes `buildLitzApp()` for programmatic production builds so consumers can drive Vite's multi-environment app builder correctly, and production builds clean up intermediate Vite artifacts as part of the build lifecycle so the final output is just Nitro's `.output/public` and `.output/server` directories.
+
+### Patch Changes
+
+- b59b28b: Improve docs-site discoverability with sidebar search, page-level table of contents links, heading
+  anchor links, and always-available code copy actions across the documentation experience.
+- 871e7cf: Fix docs package name mismatches in installation, Deno, and API reference pages.
+- 1df9bf2: Stabilize client HMR for Litz route modules by routing projected route updates through Vite's client
+  module graph instead of a blanket full reload.
+
+  The client runtime now preserves HMR-sensitive runtime singletons across module replacement and
+  avoids re-importing route modules from the `rsc:update` path, which prevents `useNavigate()` and
+  related runtime-context crashes during hot updates.
+
+- 653cc62: Add a zero-to-running First App tutorial to the docs and route the getting-started flow through it before Quick Start.
+- 4f4e97e: Document the full installation peer dependency surface and add a compatibility matrix for the supported React, Vite, TypeScript, and RSC plugin versions.
+- 4899f73: Restructure the getting started docs flow so newcomers move from installation to quick start before configuration.
+- 3504e18: Rewrite the troubleshooting docs around concrete symptoms, failure signatures, and direct fixes for
+  package naming, route discovery, missing server wrappers, transport wiring, and deployment setup.
+- 1482693: Expand the API reference into a complete public surface guide covering the full `litzjs`, `litzjs/client`, `litzjs/server`, and `litzjs/vite` export set.
+- 3193c71: Fix docs-site package and repository naming inconsistencies across navigation copy and external links.
+- 1bcd10a: Tighten the Node, Bun, Cloudflare Workers, and Deno deployment guides with production-oriented
+  adapter recipes, concrete build and deploy commands, and explicit asset-serving caveats.
+- bc7a823: Honor Vite's configured `base` for internal client transport URLs, generated browser imports, and Vite/server request routing so apps keep working when mounted under a subpath.
+- eeee078: Load dev API route modules through the selected Vite RSC environment runner so API handlers see the same bindings and transforms as routes and resources.
+- 58260ee: Rewrite the testing docs around Bun-first, runnable examples and align the integration guidance with the real `createServer().fetch()` API.
+
 ## 0.3.0
 
 ### Minor Changes
