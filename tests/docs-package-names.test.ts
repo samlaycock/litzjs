@@ -226,6 +226,7 @@ describe("docs package names", () => {
     const serverExports = ["CreateServerOptions", "createServer"];
 
     const viteExports = [
+      "buildLitzApp",
       "LitzPluginOptions",
       "cleanupRscPluginArtifacts",
       "litz",

@@ -8,15 +8,17 @@
 import type { RscPluginOptions } from "@vitejs/plugin-rsc";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { TLSSocket } from "node:tls";
-import type { Connect, Plugin, ViteDevServer } from "vite";
+import type { Connect, InlineConfig, Plugin, PluginOption, ViteDevServer } from "vite";
 
 import vitePluginRsc from "@vitejs/plugin-rsc";
-import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { nitro as nitroVitePlugin } from "nitro/vite";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import picomatch from "picomatch";
 import { glob } from "tinyglobby";
 import ts from "typescript";
+import { createBuilder } from "vite";
 
 import type { ApiRouteMethod } from "./index";
 
@@ -39,14 +41,76 @@ import { createSearchParams, type SearchParamRecord } from "./search-params";
 import { parseInternalRequestBody, type InternalRequestBody } from "./server/internal-requests";
 import { createInternalHandlerHeaders } from "./server/request-headers";
 
-export type LitzPluginOptions = {
-  routes?: string[];
-  api?: string[];
-  resources?: string[];
-  server?: string;
-  embedAssets?: boolean;
-  rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
-};
+export interface LitzRouteRule {
+  /** Response caching configuration, or `false` to disable. */
+  readonly cache?:
+    | false
+    | {
+        /** Time-to-live in seconds for cached responses. */
+        readonly maxAge?: number;
+        /** Enable stale-while-revalidate caching. */
+        readonly swr?: boolean;
+        /** Vary by these request headers. */
+        readonly varies?: string[];
+      };
+  /** Additional response headers applied to matching routes. */
+  readonly headers?: Readonly<Record<string, string>>;
+  /** Redirect matching routes to another path. */
+  readonly redirect?:
+    | string
+    | {
+        readonly to: string;
+        readonly status?: number;
+      };
+  /** Pre-render this route at build time. */
+  readonly prerender?: boolean;
+  /** Proxy matching routes to an upstream URL. */
+  readonly proxy?:
+    | string
+    | {
+        readonly to: string;
+      };
+}
+
+export interface LitzPluginOptions {
+  /** Glob patterns for route files. */
+  readonly routes?: string[];
+  /** Glob patterns for API route files. */
+  readonly api?: string[];
+  /** Glob patterns for resource files. */
+  readonly resources?: string[];
+  /** Path to a custom server entry file. */
+  readonly server?: string;
+  /** Options forwarded to `@vitejs/plugin-rsc`. */
+  readonly rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
+  /**
+   * Deployment preset. Determines the server output format and runtime
+   * adapter (e.g. `"node-server"`, `"cloudflare-pages"`, `"vercel"`).
+   */
+  readonly preset?: string;
+  /**
+   * Per-route rules for caching, headers, redirects, pre-rendering, and
+   * proxying. Keys are path patterns (e.g. `"/api/**"`).
+   */
+  readonly routeRules?: Readonly<Record<string, LitzRouteRule>>;
+  /**
+   * Compress static assets with gzip, brotli, or zstd. Pass `true` to
+   * enable all supported algorithms, or an object to pick individually.
+   */
+  readonly compressPublicAssets?:
+    | boolean
+    | {
+        readonly gzip?: boolean;
+        readonly brotli?: boolean;
+        readonly zstd?: boolean;
+      };
+  /** Base URL path for the application (e.g. `"/app/"`). */
+  readonly baseURL?: string;
+  /** Generate source maps for the server build. */
+  readonly sourcemap?: boolean;
+  /** Minify the server build output. */
+  readonly minify?: boolean;
+}
 
 type DiscoveredRoute = {
   id: string;
@@ -88,29 +152,26 @@ const LITZ_BROWSER_ENTRY_ID = "virtual:litzjs:browser-entry";
 const RESOLVED_LITZ_BROWSER_ENTRY_ID = "\0virtual:litzjs:browser-entry";
 const LITZ_RSC_RENDERER_ID = "virtual:litzjs:rsc-renderer";
 const RESOLVED_LITZ_RSC_RENDERER_ID = "\0virtual:litzjs:rsc-renderer";
+const LITZ_NITRO_RENDERER_FILENAME = "nitro-renderer.ts";
 
 /**
  * Creates the Litz Vite plugin array. Returns the `@vitejs/plugin-rsc` plugins
  * plus the core Litz plugin. The mutable state variables below are populated
  * during `configResolved` and kept in sync during dev via file watching.
  */
-export function litz(options: LitzPluginOptions = {}): Plugin[] {
+export function litz(options: LitzPluginOptions = {}): PluginOption {
   let root = process.cwd();
   let configuredBase = "/";
   let browserEntryPath = "src/main.tsx";
   let serverEntryPath: string | null = null;
   let serverEntryFilePath: string | null = null;
-  let outputRootDir = path.resolve(root, "dist");
-  let clientOutDir = path.resolve(root, "dist/client");
-  let serverOutDir = path.resolve(root, "dist/server");
+  let intermediateBuildOutDir = path.resolve(root, "dist");
+  let finalNitroOutDir = path.resolve(root, ".output");
   let routeManifest: DiscoveredRoute[] = [];
   let layoutManifest: DiscoveredLayout[] = [];
   let resourceManifest: DiscoveredResource[] = [];
   let apiManifest: DiscoveredApiRoute[] = [];
   let clientProjectedFiles = new Set<string>();
-  let closeBundlePassCount = 0;
-  let hasFinalizedServerArtifacts = false;
-  let hasRegisteredExitFinalizer = false;
   const routePatterns = options.routes ?? [
     "src/routes/**/*.{ts,tsx}",
     "!src/routes/api/**/*.{ts,tsx}",
@@ -118,6 +179,10 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
   ];
   const resourcePatterns = options.resources ?? ["src/routes/resources/**/*.{ts,tsx}"];
   const apiPatterns = options.api ?? ["src/routes/api/**/*.{ts,tsx}"];
+  // Write a placeholder Nitro renderer file so the nitro plugin can resolve
+  // it during its `config` hook. The file is re-written in `configResolved`
+  // once the actual server entry path is known.
+  writeNitroRendererSync(root, null);
   const rscPlugins = vitePluginRsc({
     ...options.rsc,
     entries: {
@@ -130,23 +195,8 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
   const litzPlugin: Plugin = {
     name: "litzjs/vite",
 
-    // Reset finalization state at the start of each build cycle so that
-    // watch-mode rebuilds (`vite build --watch`) re-run finalization.
-    // Scoped to the RSC environment (always first in the RSC → client → SSR
-    // build order) to avoid resetting mid-cycle — a later reset would cause
-    // re-finalization on an already-transformed index.js, which would fail
-    // and incorrectly signal a broken build.
-    buildStart() {
-      if (this.environment?.name === "rsc") {
-        closeBundlePassCount = 0;
-        hasFinalizedServerArtifacts = false;
-      }
-    },
-
-    // Configure three Vite environments:
-    //  - client: SPA output (dist/client)
-    //  - rsc: React Server Components, single-file output via codeSplitting: false (dist/server)
-    //  - ssr: shares the server output dir; emptyOutDir: false to avoid clobbering RSC output
+    // Configure the client environment. The RSC plugin (@vitejs/plugin-rsc)
+    // manages its own rsc and ssr environments with appropriate defaults.
     config(userConfig) {
       const baseOutDir = userConfig.build?.outDir ?? "dist";
 
@@ -158,24 +208,6 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
               manifest: true,
             },
           },
-          rsc: {
-            build: {
-              outDir: path.join(baseOutDir, "server"),
-              rollupOptions: {
-                output: {
-                  entryFileNames: "index.js",
-                  format: "es",
-                  codeSplitting: false,
-                },
-              },
-            },
-          },
-          ssr: {
-            build: {
-              outDir: path.join(baseOutDir, "server"),
-              emptyOutDir: false,
-            },
-          },
         },
       };
     },
@@ -183,43 +215,17 @@ export function litz(options: LitzPluginOptions = {}): Plugin[] {
     async configResolved(config) {
       root = config.root;
       configuredBase = normalizeBasePath(config.base);
-      outputRootDir = path.resolve(root, config.build.outDir || "dist");
-      clientOutDir = path.resolve(
-        root,
-        config.environments.client?.build.outDir || path.join("dist", "client"),
-      );
-      serverOutDir = path.resolve(
-        root,
-        config.environments.rsc?.build.outDir || path.join("dist", "server"),
-      );
-
-      // Only validate the RSC output config during production builds — these
-      // rollupOptions are irrelevant in dev mode where no bundling occurs.
-      if (config.command === "build") {
-        const rscOutput = config.environments.rsc?.build.rollupOptions?.output;
-        const rscOutputs = Array.isArray(rscOutput) ? rscOutput : rscOutput ? [rscOutput] : [];
-
-        if (rscOutputs.length === 0) {
-          throw new Error(
-            "litz: could not find a rollupOptions.output entry for the RSC environment. " +
-              "This is an internal configuration error.",
-          );
-        }
-
-        for (const output of rscOutputs) {
-          if (output.codeSplitting !== false) {
-            throw new Error(
-              "litz: the RSC environment must have codeSplitting disabled " +
-                "(rollupOptions.output.codeSplitting: false). " +
-                "The server build pipeline requires a single entry file.",
-            );
-          }
-        }
-      }
+      intermediateBuildOutDir = path.resolve(root, config.build.outDir || "dist");
+      finalNitroOutDir = path.resolve(root, ".output");
 
       browserEntryPath = await discoverBrowserEntry(root);
       serverEntryPath = await discoverServerEntry(root, options.server);
       serverEntryFilePath = serverEntryPath ? path.resolve(root, serverEntryPath) : null;
+
+      // Re-write with the actual server entry path now that it has been
+      // discovered.
+      writeNitroRendererSync(root, serverEntryPath);
+
       ({ routeManifest, layoutManifest, resourceManifest, apiManifest } =
         await discoverAllManifests(root, routePatterns, resourcePatterns, apiPatterns));
       clientProjectedFiles = createClientProjectedFileSet(
@@ -571,6 +577,20 @@ export async function renderView(node, metadata = {}) {
       server.watcher.on("change", onFileChange);
       server.watcher.on("unlink", onFileAddOrUnlink);
 
+      // Mark Litz internal requests so Nitro's dev middleware skips them.
+      // Nitro's `nitroDevMiddlewarePre` checks `req._nitroHandled` and calls
+      // `next()` when set, letting our handlers below process the request.
+      server.middlewares.use((request, _response, next) => {
+        const requestUrl = request.url ? new URL(request.url, "http://litzjs.local") : null;
+        const pathname = requestUrl
+          ? resolveBasePathname(requestUrl.pathname, configuredBase)
+          : "/";
+
+        if (pathname.startsWith("/_litzjs/")) {
+          (request as unknown as Record<string, unknown>)._nitroHandled = true;
+        }
+        next();
+      });
       server.middlewares.use((request, response, next) => {
         void handleLitzResourceRequest(
           server,
@@ -614,7 +634,7 @@ export async function renderView(node, metadata = {}) {
       const cleanId = normalizeViteModuleId(id);
 
       if (
-        this.environment.name === "rsc" &&
+        this.environment.name === "nitro" &&
         serverEntryFilePath &&
         cleanId === serverEntryFilePath
       ) {
@@ -649,74 +669,63 @@ export async function renderView(node, metadata = {}) {
         map: null,
       };
     },
+  };
 
-    // Vite's multi-environment build runs RSC → client → SSR sequentially, and
-    // `closeBundle` fires after each environment. The RSC plugin writes its
-    // assets manifest only after ALL environments complete, so finalization may
-    // not succeed on the first call. We attempt it eagerly, and register a
-    // `process.once("exit")` fallback to catch the case where the manifest
-    // wasn't ready during earlier calls. Guard flags prevent duplicate work.
-    async closeBundle() {
-      closeBundlePassCount++;
+  const nitroPlugins = nitroVitePlugin({
+    scanDirs: [],
+    renderer: {
+      handler: path.resolve(root, ".litzjs", LITZ_NITRO_RENDERER_FILENAME),
+    },
+    preset: options.preset,
+    // LitzRouteRule is intentionally a framework-agnostic subset of Nitro's
+    // NitroRouteConfig. The types are structurally compatible at runtime.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    routeRules: options.routeRules as any,
+    compressPublicAssets: options.compressPublicAssets,
+    baseURL: options.baseURL,
+    sourcemap: options.sourcemap,
+    minify: options.minify,
+  });
 
-      // These are intentionally called on every environment pass. We don't know
-      // which pass has the client output ready (build order is RSC → client →
-      // SSR), and both functions are designed to be idempotent — they return
-      // early when their inputs (manifest, index.html) don't exist yet.
-      await Promise.all([
-        writeProductionIndexHtml(root, clientOutDir),
-        removeLegacyBuildArtifacts(outputRootDir),
-      ]);
+  // Prevent Nitro from hijacking the RSC-managed environments. Nitro's
+  // `nitro:env` plugin auto-detects any environment with a build entry and
+  // replaces its `createEnvironment` with a `FetchableDevEnvironment`, which
+  // removes the module runner that the RSC plugin (and Litz's dev handlers)
+  // rely on. We wrap that hook so it returns early for `rsc` and `ssr`.
+  const rscManagedEnvironments = new Set(["rsc", "ssr"]);
 
-      if (hasFinalizedServerArtifacts) {
-        return;
-      }
+  for (const plugin of nitroPlugins) {
+    if (plugin.name === "nitro:env" && typeof plugin.configEnvironment === "function") {
+      const original = plugin.configEnvironment;
+      plugin.configEnvironment = function (name, ...args) {
+        if (rscManagedEnvironments.has(name)) return;
+        return original.call(this, name, ...args);
+      };
+      break;
+    }
+  }
 
-      if (!hasRegisteredExitFinalizer) {
-        hasRegisteredExitFinalizer = true;
-        process.once("exit", () => {
-          if (hasFinalizedServerArtifacts) {
-            return;
-          }
-
-          hasFinalizedServerArtifacts = finalizeServerArtifacts(
-            serverOutDir,
-            clientOutDir,
-            options.embedAssets ?? false,
-            configuredBase,
-          );
-
-          if (!hasFinalizedServerArtifacts) {
-            process.exitCode = 1;
-            console.error(
-              "litz: failed to finalize server artifacts. " +
-                "The assets manifest import could not be inlined — " +
-                "the production server bundle may be broken.",
-            );
-          }
-        });
-      }
-
-      // When embedAssets is enabled, skip finalization on the first pass (RSC
-      // environment) because the client hasn't rebuilt yet — embedding at this
-      // point would capture stale assets from the previous build cycle. The
-      // client and SSR passes (or the exit handler) will finalize with fresh
-      // client output.
-      const inlineClientAssets = options.embedAssets ?? false;
-      if (inlineClientAssets && closeBundlePassCount <= 1) {
-        return;
-      }
-
-      hasFinalizedServerArtifacts = finalizeServerArtifacts(
-        serverOutDir,
-        clientOutDir,
-        inlineClientAssets,
-        configuredBase,
-      );
+  const cleanupPlugin: Plugin = {
+    name: "litzjs/build-cleanup",
+    sharedDuringBuild: true,
+    buildApp: {
+      order: "post",
+      async handler() {
+        cleanupIntermediateBuildArtifacts(root, intermediateBuildOutDir, finalNitroOutDir);
+      },
     },
   };
 
-  return [...rscPlugins, litzPlugin];
+  // The explicit cast prevents a "Plugin<any>[]" leak caused by Nitro's
+  // module augmentation that adds a generic parameter to Vite's Plugin
+  // interface, which triggers an "excessive stack depth" error when
+  // consumers pass the result into `defineConfig({ plugins: [litz()] })`.
+  return [...rscPlugins, litzPlugin, ...nitroPlugins, cleanupPlugin] as Plugin[];
+}
+
+export async function buildLitzApp(inlineConfig: InlineConfig = {}): Promise<void> {
+  const builder = await createBuilder(inlineConfig, false);
+  await builder.buildApp();
 }
 
 // ── Filesystem Discovery ─────────────────────────────────────────────────────
@@ -1499,6 +1508,54 @@ function toProjectImportSpecifier(relativeModulePath: string): string {
   return `/${relativeModulePath}`;
 }
 
+function hasCompletedNitroBuild(nitroOutDir: string): boolean {
+  return (
+    existsSync(path.join(nitroOutDir, "nitro.json")) &&
+    existsSync(path.join(nitroOutDir, "public")) &&
+    existsSync(path.join(nitroOutDir, "server"))
+  );
+}
+
+function shouldRemoveIntermediateBuildArtifacts(
+  root: string,
+  intermediateBuildOutDir: string,
+  nitroOutDir: string,
+): boolean {
+  if (!existsSync(intermediateBuildOutDir)) {
+    return false;
+  }
+
+  if (intermediateBuildOutDir === root || intermediateBuildOutDir === nitroOutDir) {
+    return false;
+  }
+
+  const relativeToRoot = path.relative(root, intermediateBuildOutDir);
+
+  if (!relativeToRoot || relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
+    return false;
+  }
+
+  const relativeToNitroOutDir = path.relative(nitroOutDir, intermediateBuildOutDir);
+
+  return relativeToNitroOutDir.startsWith("..") || path.isAbsolute(relativeToNitroOutDir);
+}
+
+function cleanupIntermediateBuildArtifacts(
+  root: string,
+  intermediateBuildOutDir: string,
+  nitroOutDir: string,
+): void {
+  if (!hasCompletedNitroBuild(nitroOutDir)) {
+    return;
+  }
+
+  if (!shouldRemoveIntermediateBuildArtifacts(root, intermediateBuildOutDir, nitroOutDir)) {
+    return;
+  }
+
+  rmSync(intermediateBuildOutDir, { force: true, recursive: true });
+}
+
 // ── Dev Server Request Handlers ──────────────────────────────────────────────
 // Middleware functions that handle incoming requests during development. Each
 // handler converts Node.js IncomingMessage/ServerResponse to Fetch API Request/
@@ -1545,7 +1602,11 @@ type BatchedLoaderResponseEntry = {
 };
 
 function hasRunnableRscEnvironment(server: ViteDevServer): boolean {
-  const env = server.environments.rsc as Record<string, unknown> | undefined;
+  const env = server.environments.rsc as unknown as
+    | {
+        runner?: unknown;
+      }
+    | undefined;
 
   return typeof env?.runner === "object" && env.runner !== null;
 }
@@ -1879,11 +1940,6 @@ async function handleLitzDocumentRequest(
   next: Connect.NextFunction,
   base = "/",
 ): Promise<void> {
-  if (!hasRunnableRscEnvironment(server)) {
-    next();
-    return;
-  }
-
   const url = request.url ?? "/";
   const requestUrl = new URL(url, "http://litzjs.local");
   const pathname = resolveBasePathname(requestUrl.pathname, base);
@@ -2683,618 +2739,54 @@ async function runDevMiddlewareChain<TContext, TResult>(options: {
   return dispatch(0, options.context);
 }
 
-// ── Production Build & Finalization ──────────────────────────────────────────
-// Post-build steps: generate the production index.html with hashed asset paths,
-// finalize the RSC server bundle into a single deployable index.js, and clean
-// up intermediate artifacts produced by the RSC plugin.
-
-type BuildManifestEntry = {
-  file: string;
-  src?: string;
-  isEntry?: boolean;
-  css?: string[];
-};
-
-async function writeProductionIndexHtml(root: string, clientOutDir: string): Promise<void> {
-  const sourceHtmlPath = path.join(root, "index.html");
-  const clientManifestPath = path.join(clientOutDir, ".vite", "manifest.json");
-
-  let sourceHtml: string;
-  let manifest: Record<string, BuildManifestEntry>;
-
-  try {
-    [sourceHtml, manifest] = await Promise.all([
-      readFile(sourceHtmlPath, "utf8"),
-      readJson<Record<string, BuildManifestEntry>>(clientManifestPath),
-    ]);
-  } catch {
-    return;
-  }
-
-  const entry =
-    Object.values(manifest).find((item) => item.isEntry) ??
-    Object.values(manifest).find((item) => Boolean(item.file));
-
-  if (!entry) {
-    return;
-  }
-
-  const headTags = (entry.css ?? [])
-    .map((cssFile) => `    <link rel="stylesheet" href="/${cssFile}">`)
-    .join("\n");
-  const scriptTag = `    <script type="module" src="/${entry.file}"></script>`;
-
-  let html = sourceHtml.replace(
-    /<script[^>]+type=["']module["'][^>]+src=["'][^"']+["'][^>]*><\/script>\s*/gi,
-    "",
-  );
-
-  if (headTags) {
-    html = html.replace("</head>", `${headTags}\n  </head>`);
-  }
-
-  html = html.replace("</body>", `${scriptTag}\n  </body>`);
-
-  await mkdir(clientOutDir, { recursive: true });
-  await writeFile(path.join(clientOutDir, "index.html"), html, "utf8");
-}
-
-async function readJson<T>(filePath: string): Promise<T> {
-  return JSON.parse(await readFile(filePath, "utf8")) as T;
-}
-
-async function removeLegacyBuildArtifacts(outputRootDir: string): Promise<void> {
-  await rm(path.join(outputRootDir, "index.html"), { force: true });
-}
+// ── Nitro Renderer ───────────────────────────────────────────────────────────
+// Writes a physical `.ts` file that Nitro can resolve during its `config` hook.
+// Nitro uses Node.js module resolution (not Vite's virtual modules), so the
+// renderer must exist on disk.
 
 /**
- * Post-build finalization pipeline:
- * 1. Read the single-file RSC bundle (`index.js`) and assets manifest
- * 2. Inline the manifest by replacing its import with the manifest source
- * 3. Wrap in a server module (or an inline-asset wrapper if `embedAssets`)
- * 4. Write the final `index.js` and clean up RSC plugin artifacts
+ * Writes the Nitro renderer entry file to `.litzjs/nitro-renderer.ts`.
  *
- * Returns `false` if the manifest import replacement doesn't match — this
- * signals that the RSC plugin hasn't written its artifacts yet, and the
- * caller should retry (see the `closeBundle` hook).
+ * When `serverEntryPath` is `null` (initial call before discovery), writes a
+ * placeholder that exports a no-op handler. Once the server entry is known,
+ * re-writes with the actual import so Nitro delegates to the Litz server.
  */
-function finalizeServerArtifacts(
-  serverOutDir: string,
-  clientOutDir: string,
-  inlineClientAssets: boolean,
-  base: string,
-): boolean {
-  let rscEntrySource: string;
-  let rscAssetsManifestSource: string;
-  let rscEncryptionKeySource: string | null = null;
-  let documentHtml = "";
-  let clientAssets: EmbeddedClientAsset[] = [];
+function writeNitroRendererSync(root: string, serverEntryPath: string | null): void {
+  const litzjsDir = path.resolve(root, ".litzjs");
 
-  try {
-    rscEntrySource = readFileSync(path.join(serverOutDir, "index.js"), "utf8");
-    rscAssetsManifestSource = readFileSync(
-      path.join(serverOutDir, "__vite_rsc_assets_manifest.js"),
+  mkdirSync(litzjsDir, { recursive: true });
+
+  const rendererPath = path.resolve(litzjsDir, LITZ_NITRO_RENDERER_FILENAME);
+
+  if (serverEntryPath === null) {
+    writeFileSync(
+      rendererPath,
+      [
+        "// Placeholder — replaced once the server entry is discovered.",
+        'import { defineHandler } from "nitro/h3";',
+        "",
+        "export default defineHandler(() => new Response('Not ready', { status: 503 }));",
+        "",
+      ].join("\n"),
       "utf8",
     );
-
-    if (inlineClientAssets) {
-      documentHtml = readFileSync(path.join(clientOutDir, "index.html"), "utf8");
-      clientAssets = collectEmbeddedClientAssets(clientOutDir);
-    }
-  } catch {
-    return false;
+    return;
   }
 
-  const manifestBindingSource = createDefaultExportConstSource(
-    rscAssetsManifestSource,
-    "assetsManifest",
+  const serverImportPath = path.resolve(root, serverEntryPath).replaceAll("\\", "/");
+
+  writeFileSync(
+    rendererPath,
+    [
+      "// Auto-generated by litzjs — do not edit.",
+      'import { defineHandler } from "nitro/h3";',
+      `import server from "${serverImportPath}";`,
+      "",
+      "export default defineHandler(async (event) => {",
+      "  return server.fetch(event.req);",
+      "});",
+      "",
+    ].join("\n"),
+    "utf8",
   );
-
-  if (!manifestBindingSource) {
-    return false;
-  }
-
-  let inlinedServerSource = rscEntrySource.replace(
-    'import assetsManifest from "./__vite_rsc_assets_manifest.js";',
-    manifestBindingSource,
-  );
-
-  if (inlinedServerSource === rscEntrySource) {
-    return false;
-  }
-
-  if (inlinedServerSource.includes("__vite_rsc_encryption_key.js")) {
-    try {
-      rscEncryptionKeySource = readFileSync(
-        path.join(serverOutDir, "__vite_rsc_encryption_key.js"),
-        "utf8",
-      );
-    } catch {
-      return false;
-    }
-
-    const encryptionKeyExpression = extractDefaultExportExpression(rscEncryptionKeySource);
-
-    if (!encryptionKeyExpression) {
-      return false;
-    }
-
-    inlinedServerSource = inlinedServerSource.replaceAll(
-      RSC_ENCRYPTION_KEY_IMPORT_PATTERN,
-      `Promise.resolve(${encryptionKeyExpression})`,
-    );
-
-    if (inlinedServerSource.includes("__vite_rsc_encryption_key.js")) {
-      return false;
-    }
-  }
-
-  let wrapperSource: string;
-
-  try {
-    wrapperSource = inlineClientAssets
-      ? createInlineAssetServerWrapper(inlinedServerSource, documentHtml, clientAssets, base)
-      : createServerModuleWrapper(inlinedServerSource);
-  } catch {
-    return false;
-  }
-
-  writeFileSync(path.join(serverOutDir, "index.js"), wrapperSource, "utf8");
-  cleanupRscPluginArtifacts(serverOutDir);
-  return true;
-}
-
-export function cleanupRscPluginArtifacts(serverOutDir: string): void {
-  for (const entry of readdirSync(serverOutDir)) {
-    if (entry.startsWith("__vite_rsc_")) {
-      rmSync(path.join(serverOutDir, entry), { force: true, recursive: true });
-    }
-  }
-}
-
-const RSC_ENCRYPTION_KEY_IMPORT_PATTERN =
-  /import\((["'])\.\/__vite_rsc_encryption_key\.js\1\)\.then\(\s*\(?\s*([$\w]+)\s*\)?\s*=>\s*\2\.default\s*\)/g;
-
-function extractDefaultExportExpression(source: string): string | null {
-  const match = source.match(/^export default\s+([\s\S]*?);?\s*$/);
-  return match?.[1]?.trim() || null;
-}
-
-function createDefaultExportConstSource(source: string, bindingName: string): string | null {
-  const expression = extractDefaultExportExpression(source);
-  return expression ? `const ${bindingName} = ${expression};` : null;
-}
-
-function createServerModuleWrapper(serverModuleSource: string): string {
-  const { source, handlerName } = transformServerModuleSource(serverModuleSource);
-  return [source, "", `export default ${handlerName};`, ""].join("\n");
-}
-
-/**
- * Strips the default export from the bundled RSC server module and rebinds it
- * to `__litzjsServerHandler` so the wrapper can re-export it. Uses the
- * TypeScript compiler API to handle four export patterns:
- *
- * 1. Named export lists — `export { handler as default }` → extract the binding
- * 2. Export assignments — `export default expr` → `const __litzjsServerHandler = expr`
- * 3. Default function declarations — strip modifiers, keep name, set binding
- * 4. Default class declarations — same treatment as functions
- *
- * If no handler was directly declared (pattern 1), a final `const` binding is
- * appended from the recorded default expression.
- */
-export function transformServerModuleSource(serverModuleSource: string): {
-  source: string;
-  handlerName: string;
-} {
-  const handlerName = "__litzjsServerHandler";
-  const sourceFile = ts.createSourceFile(
-    "server/index.js",
-    serverModuleSource,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.JS,
-  );
-  const transformedStatements: ts.Statement[] = [];
-  let defaultBinding: ts.Expression | null = null;
-  let handlerDeclared = false;
-
-  const setDefaultBinding = (expression: ts.Expression): void => {
-    if (defaultBinding) {
-      throw new Error("Expected a single default export in the bundled Litz server module.");
-    }
-
-    defaultBinding = expression;
-  };
-
-  const createHandlerDeclaration = (expression: ts.Expression): ts.VariableStatement =>
-    ts.factory.createVariableStatement(
-      undefined,
-      ts.factory.createVariableDeclarationList(
-        [
-          ts.factory.createVariableDeclaration(
-            ts.factory.createIdentifier(handlerName),
-            undefined,
-            undefined,
-            expression,
-          ),
-        ],
-        ts.NodeFlags.Const,
-      ),
-    );
-
-  const stripExportModifiers = (modifiers: readonly ts.ModifierLike[] | undefined): ts.Modifier[] =>
-    (modifiers?.filter(
-      (modifier) =>
-        modifier.kind !== ts.SyntaxKind.DefaultKeyword &&
-        modifier.kind !== ts.SyntaxKind.ExportKeyword,
-    ) as ts.Modifier[]) ?? [];
-
-  for (const statement of sourceFile.statements) {
-    if (
-      ts.isExportDeclaration(statement) &&
-      statement.exportClause &&
-      ts.isNamedExports(statement.exportClause)
-    ) {
-      const remainingElements: ts.ExportSpecifier[] = [];
-
-      for (const element of statement.exportClause.elements) {
-        if (element.name.text === "default" && !statement.moduleSpecifier) {
-          setDefaultBinding(
-            ts.factory.createIdentifier(element.propertyName?.text ?? element.name.text),
-          );
-          continue;
-        }
-
-        remainingElements.push(element);
-      }
-
-      if (remainingElements.length === statement.exportClause.elements.length) {
-        transformedStatements.push(statement);
-        continue;
-      }
-
-      if (remainingElements.length > 0) {
-        transformedStatements.push(
-          ts.factory.updateExportDeclaration(
-            statement,
-            statement.modifiers,
-            statement.isTypeOnly,
-            ts.factory.updateNamedExports(statement.exportClause, remainingElements),
-            statement.moduleSpecifier,
-            statement.attributes,
-          ),
-        );
-      }
-
-      continue;
-    }
-
-    if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
-      transformedStatements.push(createHandlerDeclaration(statement.expression));
-      handlerDeclared = true;
-      continue;
-    }
-
-    if (ts.isFunctionDeclaration(statement)) {
-      const modifiers = stripExportModifiers(statement.modifiers);
-      const isDefaultExport =
-        statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) &&
-        statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword);
-
-      if (!isDefaultExport) {
-        transformedStatements.push(statement);
-        continue;
-      }
-
-      if (statement.name) {
-        transformedStatements.push(
-          ts.factory.updateFunctionDeclaration(
-            statement,
-            modifiers,
-            statement.asteriskToken,
-            statement.name,
-            statement.typeParameters,
-            statement.parameters,
-            statement.type,
-            statement.body ?? ts.factory.createBlock([], false),
-          ),
-        );
-        setDefaultBinding(ts.factory.createIdentifier(statement.name.text));
-        continue;
-      }
-
-      transformedStatements.push(
-        createHandlerDeclaration(
-          ts.factory.createFunctionExpression(
-            modifiers,
-            statement.asteriskToken,
-            undefined,
-            statement.typeParameters,
-            statement.parameters,
-            statement.type,
-            statement.body ?? ts.factory.createBlock([], false),
-          ),
-        ),
-      );
-      handlerDeclared = true;
-      continue;
-    }
-
-    if (ts.isClassDeclaration(statement)) {
-      const modifiers = stripExportModifiers(statement.modifiers);
-      const isDefaultExport =
-        statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) &&
-        statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword);
-
-      if (!isDefaultExport) {
-        transformedStatements.push(statement);
-        continue;
-      }
-
-      if (statement.name) {
-        transformedStatements.push(
-          ts.factory.updateClassDeclaration(
-            statement,
-            modifiers,
-            statement.name,
-            statement.typeParameters,
-            statement.heritageClauses,
-            statement.members,
-          ),
-        );
-        setDefaultBinding(ts.factory.createIdentifier(statement.name.text));
-        continue;
-      }
-
-      transformedStatements.push(
-        createHandlerDeclaration(
-          ts.factory.createClassExpression(
-            modifiers,
-            undefined,
-            statement.typeParameters,
-            statement.heritageClauses,
-            statement.members,
-          ),
-        ),
-      );
-      handlerDeclared = true;
-      continue;
-    }
-
-    transformedStatements.push(statement);
-  }
-
-  if (!handlerDeclared) {
-    if (!defaultBinding) {
-      throw new Error("Unable to locate the default export in the bundled Litz server module.");
-    }
-
-    const binding = defaultBinding as ts.Expression;
-    const alreadyBound = ts.isIdentifier(binding) && binding.text === handlerName;
-
-    if (!alreadyBound) {
-      transformedStatements.push(createHandlerDeclaration(binding));
-    }
-  }
-
-  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
-  const transformedSourceFile = ts.factory.updateSourceFile(sourceFile, transformedStatements);
-  const transformed = printer.printFile(transformedSourceFile);
-
-  return {
-    source: transformed,
-    handlerName,
-  };
-}
-
-/**
- * Generates a self-contained server module for edge runtimes. Embeds all client
- * assets (JS, CSS, images, fonts) and the document HTML as data literals. The
- * generated `handle(request)` function serves static assets directly, returns
- * `index.html` for document requests, and delegates everything else to the RSC
- * server handler.
- */
-function createInlineAssetServerWrapper(
-  serverModuleSource: string,
-  documentHtml: string,
-  clientAssets: EmbeddedClientAsset[],
-  base: string,
-): string {
-  const serializedClientAssets = JSON.stringify(clientAssets);
-  const serializedDocumentHtml = JSON.stringify(documentHtml);
-  const { source, handlerName } = transformServerModuleSource(serverModuleSource);
-
-  return [
-    `const LITZ_BASE_PATH = ${JSON.stringify(base)};`,
-    `const LITZ_DOCUMENT_HTML = ${serializedDocumentHtml};`,
-    `const LITZ_CLIENT_ASSETS = new Map(${serializedClientAssets}.map((asset) => [asset.path, asset]));`,
-    "",
-    source,
-    "",
-    "function __litzjsDecodeBase64(value) {",
-    "  if (typeof atob !== 'function') {",
-    "    throw new Error('Base64 asset decoding requires global atob.');",
-    "  }",
-    "",
-    "  const binary = atob(value);",
-    "  const bytes = new Uint8Array(binary.length);",
-    "",
-    "  for (let index = 0; index < binary.length; index += 1) {",
-    "    bytes[index] = binary.charCodeAt(index);",
-    "  }",
-    "",
-    "  return bytes;",
-    "}",
-    "",
-    "function __litzjsCreateStaticAssetResponse(asset, request) {",
-    "  const body = request.method === 'HEAD'",
-    "    ? null",
-    "    : asset.encoding === 'base64'",
-    "      ? __litzjsDecodeBase64(asset.body)",
-    "      : asset.body;",
-    "",
-    "  return new Response(body, {",
-    "    status: 200,",
-    "    headers: asset.headers,",
-    "  });",
-    "}",
-    "",
-    "function __litzjsStripBasePath(pathname) {",
-    "  if (LITZ_BASE_PATH === '/') {",
-    "    return pathname;",
-    "  }",
-    "",
-    "  if (pathname === LITZ_BASE_PATH || pathname === `${LITZ_BASE_PATH}/`) {",
-    "    return '/';",
-    "  }",
-    "",
-    "  if (pathname.startsWith(`${LITZ_BASE_PATH}/`)) {",
-    "    return pathname.slice(LITZ_BASE_PATH.length) || '/';",
-    "  }",
-    "",
-    "  return pathname;",
-    "}",
-    "",
-    "function __litzjsShouldServeDocument(request, pathname) {",
-    "  if (pathname.startsWith('/_litzjs/') || pathname.startsWith('/api/')) {",
-    "    return false;",
-    "  }",
-    "",
-    "  const lastSegment = pathname.split('/').at(-1) ?? '';",
-    "",
-    "  if (lastSegment.includes('.')) {",
-    "    return pathname === '/index.html';",
-    "  }",
-    "",
-    "  const accept = request.headers.get('accept') ?? '';",
-    "  return accept.includes('text/html') || accept.includes('*/*');",
-    "}",
-    "",
-    "async function handle(request) {",
-    "  const url = new URL(request.url);",
-    "  const pathname = __litzjsStripBasePath(url.pathname);",
-    "  const asset = LITZ_CLIENT_ASSETS.get(pathname);",
-    "",
-    "  if ((request.method === 'GET' || request.method === 'HEAD') && asset) {",
-    "    return __litzjsCreateStaticAssetResponse(asset, request);",
-    "  }",
-    "",
-    "  if ((request.method === 'GET' || request.method === 'HEAD') && __litzjsShouldServeDocument(request, pathname)) {",
-    "    return new Response(request.method === 'HEAD' ? null : LITZ_DOCUMENT_HTML, {",
-    "      status: 200,",
-    "      headers: {",
-    "        'content-type': 'text/html; charset=utf-8',",
-    "      },",
-    "    });",
-    "  }",
-    "",
-    `  return ${handlerName}.fetch(request);`,
-    "}",
-    "",
-    "export default { fetch: handle };",
-    "",
-  ].join("\n");
-}
-
-// ── Asset Embedding ──────────────────────────────────────────────────────────
-// When `embedAssets` is enabled, these helpers collect all client build artifacts
-// (JS, CSS, images, fonts) and encode them into the server bundle so that it can
-// serve static assets without a separate file server — useful for edge runtimes.
-
-type EmbeddedClientAsset = {
-  path: string;
-  headers: Record<string, string>;
-  body: string;
-  encoding: "utf8" | "base64";
-};
-
-function collectEmbeddedClientAssets(clientOutDir: string): EmbeddedClientAsset[] {
-  const assets: EmbeddedClientAsset[] = [];
-
-  walkClientAssets(clientOutDir, clientOutDir, assets);
-
-  return assets;
-}
-
-function walkClientAssets(
-  rootDir: string,
-  currentDir: string,
-  assets: EmbeddedClientAsset[],
-): void {
-  for (const entry of readdirSync(currentDir, { withFileTypes: true })) {
-    const fullPath = path.join(currentDir, entry.name);
-    const relativePath = path.relative(rootDir, fullPath).split(path.sep).join("/");
-
-    if (relativePath === ".vite" || relativePath.startsWith(".vite/")) {
-      continue;
-    }
-
-    if (entry.isDirectory()) {
-      walkClientAssets(rootDir, fullPath, assets);
-      continue;
-    }
-
-    if (relativePath === "index.html") {
-      continue;
-    }
-
-    const buffer = readFileSync(fullPath);
-    const encoding = isUtf8Asset(relativePath) ? "utf8" : "base64";
-    assets.push({
-      path: `/${relativePath}`,
-      headers: {
-        "content-type": getContentType(relativePath),
-      },
-      body: encoding === "utf8" ? buffer.toString("utf8") : buffer.toString("base64"),
-      encoding,
-    });
-  }
-}
-
-function isUtf8Asset(filePath: string): boolean {
-  const extension = path.extname(filePath).toLowerCase();
-
-  return (
-    extension === ".js" ||
-    extension === ".mjs" ||
-    extension === ".css" ||
-    extension === ".html" ||
-    extension === ".json" ||
-    extension === ".svg" ||
-    extension === ".txt" ||
-    extension === ".map"
-  );
-}
-
-function getContentType(filePath: string): string {
-  switch (path.extname(filePath).toLowerCase()) {
-    case ".html":
-      return "text/html; charset=utf-8";
-    case ".js":
-    case ".mjs":
-      return "text/javascript; charset=utf-8";
-    case ".css":
-      return "text/css; charset=utf-8";
-    case ".json":
-    case ".map":
-      return "application/json; charset=utf-8";
-    case ".svg":
-      return "image/svg+xml";
-    case ".png":
-      return "image/png";
-    case ".jpg":
-    case ".jpeg":
-      return "image/jpeg";
-    case ".webp":
-      return "image/webp";
-    case ".woff":
-      return "font/woff";
-    case ".woff2":
-      return "font/woff2";
-    case ".txt":
-      return "text/plain; charset=utf-8";
-    default:
-      return "application/octet-stream";
-  }
 }

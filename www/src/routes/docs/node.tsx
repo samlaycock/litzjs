@@ -13,9 +13,9 @@ function DocsNodePage() {
       <title>Node.js | Litz</title>
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">Node.js</h1>
       <p className="text-xl text-neutral-300 mb-8">
-        Deploy Litz apps to Node.js by serving <code className="text-sky-400">dist/client</code> as
-        static files and forwarding everything else to the built Litz handler in{" "}
-        <code className="text-sky-400">dist/server/index.js</code>.
+        Deploy Litz apps to Node.js by serving <code className="text-sky-400">.output/public</code>{" "}
+        as static files and forwarding everything else to the built Litz handler in{" "}
+        <code className="text-sky-400">.output/server/index.mjs</code>.
       </p>
 
       <section className="mb-12">
@@ -46,24 +46,19 @@ export default createServer({
         <p className="text-neutral-400 mb-4">A production build gives you two outputs:</p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>
-            <code className="text-sky-400">dist/client</code> for the document shell and browser
+            <code className="text-sky-400">.output/public</code> for the document shell and browser
             assets
           </li>
           <li>
-            <code className="text-sky-400">dist/server/index.js</code> for the fetch-style Litz
+            <code className="text-sky-400">.output/server/index.mjs</code> for the fetch-style Litz
             handler
           </li>
         </ul>
         <p className="text-neutral-400 mb-4">
           In Node, the production job is always the same: serve{" "}
-          <code className="text-sky-400">dist/client</code> directly, convert Node requests into web{" "}
-          <code className="text-sky-400">Request</code> objects, then call{" "}
+          <code className="text-sky-400">.output/public</code> directly, convert Node requests into
+          web <code className="text-sky-400">Request</code> objects, then call{" "}
           <code className="text-sky-400">app.fetch(request)</code>.
-        </p>
-        <p className="text-neutral-400 mb-4">
-          If you do not want a separate static file server, enable{" "}
-          <code className="text-sky-400">embedAssets</code> in your Vite config and keep the
-          adapters below, but remove the filesystem asset-serving branches.
         </p>
       </section>
 
@@ -137,11 +132,11 @@ export async function sendWebResponse(response: Response, reply: ServerResponse)
 import { createReadStream } from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
-import app from "./dist/server/index.js";
+import app from "./.output/server/index.mjs";
 import { sendWebResponse, toWebRequest } from "./node-adapter.js";
 
 const port = Number(process.env.PORT ?? 3000);
-const clientDir = path.resolve("dist/client");
+const clientDir = path.resolve(".output/public");
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -225,11 +220,11 @@ server.listen(port, () => {
           language="ts"
           code={`import express from "express";
 import path from "node:path";
-import app from "./dist/server/index.js";
+import app from "./.output/server/index.mjs";
 import { sendWebResponse, toWebRequest } from "./node-adapter.js";
 
 const server = express();
-const clientDir = path.resolve("dist/client");
+const clientDir = path.resolve(".output/public");
 const port = Number(process.env.PORT ?? 3000);
 
 server.disable("x-powered-by");
@@ -270,11 +265,11 @@ server.listen(port, () => {
           code={`import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
-import app from "./dist/server/index.js";
+import app from "./.output/server/index.mjs";
 import { sendWebResponse, toWebRequest } from "./node-adapter.js";
 
 const server = Fastify({ logger: true });
-const clientDir = path.resolve("dist/client");
+const clientDir = path.resolve(".output/public");
 
 await server.register(fastifyStatic, {
   root: path.join(clientDir, "assets"),
@@ -332,7 +327,7 @@ node ./server/fastify.js`}
         />
         <p className="text-neutral-400 mt-4 mb-4">
           Build first so the adapter imports the generated{" "}
-          <code className="text-sky-400">dist/server/index.js</code> bundle instead of the
+          <code className="text-sky-400">.output/server/index.mjs</code> bundle instead of the
           source-only development entry.
         </p>
       </section>
@@ -361,7 +356,7 @@ node ./server/fastify.js`}
           <li>The selected Node adapter starts without errors</li>
           <li>
             <code className="text-sky-400">/assets/*</code> is served directly from{" "}
-            <code className="text-sky-400">dist/client</code>
+            <code className="text-sky-400">.output/public</code>
           </li>
           <li>Document requests still hydrate correctly in the browser</li>
           <li>

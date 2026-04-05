@@ -39,6 +39,13 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Wrangler
 .wrangler
 
+# Litz generated files
+.litzjs
+
+# Nitro output
+.output
+.nitro
+
 # Temp files
 *.tmp
 *.tmp*

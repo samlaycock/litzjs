@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ViteDevServer } from "vite";
+import type { Plugin, ViteDevServer } from "vite";
 
 import { describe, expect, mock, test } from "bun:test";
 import { spawnSync } from "node:child_process";
@@ -18,7 +18,7 @@ import path from "node:path";
 import { PassThrough } from "node:stream";
 
 import {
-  cleanupRscPluginArtifacts,
+  buildLitzApp,
   discoverAllManifests,
   discoverApiRouteFromFile,
   discoverLayoutFromFile,
@@ -29,7 +29,6 @@ import {
   handleLitzResourceRequest,
   handleLitzRouteRequest,
   litz,
-  transformServerModuleSource,
 } from "../src/vite";
 
 describe("vite production server helpers", () => {
@@ -80,95 +79,69 @@ describe("vite production server helpers", () => {
     }
   });
 
-  test("rewrites bundled export lists into a local server handler binding", () => {
-    const transformed = transformServerModuleSource(`
-const helper = 1;
-const server_default = createServer();
-export { helper, server_default as default };
-`);
-
-    expect(transformed.source).toContain("export { helper };");
-    expect(transformed.source).toContain("const __litzjsServerHandler = server_default;");
-    expect(transformed.source).not.toContain("server_default as default");
-    expect(transformed.handlerName).toBe("__litzjsServerHandler");
-  });
-
-  test("rewrites export default expressions into a local server handler binding", () => {
-    const transformed = transformServerModuleSource(`
-const helper = 1;
-export default createServer({ helper });
-`);
-
-    expect(transformed.source).toContain("const __litzjsServerHandler = createServer({ helper });");
-    expect(transformed.source).not.toContain("export default createServer");
-    expect(transformed.handlerName).toBe("__litzjsServerHandler");
-  });
-
-  test("removes __vite_rsc_ files but preserves other entries", () => {
-    const serverOutDir = mkdtempSync(path.join(tmpdir(), "litz-server-cleanup-"));
+  test("normalizes generated Nitro renderer import paths before embedding them", async () => {
+    const previousCwd = process.cwd();
+    const projectRoot = mkdtempSync(path.join(tmpdir(), "litz\\nitro-workspace-"));
+    const rendererPath = path.join(projectRoot, ".litzjs", "nitro-renderer.ts");
 
     try {
-      writeFileSync(path.join(serverOutDir, "index.js"), "export default handler;\n", "utf8");
-      writeFileSync(
-        path.join(serverOutDir, "__vite_rsc_assets_manifest.js"),
-        "export default {};\n",
-        "utf8",
-      );
-      writeFileSync(
-        path.join(serverOutDir, "__vite_rsc_encryption_key.js"),
-        "export default '';\n",
-        "utf8",
-      );
-      writeFileSync(
-        path.join(serverOutDir, "__vite_rsc_env_imports_entry_fallback.js"),
-        "// fallback\n",
-        "utf8",
-      );
+      mkdirSync(path.join(projectRoot, "src"), { recursive: true });
+      writeFileSync(path.join(projectRoot, "src", "main.tsx"), "export {};\n", "utf8");
+      writeFileSync(path.join(projectRoot, "src", "server.ts"), "export default null;\n", "utf8");
+      process.chdir(projectRoot);
 
-      cleanupRscPluginArtifacts(serverOutDir);
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
 
-      const remaining = readdirSync(serverOutDir).sort();
-      expect(remaining).toEqual(["index.js"]);
-      expect(existsSync(path.join(serverOutDir, "__vite_rsc_assets_manifest.js"))).toBe(false);
-      expect(existsSync(path.join(serverOutDir, "__vite_rsc_encryption_key.js"))).toBe(false);
-    } finally {
-      rmSync(serverOutDir, { force: true, recursive: true });
-    }
-  });
-
-  test("inlines the RSC encryption key before cleaning up server artifacts", () => {
-    const repoRoot = process.cwd();
-    const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
-    const root = mkdtempSync(path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-encryption-"));
-
-    try {
-      cpSync(path.join(sourceFixtureRoot, "."), root, { recursive: true });
-
-      const build = spawnSync(
-        process.execPath,
-        ["x", "vite", "build", "--config", path.join(root, "vite.config.ts")],
-        {
-          cwd: repoRoot,
-          encoding: "utf8",
-          timeout: 55_000,
-        },
-      );
-
-      if (build.status !== 0) {
-        throw new Error(
-          ["vite build failed", build.stdout, build.stderr].filter(Boolean).join("\n\n"),
-        );
+      if (!plugin?.configResolved) {
+        throw new Error("Expected litzjs/vite configResolved hook to be available.");
       }
 
-      const serverOutDir = path.join(root, "dist", "server");
-      const serverEntry = readFileSync(path.join(serverOutDir, "index.js"), "utf8");
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
 
-      expect(serverEntry).not.toContain("__vite_rsc_encryption_key.js");
-      expect(existsSync(path.join(serverOutDir, "__vite_rsc_encryption_key.js"))).toBe(false);
+      await configResolved.call(
+        {} as never,
+        {
+          root: projectRoot,
+          base: "/",
+          command: "serve",
+          build: {
+            outDir: "dist",
+          },
+          environments: {
+            client: {
+              build: {
+                outDir: path.join("dist", "client"),
+              },
+            },
+            rsc: {
+              build: {
+                outDir: path.join("dist", "server"),
+                rollupOptions: {
+                  output: {
+                    codeSplitting: false,
+                  },
+                },
+              },
+            },
+          },
+        } as never,
+      );
+
+      const rendererSource = readFileSync(rendererPath, "utf8");
+
+      expect(existsSync(rendererPath)).toBe(true);
+      expect(rendererSource).toContain(
+        path.resolve(projectRoot, "src", "server.ts").replaceAll("\\", "/"),
+      );
+      expect(rendererSource).not.toContain("\\");
     } finally {
-      rmSync(root, { recursive: true, force: true });
+      process.chdir(previousCwd);
+      rmSync(projectRoot, { force: true, recursive: true });
     }
-  }, 60000);
+  });
 
   test("emits route-scoped CSS assets for lazy route entries", () => {
     const repoRoot = process.cwd();
@@ -227,21 +200,63 @@ export default createServer({ helper });
         );
       }
 
-      const manifest = JSON.parse(
-        readFileSync(path.join(root, "dist", "client", ".vite", "manifest.json"), "utf8"),
-      ) as Record<string, { css?: string[] }>;
+      const publicAssets = readdirSync(path.join(root, ".output", "public", "assets")).sort();
 
-      expect(manifest["../../virtual:litzjs:browser-entry"]?.css).toBeUndefined();
-      expect(manifest["src/routes/index.tsx"]?.css).toHaveLength(1);
-      expect(manifest["src/routes/features/loader-data.tsx"]?.css).toHaveLength(1);
-      expect(manifest["src/routes/index.tsx"]?.css?.[0]).not.toBe(
-        manifest["src/routes/features/loader-data.tsx"]?.css?.[0],
+      expect(publicAssets.some((file) => /^routes-.*\.css$/.test(file))).toBe(true);
+      expect(publicAssets.some((file) => /^loader-data-.*\.css$/.test(file))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 60000);
+
+  test("keeps only Nitro final outputs after a production build", () => {
+    const repoRoot = process.cwd();
+    const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
+    const root = mkdtempSync(path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-clean-"));
+
+    try {
+      cpSync(path.join(sourceFixtureRoot, "."), root, { recursive: true });
+
+      const build = spawnSync(
+        process.execPath,
+        ["x", "vite", "build", "--config", path.join(root, "vite.config.ts")],
+        {
+          cwd: repoRoot,
+          encoding: "utf8",
+          timeout: 55_000,
+        },
       );
 
-      const clientAssets = readdirSync(path.join(root, "dist", "client", "assets")).sort();
+      if (build.status !== 0) {
+        throw new Error(
+          ["vite build failed", build.stdout, build.stderr].filter(Boolean).join("\n\n"),
+        );
+      }
 
-      expect(clientAssets.some((file) => /^routes-.*\.css$/.test(file))).toBe(true);
-      expect(clientAssets.some((file) => /^loader-data-.*\.css$/.test(file))).toBe(true);
+      expect(existsSync(path.join(root, ".output", "public"))).toBe(true);
+      expect(existsSync(path.join(root, ".output", "server"))).toBe(true);
+      expect(existsSync(path.join(root, "dist"))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 60000);
+
+  test("programmatic build helper completes and leaves only Nitro final outputs", async () => {
+    const repoRoot = process.cwd();
+    const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
+    const root = mkdtempSync(path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-build-app-"));
+
+    try {
+      cpSync(path.join(sourceFixtureRoot, "."), root, { recursive: true });
+
+      await buildLitzApp({
+        configFile: path.join(root, "vite.config.ts"),
+        root,
+      });
+
+      expect(existsSync(path.join(root, ".output", "public"))).toBe(true);
+      expect(existsSync(path.join(root, ".output", "server"))).toBe(true);
+      expect(existsSync(path.join(root, "dist"))).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -262,7 +277,7 @@ describe("dev server hot updates", () => {
         "utf8",
       );
 
-      const plugin = litz().find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
 
       if (!plugin?.configResolved || !plugin.resolveId || !plugin.load) {
         throw new Error("Expected litzjs/vite route-manifest hooks to be available.");
@@ -338,7 +353,7 @@ describe("dev server hot updates", () => {
         "utf8",
       );
 
-      const plugin = litz().find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
 
       if (!plugin?.configResolved || !plugin.hotUpdate) {
         throw new Error("Expected litzjs/vite hot-update hooks to be available.");
@@ -425,7 +440,7 @@ describe("dev server hot updates", () => {
         "utf8",
       );
 
-      const plugin = litz().find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
 
       if (!plugin?.configResolved || !plugin.hotUpdate) {
         throw new Error("Expected litzjs/vite hot-update hooks to be available.");
@@ -505,7 +520,7 @@ describe("dev server hot updates", () => {
         "utf8",
       );
 
-      const plugin = litz().find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
 
       if (!plugin?.configResolved || !plugin.resolveId || !plugin.load) {
         throw new Error("Expected litzjs/vite route-manifest hooks to be available.");
@@ -575,7 +590,7 @@ describe("dev server hot updates", () => {
       mkdirSync(path.join(root, "src"), { recursive: true });
       writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
 
-      const plugin = litz().find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
 
       if (!plugin?.configResolved || !plugin.resolveId || !plugin.load) {
         throw new Error("Expected litzjs/vite browser-entry hooks to be available.");
@@ -650,7 +665,7 @@ describe("dev server hot updates", () => {
         "utf8",
       );
 
-      const plugin = litz().find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
 
       if (!plugin?.configResolved || !plugin.transform) {
         throw new Error("Expected litzjs/vite transform hooks to be available.");
@@ -664,7 +679,7 @@ describe("dev server hot updates", () => {
         typeof plugin.transform === "function" ? plugin.transform : plugin.transform.handler;
       const pluginContext = {
         environment: {
-          name: "rsc",
+          name: "nitro",
         },
       } as never;
 
