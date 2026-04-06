@@ -88,6 +88,8 @@ describe("runtime context singletons", () => {
       );
       const observedRouteId: { current: string | null } = { current: null };
 
+      expect(routeRuntimeA.RouteRuntimeProvider).not.toBe(routeRuntimeB.RouteRuntimeProvider);
+
       function Reader(): React.ReactElement {
         observedRouteId.current = routeRuntimeB.useRequiredRouteLocation("/projects/:id").id;
         return <div data-route-id={observedRouteId.current} />;
@@ -104,6 +106,8 @@ describe("runtime context singletons", () => {
 
       expect(observedRouteId.current).toEqual("/projects/:id");
       expect(globalThis.__litzjsRouteLocationContext).toBeDefined();
+      expect(globalThis.__litzjsRouteStatusContext).toBeDefined();
+      expect(globalThis.__litzjsRouteDataContext).toBeDefined();
       expect(globalThis.__litzjsRouteActionsContext).toBeDefined();
     } finally {
       await act(async () => {
@@ -127,6 +131,10 @@ describe("runtime context singletons", () => {
         await importFresh<typeof import("../src/client/resources")>("../src/client/resources");
       const observedResourceId: { current: string | null } = { current: null };
 
+      expect(resourceRuntimeA.ResourceRuntimeProvider).not.toBe(
+        resourceRuntimeB.ResourceRuntimeProvider,
+      );
+
       function Reader(): React.ReactElement {
         observedResourceId.current =
           resourceRuntimeB.useRequiredResourceLocation("/resources/projects/:id").id;
@@ -144,6 +152,8 @@ describe("runtime context singletons", () => {
 
       expect(observedResourceId.current).toEqual("/resources/projects/:id");
       expect(globalThis.__litzjsResourceLocationContext).toBeDefined();
+      expect(globalThis.__litzjsResourceStatusContext).toBeDefined();
+      expect(globalThis.__litzjsResourceDataContext).toBeDefined();
       expect(globalThis.__litzjsResourceActionsContext).toBeDefined();
     } finally {
       await act(async () => {
