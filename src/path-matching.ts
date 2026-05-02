@@ -151,11 +151,13 @@ export function interpolatePath(
         continue;
       }
 
-      const repeatRegex = new RegExp(`:${name}[*+]`);
-      if (repeatRegex.test(result)) {
-        result = result.replace(repeatRegex, "");
+      const optionalRepeatRegex = new RegExp(`:${name}\\*`);
+      if (optionalRepeatRegex.test(result)) {
+        result = result.replace(optionalRepeatRegex, "");
         continue;
       }
+
+      // :name+ falls through to throw
 
       throw new Error(`Missing required ${paramLabel} param "${name}" for path "${pathPattern}".`);
     }
@@ -181,7 +183,7 @@ export function interpolatePath(
       continue;
     }
 
-    const simpleRegex = new RegExp(`:${name}(?=[/?#]|$)`);
+    const simpleRegex = new RegExp(`:${name}(?=[/?#}]|$)`);
     result = result.replace(simpleRegex, encodeURIComponent(value));
   }
 
@@ -189,9 +191,14 @@ export function interpolatePath(
     return inner || "";
   });
 
-  result = result.replace(/\/+/g, "/").replace(/\/+$/, "") || "/";
+  result = result.replace(/\/+/g, "/");
 
-  return result;
+  // Only strip trailing slash if the original pattern didn't have one
+  if (!pathPattern.endsWith("/") && result.endsWith("/")) {
+    result = result.slice(0, -1);
+  }
+
+  return result || "/";
 }
 
 export function extractRouteLikeParams(
