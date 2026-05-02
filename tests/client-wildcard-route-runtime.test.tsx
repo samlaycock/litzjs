@@ -28,7 +28,7 @@ const loadHomeRoute = mock(async () => ({
 const loadDocsRoute = mock(async () => ({
   route: {
     id: "docs-route",
-    path: "/docs/*slug",
+    path: "/docs/:slug*",
     component: DocsRoute,
   },
 }));
@@ -169,7 +169,7 @@ void mock.module("virtual:litzjs:route-manifest", () => ({
     },
     {
       id: "docs-route",
-      path: "/docs/*slug",
+      path: "/docs/:slug*",
       load: loadDocsRoute,
     },
     {

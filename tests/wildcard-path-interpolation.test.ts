@@ -17,7 +17,7 @@ describe("wildcard path interpolation", () => {
         routes: [
           {
             id: "docs.show",
-            path: "/docs/*slug",
+            path: "/docs/:slug*",
             route: {
               action(context: unknown) {
                 const { params, request } = context as {
@@ -42,7 +42,7 @@ describe("wildcard path interpolation", () => {
 
     const actionRequest = createInternalActionRequestInit(
       {
-        path: "/docs/*slug",
+        path: "/docs/:slug*",
         operation: "action",
         request: {
           params: {
@@ -88,7 +88,7 @@ describe("wildcard path interpolation", () => {
       manifest: {
         resources: [
           {
-            path: "/resource/docs/*slug",
+            path: "/resource/docs/:slug*",
             resource: {
               loader(context: unknown) {
                 const { params, request } = context as {
@@ -112,7 +112,7 @@ describe("wildcard path interpolation", () => {
     });
 
     const resourceRequest = createInternalActionRequestInit({
-      path: "/resource/docs/*slug",
+      path: "/resource/docs/:slug*",
       operation: "loader",
       request: {
         params: {
@@ -150,7 +150,7 @@ describe("wildcard path interpolation", () => {
   });
 
   test("interpolates wildcard params for api.fetch", async () => {
-    const api = defineApiRoute("/api/docs/*slug", {
+    const api = defineApiRoute("/api/docs/:slug*", {
       GET() {
         return Response.json({ ok: true });
       },
