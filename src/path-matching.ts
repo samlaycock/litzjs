@@ -11,10 +11,11 @@ function compilePattern(pattern: string): CompiledPattern | null {
   if (cached !== undefined) return cached;
 
   try {
-    const pathname = pattern === "/" ? pattern : pattern;
+    const pathname = pattern;
     const urlPattern = new URLPattern({ pathname });
     const groupNames = extractGroupNames(urlPattern);
-    const isDynamic = groupNames.length > 0;
+    const hasUnnamedWildcard = pathname.includes(":*");
+    const isDynamic = groupNames.length > 0 || hasUnnamedWildcard;
 
     const result: CompiledPattern = {
       pattern: urlPattern,
@@ -184,9 +185,8 @@ export function interpolatePath(
     result = result.replace(simpleRegex, encodeURIComponent(value));
   }
 
-  result = result.replace(/\{[^}]*\}\?/g, (match) => {
-    const inner = match.slice(1, -2);
-    return inner ? match : "";
+  result = result.replace(/\{([^}]*)\}\?/g, (_, inner) => {
+    return inner || "";
   });
 
   result = result.replace(/\/+/g, "/").replace(/\/+$/, "") || "/";
@@ -233,8 +233,8 @@ function getPatternSpecificity(pattern: string): number {
 }
 
 export function comparePathSpecificity(left: string, right: string): number {
-  const leftHasWildcard = left.endsWith("/*") || left.endsWith(":*");
-  const rightHasWildcard = right.endsWith("/*") || right.endsWith(":*");
+  const leftHasWildcard = left.endsWith("/*") || /:\w*\*$/.test(left);
+  const rightHasWildcard = right.endsWith("/*") || /:\w*\*$/.test(right);
 
   if (leftHasWildcard !== rightHasWildcard) {
     return leftHasWildcard ? 1 : -1;
