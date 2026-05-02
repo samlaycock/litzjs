@@ -1,3 +1,51 @@
+type CompiledPattern = {
+  pattern: URLPattern;
+  groupNames: string[];
+  isDynamic: boolean;
+};
+
+const patternCache = new Map<string, CompiledPattern | null>();
+
+function compilePattern(pattern: string): CompiledPattern | null {
+  const cached = patternCache.get(pattern);
+  if (cached !== undefined) return cached;
+
+  try {
+    const pathname = pattern === "/" ? pattern : pattern;
+    const urlPattern = new URLPattern({ pathname });
+    const groupNames = extractGroupNames(urlPattern);
+    const isDynamic = groupNames.length > 0;
+
+    const result: CompiledPattern = {
+      pattern: urlPattern,
+      groupNames,
+      isDynamic,
+    };
+
+    patternCache.set(pattern, result);
+    return result;
+  } catch {
+    patternCache.set(pattern, null);
+    return null;
+  }
+}
+
+function extractGroupNames(urlPattern: URLPattern): string[] {
+  const names: string[] = [];
+  const pathname = urlPattern.pathname ?? "";
+
+  // Parse pattern string for group names
+  const groupRegex = /:(\w+)(?:[?*+]|\([^)]*\))?/g;
+  let match;
+  while ((match = groupRegex.exec(pathname)) !== null) {
+    if (match[1] && !names.includes(match[1])) {
+      names.push(match[1]);
+    }
+  }
+
+  return names;
+}
+
 export function trimPathSegments(value: string): string[] {
   if (value === "/") {
     return [];
@@ -9,194 +57,76 @@ export function trimPathSegments(value: string): string[] {
     .filter(Boolean);
 }
 
-function isWildcardSegment(segment: string): boolean {
-  return segment.startsWith("*");
-}
-
-function getPathParam(params: Record<string, string>, key: string): string | undefined {
-  if (!Object.hasOwn(params, key)) {
-    return undefined;
-  }
-
-  return params[key];
-}
-
 export function hasPatternSegments(path: string): boolean {
-  return trimPathSegments(path).some(
-    (segment) => segment.startsWith(":") || isWildcardSegment(segment),
-  );
-}
-
-function safeDecodePathSegment(segment: string): string | null {
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return null;
-  }
-}
-
-function decodePathSegments(segments: readonly string[]): string[] | null {
-  const decodedSegments: string[] = [];
-
-  for (const segment of segments) {
-    const decodedSegment = safeDecodePathSegment(segment);
-
-    if (decodedSegment === null) {
-      return null;
-    }
-
-    decodedSegments.push(decodedSegment);
-  }
-
-  return decodedSegments;
+  const compiled = compilePattern(path);
+  if (!compiled) return false;
+  return compiled.isDynamic;
 }
 
 export function hasMalformedPathnameEncoding(pathname: string): boolean {
-  return trimPathSegments(pathname).some((segment) => safeDecodePathSegment(segment) === null);
-}
-
-function getWildcardParamName(segment: string): string | null {
-  if (segment === "*") {
-    return null;
-  }
-
-  if (segment.startsWith("*")) {
-    return segment.slice(1);
-  }
-
-  return null;
+  const segments = trimPathSegments(pathname);
+  return segments.some((segment) => {
+    try {
+      decodeURIComponent(segment);
+      return false;
+    } catch {
+      return true;
+    }
+  });
 }
 
 export function matchPathname(routePath: string, pathname: string): Record<string, string> | null {
-  const routeSegments = trimPathSegments(routePath);
-  const pathSegments = trimPathSegments(pathname);
-  const lastRouteSegment = routeSegments[routeSegments.length - 1];
+  const compiled = compilePattern(routePath);
+  if (!compiled) return null;
 
-  if (lastRouteSegment && isWildcardSegment(lastRouteSegment)) {
-    const staticSegments = routeSegments.slice(0, -1);
+  try {
+    const result = compiled.pattern.exec({ pathname });
 
-    if (pathSegments.length < staticSegments.length) {
-      return null;
-    }
+    if (!result?.pathname) return null;
 
     const params: Record<string, string> = {};
-
-    for (let index = 0; index < staticSegments.length; index += 1) {
-      const routeSegment = staticSegments[index];
-      const pathSegment = pathSegments[index];
-
-      if (!routeSegment || pathSegment === undefined) {
-        return null;
+    for (const name of compiled.groupNames) {
+      const value = result.pathname.groups[name];
+      if (value !== undefined && value !== null) {
+        params[name] = value;
       }
-
-      if (routeSegment.startsWith(":")) {
-        const decodedPathSegment = safeDecodePathSegment(pathSegment);
-
-        if (decodedPathSegment === null) {
-          return null;
-        }
-
-        params[routeSegment.slice(1)] = decodedPathSegment;
-        continue;
-      }
-
-      if (routeSegment !== pathSegment) {
-        return null;
-      }
-    }
-
-    const decodedRemainingSegments = decodePathSegments(pathSegments.slice(staticSegments.length));
-
-    if (decodedRemainingSegments === null) {
-      return null;
-    }
-
-    const remaining = decodedRemainingSegments.join("/");
-    const paramName = getWildcardParamName(lastRouteSegment);
-
-    if (paramName) {
-      params[paramName] = remaining;
     }
 
     return params;
-  }
-
-  if (routeSegments.length !== pathSegments.length) {
+  } catch {
     return null;
   }
-
-  const params: Record<string, string> = {};
-
-  for (let index = 0; index < routeSegments.length; index += 1) {
-    const routeSegment = routeSegments[index];
-    const pathSegment = pathSegments[index];
-
-    if (!routeSegment || pathSegment === undefined) {
-      return null;
-    }
-
-    if (routeSegment.startsWith(":")) {
-      const decodedPathSegment = safeDecodePathSegment(pathSegment);
-
-      if (decodedPathSegment === null) {
-        return null;
-      }
-
-      params[routeSegment.slice(1)] = decodedPathSegment;
-      continue;
-    }
-
-    if (routeSegment !== pathSegment) {
-      return null;
-    }
-  }
-
-  return params;
 }
 
 export function matchPrefixPathname(
   routePath: string,
   pathname: string,
 ): Record<string, string> | null {
-  const routeSegments = trimPathSegments(routePath);
-  const pathSegments = trimPathSegments(pathname);
-  const lastRouteSegment = routeSegments[routeSegments.length - 1];
+  const compiled = compilePattern(routePath);
+  if (!compiled) return null;
 
-  if (lastRouteSegment && isWildcardSegment(lastRouteSegment)) {
-    return matchPathname(routePath, pathname);
-  }
+  const prefixPattern = routePath.endsWith("*") ? routePath : `${routePath}/*`;
 
-  if (routeSegments.length > pathSegments.length) {
+  const prefixCompiled = compilePattern(prefixPattern);
+  if (!prefixCompiled) return null;
+
+  try {
+    const result = prefixCompiled.pattern.exec({ pathname });
+
+    if (!result?.pathname) return null;
+
+    const params: Record<string, string> = {};
+    for (const name of compiled.groupNames) {
+      const value = result.pathname.groups[name];
+      if (value !== undefined) {
+        params[name] = value;
+      }
+    }
+
+    return params;
+  } catch {
     return null;
   }
-
-  const params: Record<string, string> = {};
-
-  for (let index = 0; index < routeSegments.length; index += 1) {
-    const routeSegment = routeSegments[index];
-    const pathSegment = pathSegments[index];
-
-    if (!routeSegment || pathSegment === undefined) {
-      return null;
-    }
-
-    if (routeSegment.startsWith(":")) {
-      const decodedPathSegment = safeDecodePathSegment(pathSegment);
-
-      if (decodedPathSegment === null) {
-        return null;
-      }
-
-      params[routeSegment.slice(1)] = decodedPathSegment;
-      continue;
-    }
-
-    if (routeSegment !== pathSegment) {
-      return null;
-    }
-  }
-
-  return params;
 }
 
 export function interpolatePath(
@@ -204,48 +134,64 @@ export function interpolatePath(
   params: Record<string, string>,
   paramLabel = "path",
 ): string {
-  const patternSegments = trimPathSegments(pathPattern);
-
-  if (patternSegments.length === 0) {
-    return "/";
+  const compiled = compilePattern(pathPattern);
+  if (!compiled) {
+    return pathPattern;
   }
 
-  const pathnameSegments: string[] = [];
+  let result = pathPattern;
 
-  for (const segment of patternSegments) {
-    if (segment.startsWith(":")) {
-      const key = segment.slice(1);
-      const value = getPathParam(params, key);
-
-      if (value === undefined) {
-        throw new Error(`Missing required ${paramLabel} param "${key}" for path "${pathPattern}".`);
-      }
-
-      pathnameSegments.push(encodeURIComponent(value));
-      continue;
-    }
-
-    if (isWildcardSegment(segment)) {
-      const key = getWildcardParamName(segment);
-
-      if (!key) {
+  for (const name of compiled.groupNames) {
+    const value = params[name];
+    if (value === undefined) {
+      const optionalRegex = new RegExp(`:${name}\\?`);
+      if (optionalRegex.test(result)) {
+        result = result.replace(optionalRegex, "");
         continue;
       }
 
-      const value = getPathParam(params, key);
-
-      if (value === undefined) {
-        throw new Error(`Missing required ${paramLabel} param "${key}" for path "${pathPattern}".`);
+      const repeatRegex = new RegExp(`:${name}[*+]`);
+      if (repeatRegex.test(result)) {
+        result = result.replace(repeatRegex, "");
+        continue;
       }
 
-      pathnameSegments.push(...trimPathSegments(value).map(encodeURIComponent));
+      throw new Error(`Missing required ${paramLabel} param "${name}" for path "${pathPattern}".`);
+    }
+
+    const repeatRegex = new RegExp(`:${name}[*+]`);
+    if (repeatRegex.test(result)) {
+      // For repeat groups, encode each segment but preserve slashes
+      const segments = value.split("/");
+      const encodedSegments = segments.map((seg) => encodeURIComponent(seg));
+      result = result.replace(repeatRegex, encodedSegments.join("/"));
       continue;
     }
 
-    pathnameSegments.push(segment);
+    const optionalRegex = new RegExp(`:${name}\\?`);
+    if (optionalRegex.test(result)) {
+      result = result.replace(optionalRegex, encodeURIComponent(value));
+      continue;
+    }
+
+    const regexGroupRegex = new RegExp(`:${name}\\([^)]*\\)`);
+    if (regexGroupRegex.test(result)) {
+      result = result.replace(regexGroupRegex, encodeURIComponent(value));
+      continue;
+    }
+
+    const simpleRegex = new RegExp(`:${name}(?=[/?#]|$)`);
+    result = result.replace(simpleRegex, encodeURIComponent(value));
   }
 
-  return `/${pathnameSegments.join("/")}`;
+  result = result.replace(/\{[^}]*\}\?/g, (match) => {
+    const inner = match.slice(1, -2);
+    return inner ? match : "";
+  });
+
+  result = result.replace(/\/+/g, "/").replace(/\/+$/, "") || "/";
+
+  return result;
 }
 
 export function extractRouteLikeParams(
@@ -253,62 +199,59 @@ export function extractRouteLikeParams(
   pathname: string,
 ): Record<string, string> | null {
   const prefixMatch = matchPrefixPathname(pathPattern, pathname);
-
   if (prefixMatch) {
     return prefixMatch;
-  }
-
-  const routeSegments = trimPathSegments(pathPattern);
-  const lastSegment = routeSegments[routeSegments.length - 1];
-
-  if (lastSegment && isWildcardSegment(lastSegment)) {
-    return null;
   }
 
   return matchPathname(pathPattern, pathname);
 }
 
-function segmentRank(segment: string): number {
-  if (isWildcardSegment(segment)) {
-    return -1;
+function getPatternSpecificity(pattern: string): number {
+  const segments = trimPathSegments(pattern);
+  let score = 0;
+
+  for (const segment of segments) {
+    if (segment.startsWith(":")) {
+      if (segment.includes("(")) {
+        score += 3;
+      } else if (segment.endsWith("*") || segment.endsWith("+")) {
+        score += 0;
+      } else if (segment.endsWith("?")) {
+        score += 1;
+      } else {
+        score += 2;
+      }
+    } else if (segment.includes("*") && !segment.startsWith(":")) {
+      score += 0;
+    } else {
+      score += 10;
+      score += segment.length;
+    }
   }
 
-  if (segment.startsWith(":")) {
-    return 0;
-  }
-
-  return 1;
+  return score;
 }
 
 export function comparePathSpecificity(left: string, right: string): number {
-  const leftSegments = trimPathSegments(left);
-  const rightSegments = trimPathSegments(right);
-  const leftHasWildcard =
-    leftSegments.length > 0 && isWildcardSegment(leftSegments[leftSegments.length - 1] ?? "");
-  const rightHasWildcard =
-    rightSegments.length > 0 && isWildcardSegment(rightSegments[rightSegments.length - 1] ?? "");
+  const leftHasWildcard = left.endsWith("/*") || left.endsWith(":*");
+  const rightHasWildcard = right.endsWith("/*") || right.endsWith(":*");
 
   if (leftHasWildcard !== rightHasWildcard) {
     return leftHasWildcard ? 1 : -1;
   }
 
+  const leftSegments = trimPathSegments(left);
+  const rightSegments = trimPathSegments(right);
+
   if (leftSegments.length !== rightSegments.length) {
     return rightSegments.length - leftSegments.length;
   }
 
-  for (let index = 0; index < leftSegments.length; index += 1) {
-    const leftSegment = leftSegments[index] ?? "";
-    const rightSegment = rightSegments[index] ?? "";
-    const leftRank = segmentRank(leftSegment);
-    const rightRank = segmentRank(rightSegment);
+  const leftScore = getPatternSpecificity(left);
+  const rightScore = getPatternSpecificity(right);
 
-    if (leftRank !== rightRank) {
-      return rightRank - leftRank;
-    }
-
-    if (leftRank === 1 && leftSegment.length !== rightSegment.length) {
-      return rightSegment.length - leftSegment.length;
-    }
+  if (leftScore !== rightScore) {
+    return rightScore - leftScore;
   }
 
   return left.localeCompare(right);

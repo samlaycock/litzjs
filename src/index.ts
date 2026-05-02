@@ -222,16 +222,16 @@ type ExtractPathParamName<TSegment extends string> = TSegment extends `${infer T
     ? TParam
     : TSegment extends `${infer TParam}#${string}`
       ? TParam
-      : TSegment;
+      : TSegment extends `${infer TParam}(${string}`
+        ? TParam
+        : TSegment extends `${infer TParam}*`
+          ? TParam
+          : TSegment extends `${infer TParam}+`
+            ? TParam
+            : TSegment;
 
 type ExtractPathParamRest<TSegment extends string> = TSegment extends `${string}/${infer TRest}`
   ? TRest
-  : never;
-
-type ExtractWildcardParamName<TPath extends string> = TPath extends `${string}/*${infer TName}`
-  ? TName extends ""
-    ? never
-    : TName
   : never;
 
 type ExtractPathParamNames<TPath extends string> = string extends TPath
@@ -242,8 +242,7 @@ type ExtractPathParamNames<TPath extends string> = string extends TPath
         | (ExtractPathParamRest<TSegment> extends never
             ? never
             : ExtractPathParamNames<ExtractPathParamRest<TSegment>>)
-        | ExtractWildcardParamName<TPath>
-    : ExtractWildcardParamName<TPath>;
+    : never;
 
 export type PathParams<TPath extends string> = string extends TPath
   ? Record<string, string>
