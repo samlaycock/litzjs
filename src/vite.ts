@@ -137,6 +137,17 @@ type DiscoveredApiRoute = {
   modulePath: string;
 };
 
+type HtmlEntryInfo = {
+  /** The path to the HTML file relative to root */
+  htmlPath: string;
+  /** The module entry type */
+  type: "external" | "inline";
+  /** For external: the module path; for inline: the temp file path */
+  modulePath: string;
+  /** The original inline script content (if inline) */
+  inlineContent?: string;
+};
+
 // Virtual module IDs. Each pair has a bare ID (used in import statements) and a
 // resolved ID prefixed with `\0` — the Vite convention that marks a module as
 // virtual so it is never resolved from disk.
@@ -163,6 +174,7 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
   let root = process.cwd();
   let configuredBase = "/";
   let browserEntryPath = "src/main.tsx";
+  let htmlEntries: HtmlEntryInfo[] = [];
   let serverEntryPath: string | null = null;
   let serverEntryFilePath: string | null = null;
   let intermediateBuildOutDir = path.resolve(root, "dist");
@@ -218,9 +230,16 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
       intermediateBuildOutDir = path.resolve(root, config.build.outDir || "dist");
       finalNitroOutDir = path.resolve(root, ".output");
 
-      browserEntryPath = await discoverBrowserEntry(root);
+      htmlEntries = await discoverHtmlEntries(root);
+      browserEntryPath = htmlEntries[0]?.modulePath ?? "src/main.tsx";
       serverEntryPath = await discoverServerEntry(root, options.server);
       serverEntryFilePath = serverEntryPath ? path.resolve(root, serverEntryPath) : null;
+
+      // Validate HTML entries and warn about unsupported patterns
+      const htmlErrors = validateHtmlEntries(htmlEntries);
+      for (const error of htmlErrors) {
+        console.warn(`[litzjs] ${error}`);
+      }
 
       // Re-write with the actual server entry path now that it has been
       // discovered.
@@ -608,7 +627,7 @@ export async function renderView(node, metadata = {}) {
         void handleLitzApiRequest(server, apiManifest, request, response, next, configuredBase);
       });
       server.middlewares.use((request, response, next) => {
-        void handleLitzDocumentRequest(server, request, response, next, configuredBase);
+        void handleLitzDocumentRequest(server, htmlEntries, request, response, next, configuredBase);
       });
     },
 
@@ -760,24 +779,86 @@ export async function discoverAllManifests(
   };
 }
 
-async function discoverBrowserEntry(root: string): Promise<string> {
-  const indexHtmlPath = path.join(root, "index.html");
+/**
+ * Discovers all HTML entry files in the project root.
+ * Supports Vite's standard HTML entry patterns including:
+ * - Root index.html with external module script
+ * - Multiple HTML files for MPA setups
+ * - Inline module scripts
+ */
+export async function discoverHtmlEntries(root: string): Promise<HtmlEntryInfo[]> {
+  const entries: HtmlEntryInfo[] = [];
+  const htmlFiles = await glob(["*.html", "**/*.html"], {
+    cwd: root,
+    absolute: true,
+    ignore: ["node_modules/**", "dist/**", ".output/**"],
+  });
 
-  try {
-    const html = await readFile(indexHtmlPath, "utf8");
-    const scriptMatch = html.match(
-      /<script[^>]+type=["']module["'][^>]+src=["']([^"']+)["'][^>]*><\/script>/i,
-    );
-    const scriptSrc = scriptMatch?.[1];
+  for (const htmlFile of htmlFiles) {
+    try {
+      const html = await readFile(htmlFile, "utf8");
+      const relativePath = normalizeRelativePath(root, htmlFile);
 
-    if (!scriptSrc) {
-      return "src/main.tsx";
+      const externalMatch = html.match(
+        /<script[^>]+type=["']module["'][^>]+src=["']([^"']+)["'][^>]*><\/script>/i,
+      );
+
+      if (externalMatch?.[1]) {
+        const scriptSrc = externalMatch[1];
+        const modulePath = scriptSrc.startsWith("/") ? scriptSrc.slice(1) : scriptSrc;
+        entries.push({
+          htmlPath: relativePath,
+          type: "external",
+          modulePath,
+        });
+        continue;
+      }
+
+      const inlineMatch = html.match(
+        /<script[^>]+type=["']module["'][^>]*>([\s\S]*?)<\/script>/i,
+      );
+
+      if (inlineMatch?.[1]?.trim()) {
+        entries.push({
+          htmlPath: relativePath,
+          type: "inline",
+          modulePath: `virtual:litzjs:inline-entry:${relativePath}`,
+          inlineContent: inlineMatch[1].trim(),
+        });
+      }
+    } catch {
+      // Skip files that can't be read
     }
-
-    return scriptSrc.startsWith("/") ? scriptSrc.slice(1) : scriptSrc;
-  } catch {
-    return "src/main.tsx";
   }
+
+  if (entries.length === 0) {
+    entries.push({
+      htmlPath: "index.html",
+      type: "external",
+      modulePath: "src/main.tsx",
+    });
+  }
+
+  return entries;
+}
+
+/**
+ * Validates that the discovered HTML entries are supported.
+ * Returns an array of validation errors (empty if valid).
+ */
+export function validateHtmlEntries(entries: HtmlEntryInfo[]): string[] {
+  const errors: string[] = [];
+
+  for (const entry of entries) {
+    if (entry.type === "inline") {
+      errors.push(
+        `Inline module scripts in ${entry.htmlPath} are not fully supported. ` +
+          `Consider using an external script: <script type="module" src="your-entry.tsx"></script>`,
+      );
+    }
+  }
+
+  return errors;
 }
 
 export async function discoverServerEntry(
@@ -1935,6 +2016,7 @@ export async function handleLitzRouteRequest(
 
 async function handleLitzDocumentRequest(
   server: ViteDevServer,
+  htmlEntries: HtmlEntryInfo[],
   request: IncomingMessage,
   response: ServerResponse,
   next: Connect.NextFunction,
@@ -1976,8 +2058,23 @@ async function handleLitzDocumentRequest(
   }
 
   try {
-    const templatePath = path.join(server.config.root, "index.html");
-    const template = await readFile(templatePath, "utf8");
+    const htmlEntry = findHtmlEntryForPath(pathname, htmlEntries);
+
+    if (!htmlEntry) {
+      next();
+      return;
+    }
+
+    const templatePath = path.join(server.config.root, htmlEntry.htmlPath);
+    let template = await readFile(templatePath, "utf8");
+
+    if (htmlEntry.type === "inline" && htmlEntry.inlineContent) {
+      template = template.replace(
+        /<script[^>]+type=["']module["'][^>]*>[\s\S]*?<\/script>/i,
+        `<script type="module">${htmlEntry.inlineContent}</script>`,
+      );
+    }
+
     const html = await server.transformIndexHtml(url, template);
     response.statusCode = 200;
     response.setHeader("content-type", "text/html; charset=utf-8");
@@ -1986,6 +2083,43 @@ async function handleLitzDocumentRequest(
     server.ssrFixStacktrace(error as Error);
     next(error as Error);
   }
+}
+
+/**
+ * Finds the appropriate HTML entry for a given request path.
+ * Supports Vite's standard MPA patterns:
+ * - / -> index.html
+ * - /about -> about.html
+ * - /nested/path -> nested/path.html or nested/path/index.html
+ */
+function findHtmlEntryForPath(
+  pathname: string,
+  entries: HtmlEntryInfo[],
+): HtmlEntryInfo | null {
+  if (entries.length === 0) {
+    return null;
+  }
+
+  if (entries.length === 1) {
+    return entries[0] ?? null;
+  }
+
+  for (const entry of entries) {
+    const htmlPath = entry.htmlPath;
+    const normalizedPath = htmlPath.replace(/\.html$/, "").replace(/\/index$/, "");
+
+    if (normalizedPath === "index" && pathname === "/") {
+      return entry;
+    }
+
+    const entryPath = normalizedPath === "index" ? "/" : `/${normalizedPath}`;
+    if (pathname === entryPath || pathname.startsWith(`${entryPath}/`)) {
+      return entry;
+    }
+  }
+
+  const indexEntry = entries.find((e) => e.htmlPath === "index.html");
+  return indexEntry ?? entries[0] ?? null;
 }
 
 export async function handleLitzApiRequest(
