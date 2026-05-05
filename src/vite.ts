@@ -231,7 +231,10 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
       finalNitroOutDir = path.resolve(root, ".output");
 
       htmlEntries = await discoverHtmlEntries(root);
-      browserEntryPath = htmlEntries[0]?.modulePath ?? "src/main.tsx";
+      // Use the first external entry for browserEntryPath (virtual IDs for inline
+      // scripts are not resolvable by the module system)
+      const externalEntry = htmlEntries.find((e) => e.type === "external");
+      browserEntryPath = externalEntry?.modulePath ?? "src/main.tsx";
       serverEntryPath = await discoverServerEntry(root, options.server);
       serverEntryFilePath = serverEntryPath ? path.resolve(root, serverEntryPath) : null;
 
@@ -788,7 +791,7 @@ export async function discoverAllManifests(
  */
 export async function discoverHtmlEntries(root: string): Promise<HtmlEntryInfo[]> {
   const entries: HtmlEntryInfo[] = [];
-  const htmlFiles = await glob(["*.html", "**/*.html"], {
+  const htmlFiles = await glob("**/*.html", {
     cwd: root,
     absolute: true,
     ignore: ["node_modules/**", "dist/**", ".output/**"],
@@ -844,21 +847,21 @@ export async function discoverHtmlEntries(root: string): Promise<HtmlEntryInfo[]
 
 /**
  * Validates that the discovered HTML entries are supported.
- * Returns an array of validation errors (empty if valid).
+ * Returns an array of validation warnings (empty if all entries are valid).
  */
 export function validateHtmlEntries(entries: HtmlEntryInfo[]): string[] {
-  const errors: string[] = [];
+  const warnings: string[] = [];
 
   for (const entry of entries) {
     if (entry.type === "inline") {
-      errors.push(
+      warnings.push(
         `Inline module scripts in ${entry.htmlPath} are not fully supported. ` +
           `Consider using an external script: <script type="module" src="your-entry.tsx"></script>`,
       );
     }
   }
 
-  return errors;
+  return warnings;
 }
 
 export async function discoverServerEntry(
@@ -2091,6 +2094,9 @@ async function handleLitzDocumentRequest(
  * - / -> index.html
  * - /about -> about.html
  * - /nested/path -> nested/path.html or nested/path/index.html
+ *
+ * Entries are sorted by specificity (more specific paths first) to ensure
+ * that /about/team matches /about/team.html before /about.html.
  */
 function findHtmlEntryForPath(
   pathname: string,
@@ -2104,7 +2110,14 @@ function findHtmlEntryForPath(
     return entries[0] ?? null;
   }
 
-  for (const entry of entries) {
+  // Sort by specificity: more path segments = more specific
+  const sortedEntries = [...entries].sort((a, b) => {
+    const aSegments = a.htmlPath.replace(/\.html$/, "").split("/").length;
+    const bSegments = b.htmlPath.replace(/\.html$/, "").split("/").length;
+    return bSegments - aSegments;
+  });
+
+  for (const entry of sortedEntries) {
     const htmlPath = entry.htmlPath;
     const normalizedPath = htmlPath.replace(/\.html$/, "").replace(/\/index$/, "");
 
