@@ -630,7 +630,14 @@ export async function renderView(node, metadata = {}) {
         void handleLitzApiRequest(server, apiManifest, request, response, next, configuredBase);
       });
       server.middlewares.use((request, response, next) => {
-        void handleLitzDocumentRequest(server, htmlEntries, request, response, next, configuredBase);
+        void handleLitzDocumentRequest(
+          server,
+          htmlEntries,
+          request,
+          response,
+          next,
+          configuredBase,
+        );
       });
     },
 
@@ -817,9 +824,7 @@ export async function discoverHtmlEntries(root: string): Promise<HtmlEntryInfo[]
         continue;
       }
 
-      const inlineMatch = html.match(
-        /<script[^>]+type=["']module["'][^>]*>([\s\S]*?)<\/script>/i,
-      );
+      const inlineMatch = html.match(/<script[^>]+type=["']module["'][^>]*>([\s\S]*?)<\/script>/i);
 
       if (inlineMatch?.[1]?.trim()) {
         entries.push({
@@ -2098,10 +2103,7 @@ async function handleLitzDocumentRequest(
  * Entries are sorted by specificity (more specific paths first) to ensure
  * that /about/team matches /about/team.html before /about.html.
  */
-function findHtmlEntryForPath(
-  pathname: string,
-  entries: HtmlEntryInfo[],
-): HtmlEntryInfo | null {
+function findHtmlEntryForPath(pathname: string, entries: HtmlEntryInfo[]): HtmlEntryInfo | null {
   if (entries.length === 0) {
     return null;
   }
