@@ -429,6 +429,180 @@ describe("dev server hot updates", () => {
     }
   });
 
+  test("returns client modules for projected .jsx route updates in the client environment", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-hot-update-jsx-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      mkdirSync(path.join(root, "src", "routes"), { recursive: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "index.jsx"),
+        'import { defineRoute } from "litzjs";\n\nexport const route = defineRoute("/", {\n  component() {\n    return null;\n  },\n});\n',
+        "utf8",
+      );
+
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.hotUpdate) {
+        throw new Error("Expected litzjs/vite hot-update hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const hotUpdate =
+        typeof plugin.hotUpdate === "function" ? plugin.hotUpdate : plugin.hotUpdate.handler;
+      const routeFile = path.join(root, "src", "routes", "index.jsx");
+      const clientModule = {
+        id: `/@fs/${routeFile.split(path.sep).join("/")}`,
+      };
+      const pluginContext = {} as never;
+
+      await configResolved.call(pluginContext, {
+        root,
+        command: "serve",
+        build: {
+          outDir: "dist",
+        },
+        environments: {
+          client: {
+            build: {
+              outDir: path.join("dist", "client"),
+            },
+          },
+          rsc: {
+            build: {
+              outDir: path.join("dist", "server"),
+              rollupOptions: {
+                output: {
+                  codeSplitting: false,
+                },
+              },
+            },
+          },
+        },
+      } as never);
+
+      const result = await hotUpdate.call(
+        {
+          environment: {
+            name: "client",
+            moduleGraph: {
+              getModulesByFile(file: string) {
+                return file === routeFile ? new Set([clientModule]) : undefined;
+              },
+              getModuleById(id: string) {
+                return id === clientModule.id ? clientModule : undefined;
+              },
+            },
+          },
+        } as never,
+        {
+          type: "update",
+          file: routeFile,
+          modules: [clientModule] as never,
+          timestamp: Date.now(),
+          read: () => "",
+          server: {} as never,
+        },
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result?.[0]).toBe(clientModule as never);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  test("returns client modules for projected .js route updates in the client environment", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-hot-update-js-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      mkdirSync(path.join(root, "src", "routes"), { recursive: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "index.js"),
+        'import { defineRoute } from "litzjs";\n\nexport const route = defineRoute("/", {\n  component() {\n    return null;\n  },\n});\n',
+        "utf8",
+      );
+
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.hotUpdate) {
+        throw new Error("Expected litzjs/vite hot-update hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const hotUpdate =
+        typeof plugin.hotUpdate === "function" ? plugin.hotUpdate : plugin.hotUpdate.handler;
+      const routeFile = path.join(root, "src", "routes", "index.js");
+      const clientModule = {
+        id: `/@fs/${routeFile.split(path.sep).join("/")}`,
+      };
+      const pluginContext = {} as never;
+
+      await configResolved.call(pluginContext, {
+        root,
+        command: "serve",
+        build: {
+          outDir: "dist",
+        },
+        environments: {
+          client: {
+            build: {
+              outDir: path.join("dist", "client"),
+            },
+          },
+          rsc: {
+            build: {
+              outDir: path.join("dist", "server"),
+              rollupOptions: {
+                output: {
+                  codeSplitting: false,
+                },
+              },
+            },
+          },
+        },
+      } as never);
+
+      const result = await hotUpdate.call(
+        {
+          environment: {
+            name: "client",
+            moduleGraph: {
+              getModulesByFile(file: string) {
+                return file === routeFile ? new Set([clientModule]) : undefined;
+              },
+              getModuleById(id: string) {
+                return id === clientModule.id ? clientModule : undefined;
+              },
+            },
+          },
+        } as never,
+        {
+          type: "update",
+          file: routeFile,
+          modules: [clientModule] as never,
+          timestamp: Date.now(),
+          read: () => "",
+          server: {} as never,
+        },
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result?.[0]).toBe(clientModule as never);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("does not hijack projected route updates outside the client environment", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-hot-update-"));
 
@@ -2303,6 +2477,45 @@ describe("manifest discovery", () => {
   });
 
   describe("discoverAllManifests", () => {
+    test("discovers .js and .jsx route-like modules with the default patterns", async () => {
+      const root = createTempProject();
+
+      try {
+        writeFileSync(
+          path.join(root, "src", "routes", "home.jsx"),
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/home", { component: Home });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "routes", "resources", "data.js"),
+          `import { defineResource } from "litzjs";\nexport const resource = defineResource("/resource/data", { loader: async () => {} });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "routes", "api", "health.js"),
+          `import { defineApiRoute } from "litzjs";\nexport const api = defineApiRoute("/api/health", { GET() { return Response.json({ ok: true }); } });`,
+        );
+
+        const result = await discoverAllManifests(
+          root,
+          [
+            "src/routes/**/*.{ts,tsx,js,jsx}",
+            "!src/routes/api/**/*.{ts,tsx,js,jsx}",
+            "!src/routes/resources/**/*.{ts,tsx,js,jsx}",
+          ],
+          ["src/routes/resources/**/*.{ts,tsx,js,jsx}"],
+          ["src/routes/api/**/*.{ts,tsx,js,jsx}"],
+        );
+
+        expect(result.routeManifest).toHaveLength(1);
+        expect(result.routeManifest[0]?.path).toBe("/home");
+        expect(result.resourceManifest).toHaveLength(1);
+        expect(result.resourceManifest[0]?.path).toBe("/resource/data");
+        expect(result.apiManifest).toHaveLength(1);
+        expect(result.apiManifest[0]?.path).toBe("/api/health");
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
     test("discovers routes, layouts, resources, and API routes from glob patterns", async () => {
       const root = createTempProject();
 
