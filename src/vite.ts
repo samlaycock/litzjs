@@ -183,12 +183,12 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
   let apiManifest: DiscoveredApiRoute[] = [];
   let clientProjectedFiles = new Set<string>();
   const routePatterns = options.routes ?? [
-    "src/routes/**/*.{ts,tsx}",
-    "!src/routes/api/**/*.{ts,tsx}",
-    "!src/routes/resources/**/*.{ts,tsx}",
+    "src/routes/**/*.{ts,tsx,js,jsx}",
+    "!src/routes/api/**/*.{ts,tsx,js,jsx}",
+    "!src/routes/resources/**/*.{ts,tsx,js,jsx}",
   ];
-  const resourcePatterns = options.resources ?? ["src/routes/resources/**/*.{ts,tsx}"];
-  const apiPatterns = options.api ?? ["src/routes/api/**/*.{ts,tsx}"];
+  const resourcePatterns = options.resources ?? ["src/routes/resources/**/*.{ts,tsx,js,jsx}"];
+  const apiPatterns = options.api ?? ["src/routes/api/**/*.{ts,tsx,js,jsx}"];
   // Write a placeholder Nitro renderer file so the nitro plugin can resolve
   // it during its `config` hook. The file is re-written in `configResolved`
   // once the actual server entry path is known.
@@ -635,7 +635,7 @@ export async function renderView(node, metadata = {}) {
         return;
       }
 
-      if (!/\.(ts|tsx)$/.test(options.file)) {
+      if (!/\.(ts|tsx|js|jsx)$/.test(options.file)) {
         return;
       }
 
