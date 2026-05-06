@@ -1217,6 +1217,159 @@ describe("dev server hot updates", () => {
       rmSync(root, { force: true, recursive: true });
     }
   });
+
+  test("injects manifest into server entries that use namespace imports", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-ns-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      writeFileSync(
+        path.join(root, "src", "server.ts"),
+        'import * as litzServer from "litzjs/server";\n\nexport default litzServer.createServer();\n',
+        "utf8",
+      );
+
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.transform) {
+        throw new Error("Expected litzjs/vite transform hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const transform =
+        typeof plugin.transform === "function" ? plugin.transform : plugin.transform.handler;
+      const pluginContext = {
+        environment: {
+          name: "nitro",
+        },
+      } as never;
+
+      await configResolved.call(
+        {} as never,
+        {
+          root,
+          base: "/",
+          command: "serve",
+          build: {
+            outDir: "dist",
+          },
+          environments: {
+            client: {
+              build: {
+                outDir: path.join("dist", "client"),
+              },
+            },
+            rsc: {
+              build: {
+                outDir: path.join("dist", "server"),
+                rollupOptions: {
+                  output: {
+                    codeSplitting: false,
+                  },
+                },
+              },
+            },
+          },
+        } as never,
+      );
+
+      const result = await transform.call(
+        pluginContext,
+        'import * as litzServer from "litzjs/server";\n\nexport default litzServer.createServer();\n',
+        path.join(root, "src", "server.ts"),
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          code: expect.stringContaining("__litzjsMergeServerOptions"),
+        }),
+      );
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  test("throws when createServer is imported from litzjs/server but never called directly", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-indirect-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      writeFileSync(
+        path.join(root, "src", "server.ts"),
+        'import { createServer } from "litzjs/server";\nconst factory = createServer;\nexport default factory();\n',
+        "utf8",
+      );
+
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.transform) {
+        throw new Error("Expected litzjs/vite transform hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const transform =
+        typeof plugin.transform === "function" ? plugin.transform : plugin.transform.handler;
+      const pluginContext = {
+        environment: {
+          name: "nitro",
+        },
+      } as never;
+
+      await configResolved.call(
+        {} as never,
+        {
+          root,
+          base: "/",
+          command: "serve",
+          build: {
+            outDir: "dist",
+          },
+          environments: {
+            client: {
+              build: {
+                outDir: path.join("dist", "client"),
+              },
+            },
+            rsc: {
+              build: {
+                outDir: path.join("dist", "server"),
+                rollupOptions: {
+                  output: {
+                    codeSplitting: false,
+                  },
+                },
+              },
+            },
+          },
+        } as never,
+      );
+
+      let error: unknown;
+
+      try {
+        await transform.call(
+          pluginContext,
+          'import { createServer } from "litzjs/server";\nconst factory = createServer;\nexport default factory();\n',
+          path.join(root, "src", "server.ts"),
+        );
+      } catch (caughtError) {
+        error = caughtError;
+      }
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain("server manifest");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
 });
 
 function createMockViteDevServer(
