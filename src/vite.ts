@@ -1387,7 +1387,6 @@ function injectServerManifestIntoServerEntry(
   );
   const createServerImportNames = new Set<string>();
   const createServerNamespaceNames = new Set<string>();
-  let hasLitzServerImport = false;
 
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
@@ -1398,7 +1397,6 @@ function injectServerManifestIntoServerEntry(
       continue;
     }
 
-    hasLitzServerImport = true;
     const namedBindings = statement.importClause?.namedBindings;
 
     if (!namedBindings) {
@@ -1419,7 +1417,7 @@ function injectServerManifestIntoServerEntry(
     }
   }
 
-  if (!hasLitzServerImport) {
+  if (createServerImportNames.size === 0 && createServerNamespaceNames.size === 0) {
     return null;
   }
 
