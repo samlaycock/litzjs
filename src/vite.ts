@@ -802,9 +802,10 @@ export async function discoverHtmlEntries(
       const html = await readFile(htmlFile, "utf8");
       const relativePath = normalizeRelativePath(root, htmlFile);
 
-      const externalMatch = html.match(
-        /<script[^>]+type=["']module["'][^>]+src=["']([^"']+)["'][^>]*><\/script>/i,
+      const moduleScriptTag = html.match(
+        /<script\b(?=[^>]*\btype=["']module["'])[^>]*><\/script>/i,
       );
+      const externalMatch = moduleScriptTag?.[0].match(/\bsrc=["']([^"']+)["']/i);
 
       if (externalMatch?.[1]) {
         const scriptSrc = externalMatch[1];
