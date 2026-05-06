@@ -737,6 +737,32 @@ describe("dev server hot updates", () => {
     }
   });
 
+  test("discovers external module scripts when src appears before type", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-attr-order-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(
+        path.join(root, "index.html"),
+        '<!doctype html><html><body><script src="./src/main.tsx" type="module"></script></body></html>\n',
+        "utf8",
+      );
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+
+      const entries = await discoverHtmlEntries(root);
+
+      expect(entries).toEqual([
+        {
+          htmlPath: "index.html",
+          type: "external",
+          modulePath: "./src/main.tsx",
+        },
+      ]);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("ignores HTML files inside a custom build output directory", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-custom-outdir-"));
 
