@@ -142,10 +142,8 @@ type HtmlEntryInfo = {
   htmlPath: string;
   /** The module entry type */
   type: "external" | "inline";
-  /** For external: the module path; for inline: the temp file path */
+  /** For external: the module path; for inline: a placeholder virtual id */
   modulePath: string;
-  /** The original inline script content (if inline) */
-  inlineContent?: string;
 };
 
 // Virtual module IDs. Each pair has a bare ID (used in import statements) and a
@@ -230,19 +228,10 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
       intermediateBuildOutDir = path.resolve(root, config.build.outDir || "dist");
       finalNitroOutDir = path.resolve(root, ".output");
 
-      htmlEntries = await discoverHtmlEntries(root);
-      // Use the first external entry for browserEntryPath (virtual IDs for inline
-      // scripts are not resolvable by the module system)
-      const externalEntry = htmlEntries.find((e) => e.type === "external");
-      browserEntryPath = externalEntry?.modulePath ?? "src/main.tsx";
+      htmlEntries = await discoverHtmlEntries(root, config.build.outDir || "dist");
+      browserEntryPath = resolveBrowserEntryPath(htmlEntries);
       serverEntryPath = await discoverServerEntry(root, options.server);
       serverEntryFilePath = serverEntryPath ? path.resolve(root, serverEntryPath) : null;
-
-      // Validate HTML entries and warn about unsupported patterns
-      const htmlErrors = validateHtmlEntries(htmlEntries);
-      for (const error of htmlErrors) {
-        console.warn(`[litzjs] ${error}`);
-      }
 
       // Re-write with the actual server entry path now that it has been
       // discovered.
@@ -791,17 +780,21 @@ export async function discoverAllManifests(
 
 /**
  * Discovers all HTML entry files in the project root.
- * Supports Vite's standard HTML entry patterns including:
+ * Supports HTML entry discovery for Litz's shared-client runtime.
+ * Compatible entries may include:
  * - Root index.html with external module script
- * - Multiple HTML files for MPA setups
- * - Inline module scripts
+ * - Multiple HTML files that all share the same external module script
+ * - Inline module scripts, which are discovered for validation purposes
  */
-export async function discoverHtmlEntries(root: string): Promise<HtmlEntryInfo[]> {
+export async function discoverHtmlEntries(
+  root: string,
+  buildOutDir = "dist",
+): Promise<HtmlEntryInfo[]> {
   const entries: HtmlEntryInfo[] = [];
   const htmlFiles = await glob("**/*.html", {
     cwd: root,
     absolute: true,
-    ignore: ["node_modules/**", "dist/**", ".output/**"],
+    ignore: createHtmlEntryIgnorePatterns(root, buildOutDir),
   });
 
   for (const htmlFile of htmlFiles) {
@@ -831,7 +824,6 @@ export async function discoverHtmlEntries(root: string): Promise<HtmlEntryInfo[]
           htmlPath: relativePath,
           type: "inline",
           modulePath: `virtual:litzjs:inline-entry:${relativePath}`,
-          inlineContent: inlineMatch[1].trim(),
         });
       }
     } catch {
@@ -850,23 +842,59 @@ export async function discoverHtmlEntries(root: string): Promise<HtmlEntryInfo[]
   return entries;
 }
 
-/**
- * Validates that the discovered HTML entries are supported.
- * Returns an array of validation warnings (empty if all entries are valid).
- */
-export function validateHtmlEntries(entries: HtmlEntryInfo[]): string[] {
-  const warnings: string[] = [];
+function createHtmlEntryIgnorePatterns(root: string, buildOutDir: string): string[] {
+  const ignorePatterns = [
+    "node_modules/**",
+    ".output/**",
+    "public/**",
+    "test/**",
+    "tests/**",
+    "e2e/**",
+    "cypress/**",
+    "coverage/**",
+    ".storybook/**",
+    "storybook-static/**",
+    "fixtures/**",
+  ];
+  const absoluteBuildOutDir = path.resolve(root, buildOutDir);
+  const relativeBuildOutDir = normalizeRelativePath(root, absoluteBuildOutDir);
 
-  for (const entry of entries) {
-    if (entry.type === "inline") {
-      warnings.push(
-        `Inline module scripts in ${entry.htmlPath} are not fully supported. ` +
-          `Consider using an external script: <script type="module" src="your-entry.tsx"></script>`,
-      );
-    }
+  if (
+    relativeBuildOutDir &&
+    relativeBuildOutDir !== "." &&
+    !relativeBuildOutDir.startsWith("../") &&
+    !path.isAbsolute(relativeBuildOutDir)
+  ) {
+    ignorePatterns.push(`${relativeBuildOutDir}/**`);
   }
 
-  return warnings;
+  return ignorePatterns;
+}
+
+export function resolveBrowserEntryPath(entries: HtmlEntryInfo[]): string {
+  const inlineEntries = entries.filter((entry) => entry.type === "inline");
+
+  if (inlineEntries.length > 0) {
+    const files = inlineEntries.map((entry) => entry.htmlPath).join(", ");
+    throw new Error(
+      `[litzjs] Inline module scripts are not supported in HTML entries: ${files}. ` +
+        `Use an external script such as <script type="module" src="src/main.tsx"></script>.`,
+    );
+  }
+
+  const externalModulePaths = [...new Set(entries.map((entry) => entry.modulePath))];
+
+  if (externalModulePaths.length > 1) {
+    const entrySummary = entries
+      .map((entry) => `${entry.htmlPath} -> ${entry.modulePath}`)
+      .join(", ");
+    throw new Error(
+      `[litzjs] Multiple HTML entry module scripts are not supported by the current Vite integration. ` +
+        `All HTML entries must share the same external module script. Found: ${entrySummary}.`,
+    );
+  }
+
+  return externalModulePaths[0] ?? "src/main.tsx";
 }
 
 export async function discoverServerEntry(
@@ -2022,7 +2050,7 @@ export async function handleLitzRouteRequest(
   }
 }
 
-async function handleLitzDocumentRequest(
+export async function handleLitzDocumentRequest(
   server: ViteDevServer,
   htmlEntries: HtmlEntryInfo[],
   request: IncomingMessage,
@@ -2074,14 +2102,7 @@ async function handleLitzDocumentRequest(
     }
 
     const templatePath = path.join(server.config.root, htmlEntry.htmlPath);
-    let template = await readFile(templatePath, "utf8");
-
-    if (htmlEntry.type === "inline" && htmlEntry.inlineContent) {
-      template = template.replace(
-        /<script[^>]+type=["']module["'][^>]*>[\s\S]*?<\/script>/i,
-        `<script type="module">${htmlEntry.inlineContent}</script>`,
-      );
-    }
+    const template = await readFile(templatePath, "utf8");
 
     const html = await server.transformIndexHtml(url, template);
     response.statusCode = 200;
@@ -2108,15 +2129,16 @@ function findHtmlEntryForPath(pathname: string, entries: HtmlEntryInfo[]): HtmlE
     return null;
   }
 
-  if (entries.length === 1) {
-    return entries[0] ?? null;
-  }
+  const countNormalizedUrlSegments = (htmlPath: string) =>
+    htmlPath
+      .replace(/\.html$/, "")
+      .replace(/\/index$/, "")
+      .split("/")
+      .filter(Boolean).length;
 
-  // Sort by specificity: more path segments = more specific
+  // Sort by specificity: more URL path segments = more specific.
   const sortedEntries = [...entries].sort((a, b) => {
-    const aSegments = a.htmlPath.replace(/\.html$/, "").split("/").length;
-    const bSegments = b.htmlPath.replace(/\.html$/, "").split("/").length;
-    return bSegments - aSegments;
+    return countNormalizedUrlSegments(b.htmlPath) - countNormalizedUrlSegments(a.htmlPath);
   });
 
   for (const entry of sortedEntries) {
@@ -2134,7 +2156,7 @@ function findHtmlEntryForPath(pathname: string, entries: HtmlEntryInfo[]): HtmlE
   }
 
   const indexEntry = entries.find((e) => e.htmlPath === "index.html");
-  return indexEntry ?? entries[0] ?? null;
+  return indexEntry ?? null;
 }
 
 export async function handleLitzApiRequest(
