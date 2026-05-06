@@ -1386,6 +1386,8 @@ function injectServerManifestIntoServerEntry(
     scriptKind,
   );
   const createServerImportNames = new Set<string>();
+  const createServerNamespaceNames = new Set<string>();
+  let hasLitzServerImport = false;
 
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
@@ -1396,38 +1398,57 @@ function injectServerManifestIntoServerEntry(
       continue;
     }
 
+    hasLitzServerImport = true;
     const namedBindings = statement.importClause?.namedBindings;
 
-    if (!namedBindings || !ts.isNamedImports(namedBindings)) {
+    if (!namedBindings) {
       continue;
     }
 
-    for (const element of namedBindings.elements) {
-      if ((element.propertyName?.text ?? element.name.text) === "createServer") {
-        createServerImportNames.add(element.name.text);
+    if (ts.isNamespaceImport(namedBindings)) {
+      createServerNamespaceNames.add(namedBindings.name.text);
+      continue;
+    }
+
+    if (ts.isNamedImports(namedBindings)) {
+      for (const element of namedBindings.elements) {
+        if ((element.propertyName?.text ?? element.name.text) === "createServer") {
+          createServerImportNames.add(element.name.text);
+        }
       }
     }
   }
 
-  if (createServerImportNames.size === 0) {
+  if (!hasLitzServerImport) {
     return null;
   }
+
+  let transformedCount = 0;
 
   const result = ts.transform(sourceFile, [
     (context) => {
       const visit: ts.Visitor = (node) => {
-        if (
-          ts.isCallExpression(node) &&
-          ts.isIdentifier(node.expression) &&
-          createServerImportNames.has(node.expression.text)
-        ) {
-          return ts.factory.updateCallExpression(node, node.expression, node.typeArguments, [
-            ts.factory.createCallExpression(
-              ts.factory.createIdentifier("__litzjsMergeServerOptions"),
-              undefined,
-              [node.arguments[0] ?? ts.factory.createIdentifier("undefined")],
-            ),
-          ]);
+        if (ts.isCallExpression(node)) {
+          const expr = node.expression;
+
+          const isNamedCall = ts.isIdentifier(expr) && createServerImportNames.has(expr.text);
+
+          const isNamespaceCall =
+            ts.isPropertyAccessExpression(expr) &&
+            ts.isIdentifier(expr.expression) &&
+            createServerNamespaceNames.has(expr.expression.text) &&
+            expr.name.text === "createServer";
+
+          if (isNamedCall || isNamespaceCall) {
+            transformedCount++;
+            return ts.factory.updateCallExpression(node, expr, node.typeArguments, [
+              ts.factory.createCallExpression(
+                ts.factory.createIdentifier("__litzjsMergeServerOptions"),
+                undefined,
+                [node.arguments[0] ?? ts.factory.createIdentifier("undefined")],
+              ),
+            ]);
+          }
         }
 
         return ts.visitEachChild(node, visit, context);
@@ -1438,6 +1459,14 @@ function injectServerManifestIntoServerEntry(
   ]);
   const transformedSource = result.transformed[0] as ts.SourceFile;
   result.dispose();
+
+  if (transformedCount === 0) {
+    throw new Error(
+      `Could not inject server manifest into the server entry at ${filePath}. ` +
+        `The server manifest injection requires a direct call to createServer() from "litzjs/server". ` +
+        `Ensure your server entry calls createServer() directly rather than through indirection.`,
+    );
+  }
 
   const importStatement = ts.factory.createImportDeclaration(
     undefined,
