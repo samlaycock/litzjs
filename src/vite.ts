@@ -528,7 +528,7 @@ export async function renderView(node, metadata = {}) {
       };
 
       const onFileAddOrUnlink = (file: string) => {
-        if (!/\.(ts|tsx)$/.test(file)) {
+        if (!isRouteLikeModuleFile(file)) {
           return;
         }
 
@@ -543,7 +543,7 @@ export async function renderView(node, metadata = {}) {
       };
 
       const onFileChange = (file: string) => {
-        if (!/\.(ts|tsx)$/.test(file)) {
+        if (!isRouteLikeModuleFile(file)) {
           return;
         }
 
@@ -819,6 +819,10 @@ export async function discoverServerEntry(
 
 function isClientBoundaryModule(file: string): boolean {
   return /\.client\.(ts|tsx|js|jsx)$/.test(file);
+}
+
+function isRouteLikeModuleFile(file: string): boolean {
+  return /\.(ts|tsx|js|jsx)$/.test(file);
 }
 
 function resolveClientBoundaryModule(root: string, file: string): string | null {

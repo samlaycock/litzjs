@@ -509,6 +509,138 @@ describe("dev server hot updates", () => {
     }
   });
 
+  test("dev watcher refreshes manifests when .jsx client boundary files are added", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-jsx-client-boundary-watch-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      mkdirSync(path.join(root, "src", "routes"), { recursive: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "profile.js"),
+        [
+          'import { defineRoute } from "litzjs";',
+          "",
+          "export const route = defineRoute('/profile', {",
+          "  loader: async () => ({ kind: 'data', data: { ok: true } }),",
+          "  component() {",
+          "    return null;",
+          "  },",
+          "});",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.configureServer || !plugin.resolveId || !plugin.load) {
+        throw new Error("Expected litzjs/vite dev-server hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const configureServer =
+        typeof plugin.configureServer === "function"
+          ? plugin.configureServer
+          : plugin.configureServer.handler;
+      const resolveId =
+        typeof plugin.resolveId === "function" ? plugin.resolveId : plugin.resolveId.handler;
+      const load = typeof plugin.load === "function" ? plugin.load : plugin.load.handler;
+      const watcherHandlers = new Map<string, (file: string) => void>();
+      const wsSend = mock(() => {});
+      const pluginContext = {} as never;
+
+      await configResolved.call(pluginContext, {
+        root,
+        command: "serve",
+        build: {
+          outDir: "dist",
+        },
+        environments: {
+          client: {
+            build: {
+              outDir: path.join("dist", "client"),
+            },
+          },
+          rsc: {
+            build: {
+              outDir: path.join("dist", "server"),
+              rollupOptions: {
+                output: {
+                  codeSplitting: false,
+                },
+              },
+            },
+          },
+        },
+      } as never);
+
+      await configureServer.call(pluginContext, {
+        watcher: {
+          on(event: string, handler: (file: string) => void) {
+            watcherHandlers.set(event, handler);
+          },
+        },
+        middlewares: {
+          use() {},
+        },
+        moduleGraph: {
+          getModuleById() {
+            return undefined;
+          },
+          invalidateModule() {},
+        },
+        ws: {
+          send: wsSend,
+        },
+      } as never);
+
+      const resolvedId = resolveId.call(
+        pluginContext,
+        "virtual:litzjs:route-manifest",
+        undefined,
+        {} as never,
+      );
+      const loadClientManifest = () =>
+        load.call(
+          {
+            environment: {
+              name: "client",
+            },
+          } as never,
+          resolvedId as string,
+          {} as never,
+        ) as string;
+
+      expect(loadClientManifest()).toContain("profile.js");
+
+      const clientBoundaryFile = path.join(root, "src", "routes", "profile.client.jsx");
+      writeFileSync(
+        clientBoundaryFile,
+        [
+          'import { defineRoute } from "litzjs";',
+          "",
+          "export const route = defineRoute('/profile', {",
+          "  component() {",
+          "    return null;",
+          "  },",
+          "});",
+        ].join("\n"),
+        "utf8",
+      );
+
+      watcherHandlers.get("add")?.(clientBoundaryFile);
+      await new Promise((resolve) => setTimeout(resolve, 75));
+
+      expect(loadClientManifest()).toContain("profile.client.jsx");
+      expect(wsSend).toHaveBeenCalledWith({ type: "full-reload" });
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("returns client modules for projected route updates in the client environment", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-hot-update-"));
 
