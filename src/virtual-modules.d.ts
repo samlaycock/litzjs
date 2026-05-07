@@ -30,3 +30,7 @@ declare module "virtual:litzjs:resource-manifest" {
 declare module "virtual:litzjs:server-manifest" {
   export const serverManifest: import("litzjs/server").ServerManifest;
 }
+
+declare module "virtual:litzjs:base" {
+  export const base: string;
+}

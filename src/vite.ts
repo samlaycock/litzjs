@@ -126,6 +126,8 @@ const RESOURCE_MANIFEST_ID = "virtual:litzjs:resource-manifest";
 const RESOLVED_RESOURCE_MANIFEST_ID = "\0virtual:litzjs:resource-manifest";
 const SERVER_MANIFEST_ID = "virtual:litzjs:server-manifest";
 const RESOLVED_SERVER_MANIFEST_ID = "\0virtual:litzjs:server-manifest";
+const BASE_ID = "virtual:litzjs:base";
+const RESOLVED_BASE_ID = "\0virtual:litzjs:base";
 const LITZ_RSC_ENTRY_ID = "virtual:litzjs:rsc-entry";
 const RESOLVED_LITZ_RSC_ENTRY_ID = "\0virtual:litzjs:rsc-entry";
 const LITZ_BROWSER_ENTRY_ID = "virtual:litzjs:browser-entry";
@@ -219,6 +221,10 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
         return RESOLVED_SERVER_MANIFEST_ID;
       }
 
+      if (id === BASE_ID) {
+        return RESOLVED_BASE_ID;
+      }
+
       if (id === LITZ_RSC_ENTRY_ID) {
         return RESOLVED_LITZ_RSC_ENTRY_ID;
       }
@@ -255,6 +261,10 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
         return createServerManifestModule(routeManifest, resourceManifest, apiManifest);
       }
 
+      if (id === RESOLVED_BASE_ID) {
+        return `export const base = ${JSON.stringify(configuredBase)};`;
+      }
+
       if (id === RESOLVED_LITZ_RSC_ENTRY_ID) {
         if (serverEntryPath) {
           return `export { default } from ${JSON.stringify(toProjectImportSpecifier(serverEntryPath))};`;
@@ -262,10 +272,11 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
 
         return `
 import { createServer } from "litzjs/server";
+import { base } from ${JSON.stringify(BASE_ID)};
 import { serverManifest } from ${JSON.stringify(SERVER_MANIFEST_ID)};
 
 export default createServer({
-  base: ${JSON.stringify(configuredBase)},
+  base,
   manifest: serverManifest,
   createContext() {
     return undefined;
