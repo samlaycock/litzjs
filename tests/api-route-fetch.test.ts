@@ -32,4 +32,27 @@ describe("defineApiRoute().fetch", () => {
 
     expect(capturedInput).toBe("/api/projects?tag=framework&tag=bun&term=litz");
   });
+
+  test("supports an explicit baseUrl for server-side and test callers", async () => {
+    let capturedInput: RequestInfo | URL | undefined;
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      capturedInput = input;
+      return new Response(null, { status: 204 });
+    }) as typeof fetch;
+
+    const api = defineApiRoute("/api/projects/:id", {
+      GET() {
+        return new Response(null, { status: 204 });
+      },
+    });
+
+    await api.fetch({
+      baseUrl: "https://example.com/root/",
+      params: { id: "42" },
+      search: { tab: "details" },
+    });
+
+    expect(capturedInput).toBe("https://example.com/api/projects/42?tab=details");
+  });
 });

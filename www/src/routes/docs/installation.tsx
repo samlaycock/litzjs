@@ -35,6 +35,12 @@ const compatibilityRows: readonly CompatibilityRow[] = [
     supportedVersion: "^0.5.21",
     notes: "Required peer dependency for the React Server Components pipeline.",
   },
+  {
+    packageName: "nitro",
+    supportedVersion: "^3",
+    notes:
+      "Required peer dependency for the production server build pipeline and the optional Nitro integration export.",
+  },
 ];
 
 export const route = defineRoute("/docs/installation", {
@@ -78,19 +84,19 @@ function DocsInstallationPage() {
           language="bash"
           code={`# With Bun
 bun add react react-dom
-bun add -d typescript vite @vitejs/plugin-rsc
+bun add -d typescript vite @vitejs/plugin-rsc nitro
 
 # With npm
 npm install react react-dom
-npm install -D typescript vite @vitejs/plugin-rsc
+npm install -D typescript vite @vitejs/plugin-rsc nitro
 
 # With Yarn
 yarn add react react-dom
-yarn add -D typescript vite @vitejs/plugin-rsc
+yarn add -D typescript vite @vitejs/plugin-rsc nitro
 
 # With pnpm
 pnpm add react react-dom
-pnpm add -D typescript vite @vitejs/plugin-rsc`}
+pnpm add -D typescript vite @vitejs/plugin-rsc nitro`}
         />
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mt-4 mb-4">
           <li>
@@ -100,7 +106,8 @@ pnpm add -D typescript vite @vitejs/plugin-rsc`}
           <li>
             Install <code className="text-sky-400">typescript</code>,{" "}
             <code className="text-sky-400">vite</code>, and{" "}
-            <code className="text-sky-400">@vitejs/plugin-rsc</code> as development tooling.
+            <code className="text-sky-400">@vitejs/plugin-rsc</code>, and{" "}
+            <code className="text-sky-400">nitro</code> as development tooling.
           </li>
           <li>
             Treat all five packages as required peers even if your starter template already added

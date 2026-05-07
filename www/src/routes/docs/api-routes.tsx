@@ -82,7 +82,12 @@ const data = await response.json();`}
         />
         <p className="text-neutral-400 mt-4 mb-4">
           <code className="text-sky-400">{"api.fetch(...)"}</code> accepts route params, search
-          params, headers, and an HTTP method when needed.
+          params, headers, an optional <code className="text-sky-400">baseUrl</code>, and an HTTP
+          method when needed.
+        </p>
+        <p className="text-neutral-400 mb-4">
+          In browser code the helper can use relative URLs. In server-side code or tests, pass{" "}
+          <code className="text-sky-400">baseUrl</code> when your runtime requires an absolute URL.
         </p>
       </section>
 

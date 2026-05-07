@@ -39,6 +39,7 @@ describe("getting started docs flow", () => {
     expect(firstAppDoc).toContain('defineRoute("/docs/first-app"');
     expect(firstAppDoc).toContain("mkdir hello-litz");
     expect(firstAppDoc).toContain("bun add litzjs react react-dom");
+    expect(firstAppDoc).toContain("bun add -d typescript vite @vitejs/plugin-rsc nitro");
     expect(firstAppDoc).toContain('import { litz } from "litzjs/vite";');
     expect(firstAppDoc).toContain(
       'Open <code className="text-sky-400">http://localhost:5173</code>.',
@@ -77,6 +78,7 @@ describe("docs package names", () => {
     expect(installationDoc).toContain("pnpm add react react-dom");
 
     expect(installationDoc).toContain("bun add -d typescript vite @vitejs/plugin-rsc");
+    expect(installationDoc).toContain("nitro");
     expect(installationDoc).toContain("npm install -D typescript vite @vitejs/plugin-rsc");
     expect(installationDoc).toContain("yarn add -D typescript vite @vitejs/plugin-rsc");
     expect(installationDoc).toContain("pnpm add -D typescript vite @vitejs/plugin-rsc");
@@ -87,10 +89,12 @@ describe("docs package names", () => {
     expect(installationDoc).toContain('packageName: "typescript"');
     expect(installationDoc).toContain('packageName: "vite"');
     expect(installationDoc).toContain('packageName: "@vitejs/plugin-rsc"');
+    expect(installationDoc).toContain('packageName: "nitro"');
     expect(installationDoc).toContain("^19");
     expect(installationDoc).toContain("^6.0.2");
     expect(installationDoc).toContain("^8");
     expect(installationDoc).toContain("^0.5.21");
+    expect(installationDoc).toContain("^3");
     expect(installationDoc).toContain("Runtime compatibility notes");
     expect(installationDoc).toContain("does not publish a single runtime engine floor");
   });
@@ -257,6 +261,14 @@ describe("docs package names", () => {
     expect(apiReferenceDoc).toContain("resource.Component");
     expect(apiReferenceDoc).toContain(
       'Import from <code className="text-sky-400">{importPath}</code>.',
+    );
+    expect(apiReferenceDoc).toContain("baseUrl?: string | URL;");
+    expect(apiReferenceDoc).toContain("Adds an absolute base URL for server-side or test callers");
+    expect(apiReferenceDoc).toContain(
+      "same callable handler with lightweight marker metadata attached",
+    );
+    expect(apiReferenceDoc).toContain(
+      "invalid<TData = unknown>(options?: { headers?: HeadersInit; status?: number; fields?: Record<string, string>; formError?: string; data?: TData }): InvalidResult<TData>",
     );
     expect(apiReferenceDoc).toContain(
       "Most apps only need `litz(...)`, but the helper exports are public",
