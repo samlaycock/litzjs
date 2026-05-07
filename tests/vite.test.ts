@@ -1370,6 +1370,77 @@ describe("dev server hot updates", () => {
       rmSync(root, { force: true, recursive: true });
     }
   });
+
+  test("skips injection without error when a namespace import from litzjs/server does not call createServer", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-ns-no-cs-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      writeFileSync(
+        path.join(root, "src", "server.ts"),
+        'import * as litz from "litzjs/server";\nexport const mw = litz.defineMiddleware();\n',
+        "utf8",
+      );
+
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.transform) {
+        throw new Error("Expected litzjs/vite transform hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const transform =
+        typeof plugin.transform === "function" ? plugin.transform : plugin.transform.handler;
+      const pluginContext = {
+        environment: {
+          name: "nitro",
+        },
+      } as never;
+
+      await configResolved.call(
+        {} as never,
+        {
+          root,
+          base: "/",
+          command: "serve",
+          build: {
+            outDir: "dist",
+          },
+          environments: {
+            client: {
+              build: {
+                outDir: path.join("dist", "client"),
+              },
+            },
+            rsc: {
+              build: {
+                outDir: path.join("dist", "server"),
+                rollupOptions: {
+                  output: {
+                    codeSplitting: false,
+                  },
+                },
+              },
+            },
+          },
+        } as never,
+      );
+
+      const result = await transform.call(
+        pluginContext,
+        'import * as litz from "litzjs/server";\nexport const mw = litz.defineMiddleware();\n',
+        path.join(root, "src", "server.ts"),
+      );
+
+      expect(result).toBeNull();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
 });
 
 function createMockViteDevServer(
