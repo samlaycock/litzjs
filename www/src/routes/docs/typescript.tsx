@@ -145,6 +145,7 @@ function EditUser() {
         <CodeBlock
           language="ts"
           code={`import { createServer } from "litzjs/server";
+import { base } from "virtual:litzjs:base";
 import { serverManifest } from "virtual:litzjs:server-manifest";
 
 type AppContext = {
@@ -153,6 +154,7 @@ type AppContext = {
 };
 
 export default createServer<AppContext>({
+  base,
   manifest: serverManifest,
   createContext(request): AppContext {
     const token = request.headers.get("authorization");

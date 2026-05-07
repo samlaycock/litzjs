@@ -998,9 +998,11 @@ const serverGroups: readonly ReferenceGroupSpec[] = [
         example: {
           language: "ts",
           code: `import { createServer } from "litzjs/server";
+import { base } from "virtual:litzjs:base";
 import { serverManifest } from "virtual:litzjs:server-manifest";
 
 const server = createServer({
+  base,
   manifest: serverManifest,
   document: "<!doctype html><html><body><div id=\\"root\\"></div></body></html>",
 });

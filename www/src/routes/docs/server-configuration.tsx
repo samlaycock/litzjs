@@ -26,14 +26,17 @@ function ServerConfiguration() {
           request handler: <code className="text-sky-400">Request → Response</code>.
         </p>
         <p className="text-neutral-400 mb-4">
-          Custom server entries should import the generated server manifest explicitly:
+          Custom server entries should import the generated server manifest and configured base
+          explicitly:
         </p>
         <CodeBlock
           language="tsx"
           code={`import { createServer } from "litzjs/server";
+import { base } from "virtual:litzjs:base";
 import { serverManifest } from "virtual:litzjs:server-manifest";
 
 export default createServer({
+  base,
   manifest: serverManifest,
 });`}
         />
@@ -136,7 +139,10 @@ export default createServer({
         <p className="text-neutral-400 mb-4">
           The Vite plugin exposes discovered routes, resources, and API routes through{" "}
           <code className="text-sky-400">virtual:litzjs:server-manifest</code>. Custom server
-          entries pass that value to <code className="text-sky-400">createServer</code>.
+          entries pass that value to <code className="text-sky-400">createServer</code>. The
+          configured Vite base path is available from{" "}
+          <code className="text-sky-400">virtual:litzjs:base</code> so server route matching uses
+          the same prefix as the client.
         </p>
         <p className="text-neutral-400 mb-4">
           Discovery paths are configured in <code className="text-sky-400">vite.config.ts</code>{" "}
