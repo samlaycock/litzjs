@@ -21,14 +21,15 @@ function DocsNodePage() {
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Server entry</h2>
         <p className="text-neutral-400 mb-4">
-          Keep your Litz server entry small. Vite injects the discovered manifest during{" "}
-          <code className="text-sky-400">vite build</code>:
+          Keep your Litz server entry small and wire the generated manifest explicitly:
         </p>
         <CodeBlock
           language="ts"
           code={`import { createServer } from "litzjs/server";
+import { serverManifest } from "virtual:litzjs:server-manifest";
 
 export default createServer({
+  manifest: serverManifest,
   async createContext(request) {
     return {
       requestId: request.headers.get("x-request-id"),

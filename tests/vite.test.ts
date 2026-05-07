@@ -1199,15 +1199,15 @@ describe("dev server hot updates", () => {
     }
   });
 
-  test("injects the configured base into transformed server entries", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-base-"));
+  test("leaves custom server entries unchanged so manifests are wired explicitly", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-explicit-"));
 
     try {
       mkdirSync(path.join(root, "src"), { recursive: true });
       writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
       writeFileSync(
         path.join(root, "src", "server.ts"),
-        'import { createServer } from "litzjs/server";\n\nexport default createServer();\n',
+        'import { createServer } from "litzjs/server";\nimport { serverManifest } from "virtual:litzjs:server-manifest";\n\nexport default createServer({ manifest: serverManifest });\n',
         "utf8",
       );
 
@@ -1260,21 +1260,17 @@ describe("dev server hot updates", () => {
 
       const result = await transform.call(
         pluginContext,
-        'import { createServer } from "litzjs/server";\n\nexport default createServer();\n',
+        'import { createServer } from "litzjs/server";\nimport { serverManifest } from "virtual:litzjs:server-manifest";\n\nexport default createServer({ manifest: serverManifest });\n',
         path.join(root, "src", "server.ts"),
       );
 
-      expect(result).toEqual(
-        expect.objectContaining({
-          code: expect.stringContaining('base: "/app"'),
-        }),
-      );
+      expect(result).toBeNull();
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
   });
 
-  test("injects manifest into server entries that use namespace imports", async () => {
+  test("leaves namespace createServer calls unchanged", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-ns-"));
 
     try {
@@ -1339,17 +1335,13 @@ describe("dev server hot updates", () => {
         path.join(root, "src", "server.ts"),
       );
 
-      expect(result).toEqual(
-        expect.objectContaining({
-          code: expect.stringContaining("__litzjsMergeServerOptions"),
-        }),
-      );
+      expect(result).toBeNull();
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
   });
 
-  test("throws when createServer is imported from litzjs/server but never called directly", async () => {
+  test("allows indirect createServer wrappers in custom server entries", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-indirect-"));
 
     try {
@@ -1408,26 +1400,19 @@ describe("dev server hot updates", () => {
         } as never,
       );
 
-      let error: unknown;
+      const result = await transform.call(
+        pluginContext,
+        'import { createServer } from "litzjs/server";\nconst factory = createServer;\nexport default factory();\n',
+        path.join(root, "src", "server.ts"),
+      );
 
-      try {
-        await transform.call(
-          pluginContext,
-          'import { createServer } from "litzjs/server";\nconst factory = createServer;\nexport default factory();\n',
-          path.join(root, "src", "server.ts"),
-        );
-      } catch (caughtError) {
-        error = caughtError;
-      }
-
-      expect(error).toBeInstanceOf(Error);
-      expect((error as Error).message).toContain("server manifest");
+      expect(result).toBeNull();
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
   });
 
-  test("skips injection without error when a namespace import from litzjs/server does not call createServer", async () => {
+  test("leaves namespace imports without createServer calls unchanged", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-ns-no-cs-"));
 
     try {

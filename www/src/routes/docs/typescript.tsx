@@ -145,6 +145,7 @@ function EditUser() {
         <CodeBlock
           language="ts"
           code={`import { createServer } from "litzjs/server";
+import { serverManifest } from "virtual:litzjs:server-manifest";
 
 type AppContext = {
   userId: string | null;
@@ -152,6 +153,7 @@ type AppContext = {
 };
 
 export default createServer<AppContext>({
+  manifest: serverManifest,
   createContext(request): AppContext {
     const token = request.headers.get("authorization");
     const locale = request.headers.get("accept-language") ?? "en";

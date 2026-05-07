@@ -297,8 +297,11 @@ export default defineConfig({
 
 // src/server.ts
 import { createServer } from "litzjs/server";
+import { serverManifest } from "virtual:litzjs:server-manifest";
 
-export default createServer();`}
+export default createServer({
+  manifest: serverManifest,
+});`}
         />
         <p className="text-neutral-400 mt-4">
           Use the deployment guide for your target runtime:{" "}

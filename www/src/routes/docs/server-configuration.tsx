@@ -25,12 +25,17 @@ function ServerConfiguration() {
           <code className="text-sky-400">"litzjs/server"</code>. It creates a WinterCG-compatible
           request handler: <code className="text-sky-400">Request → Response</code>.
         </p>
-        <p className="text-neutral-400 mb-4">The simplest usage requires no arguments at all:</p>
+        <p className="text-neutral-400 mb-4">
+          Custom server entries should import the generated server manifest explicitly:
+        </p>
         <CodeBlock
           language="tsx"
           code={`import { createServer } from "litzjs/server";
+import { serverManifest } from "virtual:litzjs:server-manifest";
 
-export default createServer();`}
+export default createServer({
+  manifest: serverManifest,
+});`}
         />
       </section>
 
@@ -98,10 +103,9 @@ export default createServer();`}
           to <code className="text-sky-400">.output/public</code> and produces a server bundle.
         </p>
         <p className="text-neutral-400 mb-4">
-          Litz emits <code className="text-sky-400">.output/server/index.mjs</code> with the
-          discovered server manifest injected into{" "}
-          <code className="text-sky-400">createServer()</code>. Your platform is responsible for
-          serving <code className="text-sky-400">.output/public</code> as static files (via CDN,{" "}
+          Litz emits <code className="text-sky-400">.output/server/index.mjs</code> from your server
+          entry. Your platform is responsible for serving{" "}
+          <code className="text-sky-400">.output/public</code> as static files (via CDN,{" "}
           <code className="text-sky-400">express.static</code>, platform asset binding, etc.).
         </p>
         <p className="text-neutral-400 mb-4">
@@ -130,8 +134,9 @@ export default createServer();`}
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Discovery</h2>
         <p className="text-neutral-400 mb-4">
-          The Vite plugin auto-injects discovered routes, resources, and API routes into{" "}
-          <code className="text-sky-400">createServer</code>. You don't wire them manually.
+          The Vite plugin exposes discovered routes, resources, and API routes through{" "}
+          <code className="text-sky-400">virtual:litzjs:server-manifest</code>. Custom server
+          entries pass that value to <code className="text-sky-400">createServer</code>.
         </p>
         <p className="text-neutral-400 mb-4">
           Discovery paths are configured in <code className="text-sky-400">vite.config.ts</code>{" "}

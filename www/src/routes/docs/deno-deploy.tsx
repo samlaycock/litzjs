@@ -46,8 +46,10 @@ function DocsDenoDeployPage() {
         <CodeBlock
           language="ts"
           code={`import { createServer } from "litzjs/server";
+import { serverManifest } from "virtual:litzjs:server-manifest";
 
 export default createServer({
+  manifest: serverManifest,
   async createContext(request) {
     return { userId: request.headers.get("x-user-id") };
   },
