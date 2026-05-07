@@ -113,6 +113,7 @@ function UserCard() {
           "`definition` is shaped by `DefineApiRouteOptions`, so it can include any subset of `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `HEAD`, `ALL`, plus `middleware` and `input`.",
           "`api.fetch(...)` interpolates path params, serializes search params, and forwards the remaining `RequestInit` fields to the platform `fetch`.",
           "Use `baseUrl` when calling it from server-side code or test environments that require absolute request URLs.",
+          "If `baseUrl` includes a path prefix, the resolved request preserves that prefix.",
         ],
         example: {
           language: "ts",
@@ -678,6 +679,7 @@ function SaveFiltersButton() {
         details: [
           "When the API path contains params, the `options.params` object is required.",
           "Pass `baseUrl` for server-side or test callers that cannot use relative fetch URLs.",
+          "Base URL path prefixes are preserved when building the final request URL.",
         ],
       },
       {
@@ -877,6 +879,7 @@ export const route = defineRoute("/posts/:id", {
         details: [
           "`method` is limited to the declared method keys, excluding `ALL`.",
           "Adds an absolute base URL for server-side or test callers that need one.",
+          "Path prefixes on that base URL are preserved in the resolved request target.",
         ],
       },
       {

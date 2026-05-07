@@ -785,11 +785,12 @@ Supported method keys:
 method when needed.
 
 In the browser, the helper defaults to a relative URL. In server-side code or test environments,
-pass `baseUrl` when you need an absolute request target:
+pass `baseUrl` when you need an absolute request target. If `baseUrl` includes a path prefix, Litz
+preserves it when resolving the API path:
 
 ```ts
 const response = await api.fetch({
-  baseUrl: "https://example.com",
+  baseUrl: "https://example.com/root/",
   params: { id: "42" },
 });
 ```
