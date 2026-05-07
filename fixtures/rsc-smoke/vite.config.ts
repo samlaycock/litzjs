@@ -2,13 +2,14 @@ import path from "node:path";
 import { defineConfig } from "vite";
 
 import { litz } from "../../src/vite";
+import { litzNitro } from "../../src/vite-nitro";
 
 const rootDir = __dirname;
 const packageRoot = path.resolve(__dirname, "../..");
 
 export default defineConfig({
   root: rootDir,
-  plugins: [litz()],
+  plugins: [litz(), litzNitro()],
   resolve: {
     alias: [
       {
@@ -22,6 +23,10 @@ export default defineConfig({
       {
         find: /^litzjs\/vite$/,
         replacement: path.resolve(packageRoot, "src/vite.ts"),
+      },
+      {
+        find: /^litzjs\/vite\/nitro$/,
+        replacement: path.resolve(packageRoot, "src/vite-nitro.ts"),
       },
       {
         find: /^litzjs$/,

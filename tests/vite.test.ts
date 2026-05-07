@@ -32,6 +32,7 @@ import {
   handleLitzRouteRequest,
   litz,
 } from "../src/vite";
+import { litzNitro } from "../src/vite-nitro";
 
 describe("vite production server helpers", () => {
   test("build completes without warnings", () => {
@@ -81,6 +82,13 @@ describe("vite production server helpers", () => {
     }
   });
 
+  test("keeps Nitro out of the core litz plugin path", () => {
+    const plugins = litz() as Plugin[];
+
+    expect(plugins.some((plugin) => plugin.name.startsWith("nitro"))).toBe(false);
+    expect(plugins.some((plugin) => plugin.name === "litzjs/nitro")).toBe(false);
+  });
+
   test("normalizes generated Nitro renderer import paths before embedding them", async () => {
     const previousCwd = process.cwd();
     const projectRoot = mkdtempSync(path.join(tmpdir(), "litz\\nitro-workspace-"));
@@ -92,10 +100,12 @@ describe("vite production server helpers", () => {
       writeFileSync(path.join(projectRoot, "src", "server.ts"), "export default null;\n", "utf8");
       process.chdir(projectRoot);
 
-      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litzNitro() as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/nitro",
+      );
 
       if (!plugin?.configResolved) {
-        throw new Error("Expected litzjs/vite configResolved hook to be available.");
+        throw new Error("Expected litzjs/nitro configResolved hook to be available.");
       }
 
       const configResolved =

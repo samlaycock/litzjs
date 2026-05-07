@@ -38,8 +38,7 @@ const compatibilityRows: readonly CompatibilityRow[] = [
   {
     packageName: "nitro",
     supportedVersion: "^3",
-    notes:
-      "Required peer dependency for the production server build pipeline and the optional Nitro integration export.",
+    notes: "Optional peer dependency for the Nitro deployment adapter.",
   },
 ];
 
@@ -74,29 +73,32 @@ function DocsInstallationPage() {
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Required peer dependencies</h2>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Peer dependencies</h2>
         <p className="text-neutral-400 mb-4">
-          Litz expects your app to provide the full peer dependency surface below. If your React +
-          Vite app already includes some of these packages, keep them within the supported ranges in
-          the compatibility matrix.
+          Litz expects your app to provide the core peer dependencies below. If your React + Vite
+          app already includes some of these packages, keep them within the supported ranges in the
+          compatibility matrix.
         </p>
         <CodeBlock
           language="bash"
           code={`# With Bun
 bun add react react-dom
-bun add -d typescript vite @vitejs/plugin-rsc nitro
+bun add -d typescript vite @vitejs/plugin-rsc
 
 # With npm
 npm install react react-dom
-npm install -D typescript vite @vitejs/plugin-rsc nitro
+npm install -D typescript vite @vitejs/plugin-rsc
 
 # With Yarn
 yarn add react react-dom
-yarn add -D typescript vite @vitejs/plugin-rsc nitro
+yarn add -D typescript vite @vitejs/plugin-rsc
 
 # With pnpm
 pnpm add react react-dom
-pnpm add -D typescript vite @vitejs/plugin-rsc nitro`}
+pnpm add -D typescript vite @vitejs/plugin-rsc
+
+# Optional Nitro deployment adapter
+bun add -d nitro`}
         />
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mt-4 mb-4">
           <li>
@@ -106,12 +108,11 @@ pnpm add -D typescript vite @vitejs/plugin-rsc nitro`}
           <li>
             Install <code className="text-sky-400">typescript</code>,{" "}
             <code className="text-sky-400">vite</code>, and{" "}
-            <code className="text-sky-400">@vitejs/plugin-rsc</code>, and{" "}
-            <code className="text-sky-400">nitro</code> as development tooling.
+            <code className="text-sky-400">@vitejs/plugin-rsc</code> as development tooling.
           </li>
           <li>
-            Treat all five packages as required peers even if your starter template already added
-            some of them for you.
+            Add <code className="text-sky-400">nitro</code> only when your Vite config uses{" "}
+            <code className="text-sky-400">litzNitro()</code>.
           </li>
         </ul>
 

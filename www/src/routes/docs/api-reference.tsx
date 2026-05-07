@@ -1096,6 +1096,44 @@ await buildLitzApp({
   },
 ];
 
+const viteNitroGroups: readonly ReferenceGroupSpec[] = [
+  {
+    title: "Nitro adapter exports",
+    intro: "Import these from `litzjs/vite/nitro` when you want Nitro-backed production output.",
+    entries: [
+      {
+        name: "LitzNitroPluginOptions",
+        signature: `type LitzNitroPluginOptions = {
+  server?: string;
+  preset?: string;
+  routeRules?: Record<string, LitzRouteRule>;
+  compressPublicAssets?: boolean | { gzip?: boolean; brotli?: boolean; zstd?: boolean };
+  baseURL?: string;
+  sourcemap?: boolean;
+  minify?: boolean;
+};`,
+        summary: "Options accepted by the optional Nitro Vite plugin factory.",
+      },
+      {
+        name: "litzNitro",
+        signature: `litzNitro(options?: LitzNitroPluginOptions): PluginOption`,
+        summary:
+          "Adds the Nitro production adapter without making Nitro part of the core `litz()` plugin path.",
+        example: {
+          language: "ts",
+          code: `import { defineConfig } from "vite";
+import { litz } from "litzjs/vite";
+import { litzNitro } from "litzjs/vite/nitro";
+
+export default defineConfig({
+  plugins: [litz(), litzNitro({ preset: "node-server" })],
+});`,
+        },
+      },
+    ],
+  },
+];
+
 function SignatureBlock({ signature }: { signature: string }) {
   return (
     <pre className="border border-neutral-800 bg-neutral-950/70 p-4 text-sm leading-6 text-sky-200 whitespace-pre-wrap overflow-x-auto mb-4">
@@ -1228,6 +1266,13 @@ function ApiReference() {
         importPath={`"litzjs/vite"`}
         description="Build-time Vite integration and advanced bundling helpers."
         groups={viteGroups}
+      />
+
+      <PackageSection
+        title="litzjs/vite/nitro"
+        importPath={`"litzjs/vite/nitro"`}
+        description="Optional Nitro deployment adapter for Vite production builds."
+        groups={viteNitroGroups}
       />
 
       <div className="flex justify-start pt-8 border-t border-neutral-800">

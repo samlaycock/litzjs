@@ -11,8 +11,6 @@ import type { TLSSocket } from "node:tls";
 import type { Connect, InlineConfig, Plugin, PluginOption, ViteDevServer } from "vite";
 
 import vitePluginRsc from "@vitejs/plugin-rsc";
-import { nitro as nitroVitePlugin } from "nitro/vite";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import picomatch from "picomatch";
@@ -83,33 +81,6 @@ export interface LitzPluginOptions {
   readonly server?: string;
   /** Options forwarded to `@vitejs/plugin-rsc`. */
   readonly rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
-  /**
-   * Deployment preset. Determines the server output format and runtime
-   * adapter (e.g. `"node-server"`, `"cloudflare-pages"`, `"vercel"`).
-   */
-  readonly preset?: string;
-  /**
-   * Per-route rules for caching, headers, redirects, pre-rendering, and
-   * proxying. Keys are path patterns (e.g. `"/api/**"`).
-   */
-  readonly routeRules?: Readonly<Record<string, LitzRouteRule>>;
-  /**
-   * Compress static assets with gzip, brotli, or zstd. Pass `true` to
-   * enable all supported algorithms, or an object to pick individually.
-   */
-  readonly compressPublicAssets?:
-    | boolean
-    | {
-        readonly gzip?: boolean;
-        readonly brotli?: boolean;
-        readonly zstd?: boolean;
-      };
-  /** Base URL path for the application (e.g. `"/app/"`). */
-  readonly baseURL?: string;
-  /** Generate source maps for the server build. */
-  readonly sourcemap?: boolean;
-  /** Minify the server build output. */
-  readonly minify?: boolean;
 }
 
 type DiscoveredRoute = {
@@ -161,7 +132,6 @@ const LITZ_BROWSER_ENTRY_ID = "virtual:litzjs:browser-entry";
 const RESOLVED_LITZ_BROWSER_ENTRY_ID = "\0virtual:litzjs:browser-entry";
 const LITZ_RSC_RENDERER_ID = "virtual:litzjs:rsc-renderer";
 const RESOLVED_LITZ_RSC_RENDERER_ID = "\0virtual:litzjs:rsc-renderer";
-const LITZ_NITRO_RENDERER_FILENAME = "nitro-renderer.ts";
 
 /**
  * Creates the Litz Vite plugin array. Returns the `@vitejs/plugin-rsc` plugins
@@ -175,8 +145,6 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
   let htmlEntries: HtmlEntryInfo[] = [];
   let serverEntryPath: string | null = null;
   let serverEntryFilePath: string | null = null;
-  let intermediateBuildOutDir = path.resolve(root, "dist");
-  let finalNitroOutDir = path.resolve(root, ".output");
   let routeManifest: DiscoveredRoute[] = [];
   let layoutManifest: DiscoveredLayout[] = [];
   let resourceManifest: DiscoveredResource[] = [];
@@ -189,10 +157,6 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
   ];
   const resourcePatterns = options.resources ?? ["src/routes/resources/**/*.{ts,tsx,js,jsx}"];
   const apiPatterns = options.api ?? ["src/routes/api/**/*.{ts,tsx,js,jsx}"];
-  // Write a placeholder Nitro renderer file so the nitro plugin can resolve
-  // it during its `config` hook. The file is re-written in `configResolved`
-  // once the actual server entry path is known.
-  writeNitroRendererSync(root, null);
   const rscPlugins = vitePluginRsc({
     ...options.rsc,
     entries: {
@@ -225,17 +189,11 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
     async configResolved(config) {
       root = config.root;
       configuredBase = normalizeBasePath(config.base);
-      intermediateBuildOutDir = path.resolve(root, config.build.outDir || "dist");
-      finalNitroOutDir = path.resolve(root, ".output");
 
       htmlEntries = await discoverHtmlEntries(root, config.build.outDir || "dist");
       browserEntryPath = resolveBrowserEntryPath(htmlEntries);
       serverEntryPath = await discoverServerEntry(root, options.server);
       serverEntryFilePath = serverEntryPath ? path.resolve(root, serverEntryPath) : null;
-
-      // Re-write with the actual server entry path now that it has been
-      // discovered.
-      writeNitroRendererSync(root, serverEntryPath);
 
       ({ routeManifest, layoutManifest, resourceManifest, apiManifest } =
         await discoverAllManifests(root, routePatterns, resourcePatterns, apiPatterns));
@@ -588,20 +546,6 @@ export async function renderView(node, metadata = {}) {
       server.watcher.on("change", onFileChange);
       server.watcher.on("unlink", onFileAddOrUnlink);
 
-      // Mark Litz internal requests so Nitro's dev middleware skips them.
-      // Nitro's `nitroDevMiddlewarePre` checks `req._nitroHandled` and calls
-      // `next()` when set, letting our handlers below process the request.
-      server.middlewares.use((request, _response, next) => {
-        const requestUrl = request.url ? new URL(request.url, "http://litzjs.local") : null;
-        const pathname = requestUrl
-          ? resolveBasePathname(requestUrl.pathname, configuredBase)
-          : "/";
-
-        if (pathname.startsWith("/_litzjs/")) {
-          (request as unknown as Record<string, unknown>)._nitroHandled = true;
-        }
-        next();
-      });
       server.middlewares.use((request, response, next) => {
         void handleLitzResourceRequest(
           server,
@@ -689,56 +633,11 @@ export async function renderView(node, metadata = {}) {
     },
   };
 
-  const nitroPlugins = nitroVitePlugin({
-    scanDirs: [],
-    renderer: {
-      handler: path.resolve(root, ".litzjs", LITZ_NITRO_RENDERER_FILENAME),
-    },
-    preset: options.preset,
-    // LitzRouteRule is intentionally a framework-agnostic subset of Nitro's
-    // NitroRouteConfig. The types are structurally compatible at runtime.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    routeRules: options.routeRules as any,
-    compressPublicAssets: options.compressPublicAssets,
-    baseURL: options.baseURL,
-    sourcemap: options.sourcemap,
-    minify: options.minify,
-  });
-
-  // Prevent Nitro from hijacking the RSC-managed environments. Nitro's
-  // `nitro:env` plugin auto-detects any environment with a build entry and
-  // replaces its `createEnvironment` with a `FetchableDevEnvironment`, which
-  // removes the module runner that the RSC plugin (and Litz's dev handlers)
-  // rely on. We wrap that hook so it returns early for `rsc` and `ssr`.
-  const rscManagedEnvironments = new Set(["rsc", "ssr"]);
-
-  for (const plugin of nitroPlugins) {
-    if (plugin.name === "nitro:env" && typeof plugin.configEnvironment === "function") {
-      const original = plugin.configEnvironment;
-      plugin.configEnvironment = function (name, ...args) {
-        if (rscManagedEnvironments.has(name)) return;
-        return original.call(this, name, ...args);
-      };
-      break;
-    }
-  }
-
-  const cleanupPlugin: Plugin = {
-    name: "litzjs/build-cleanup",
-    sharedDuringBuild: true,
-    buildApp: {
-      order: "post",
-      async handler() {
-        cleanupIntermediateBuildArtifacts(root, intermediateBuildOutDir, finalNitroOutDir);
-      },
-    },
-  };
-
   // The explicit cast prevents a "Plugin<any>[]" leak caused by Nitro's
   // module augmentation that adds a generic parameter to Vite's Plugin
   // interface, which triggers an "excessive stack depth" error when
   // consumers pass the result into `defineConfig({ plugins: [litz()] })`.
-  return [...rscPlugins, litzPlugin, ...nitroPlugins, cleanupPlugin] as Plugin[];
+  return [...rscPlugins, litzPlugin] as Plugin[];
 }
 
 export async function buildLitzApp(inlineConfig: InlineConfig = {}): Promise<void> {
@@ -1655,54 +1554,6 @@ function toBrowserImportSpecifier(root: string, relativeModulePath: string, base
 
 function toProjectImportSpecifier(relativeModulePath: string): string {
   return `/${relativeModulePath}`;
-}
-
-function hasCompletedNitroBuild(nitroOutDir: string): boolean {
-  return (
-    existsSync(path.join(nitroOutDir, "nitro.json")) &&
-    existsSync(path.join(nitroOutDir, "public")) &&
-    existsSync(path.join(nitroOutDir, "server"))
-  );
-}
-
-function shouldRemoveIntermediateBuildArtifacts(
-  root: string,
-  intermediateBuildOutDir: string,
-  nitroOutDir: string,
-): boolean {
-  if (!existsSync(intermediateBuildOutDir)) {
-    return false;
-  }
-
-  if (intermediateBuildOutDir === root || intermediateBuildOutDir === nitroOutDir) {
-    return false;
-  }
-
-  const relativeToRoot = path.relative(root, intermediateBuildOutDir);
-
-  if (!relativeToRoot || relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
-    return false;
-  }
-
-  const relativeToNitroOutDir = path.relative(nitroOutDir, intermediateBuildOutDir);
-
-  return relativeToNitroOutDir.startsWith("..") || path.isAbsolute(relativeToNitroOutDir);
-}
-
-function cleanupIntermediateBuildArtifacts(
-  root: string,
-  intermediateBuildOutDir: string,
-  nitroOutDir: string,
-): void {
-  if (!hasCompletedNitroBuild(nitroOutDir)) {
-    return;
-  }
-
-  if (!shouldRemoveIntermediateBuildArtifacts(root, intermediateBuildOutDir, nitroOutDir)) {
-    return;
-  }
-
-  rmSync(intermediateBuildOutDir, { force: true, recursive: true });
 }
 
 // ── Dev Server Request Handlers ──────────────────────────────────────────────
@@ -2940,56 +2791,4 @@ async function runDevMiddlewareChain<TContext, TResult>(options: {
   };
 
   return dispatch(0, options.context);
-}
-
-// ── Nitro Renderer ───────────────────────────────────────────────────────────
-// Writes a physical `.ts` file that Nitro can resolve during its `config` hook.
-// Nitro uses Node.js module resolution (not Vite's virtual modules), so the
-// renderer must exist on disk.
-
-/**
- * Writes the Nitro renderer entry file to `.litzjs/nitro-renderer.ts`.
- *
- * When `serverEntryPath` is `null` (initial call before discovery), writes a
- * placeholder that exports a no-op handler. Once the server entry is known,
- * re-writes with the actual import so Nitro delegates to the Litz server.
- */
-function writeNitroRendererSync(root: string, serverEntryPath: string | null): void {
-  const litzjsDir = path.resolve(root, ".litzjs");
-
-  mkdirSync(litzjsDir, { recursive: true });
-
-  const rendererPath = path.resolve(litzjsDir, LITZ_NITRO_RENDERER_FILENAME);
-
-  if (serverEntryPath === null) {
-    writeFileSync(
-      rendererPath,
-      [
-        "// Placeholder — replaced once the server entry is discovered.",
-        'import { defineHandler } from "nitro/h3";',
-        "",
-        "export default defineHandler(() => new Response('Not ready', { status: 503 }));",
-        "",
-      ].join("\n"),
-      "utf8",
-    );
-    return;
-  }
-
-  const serverImportPath = path.resolve(root, serverEntryPath).replaceAll("\\", "/");
-
-  writeFileSync(
-    rendererPath,
-    [
-      "// Auto-generated by litzjs — do not edit.",
-      'import { defineHandler } from "nitro/h3";',
-      `import server from "${serverImportPath}";`,
-      "",
-      "export default defineHandler(async (event) => {",
-      "  return server.fetch(event.req);",
-      "});",
-      "",
-    ].join("\n"),
-    "utf8",
-  );
 }
