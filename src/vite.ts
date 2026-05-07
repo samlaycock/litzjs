@@ -1458,12 +1458,16 @@ function injectServerManifestIntoServerEntry(
   const transformedSource = result.transformed[0] as ts.SourceFile;
   result.dispose();
 
-  if (transformedCount === 0) {
+  if (transformedCount === 0 && createServerImportNames.size > 0) {
     throw new Error(
       `Could not inject server manifest into the server entry at ${filePath}. ` +
         `The server manifest injection requires a direct call to createServer() from "litzjs/server". ` +
         `Ensure your server entry calls createServer() directly rather than through indirection.`,
     );
+  }
+
+  if (transformedCount === 0) {
+    return null;
   }
 
   const importStatement = ts.factory.createImportDeclaration(
