@@ -155,6 +155,52 @@ describe("vite production server helpers", () => {
     }
   });
 
+  test("fails fast when litzNitro cannot discover a server entry", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-nitro-missing-server-"));
+
+    try {
+      mkdirSync(path.join(root, "app", "server"), { recursive: true });
+      writeFileSync(path.join(root, "app", "server", "entry.ts"), "export default null;\n", "utf8");
+
+      const plugin = (litzNitro() as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/nitro",
+      );
+
+      if (!plugin?.configResolved) {
+        throw new Error("Expected litzjs/nitro configResolved hook to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      let error: unknown;
+
+      try {
+        await configResolved.call(
+          {} as never,
+          {
+            root,
+            base: "/",
+            command: "serve",
+            build: {
+              outDir: "dist",
+            },
+            environments: {},
+          } as never,
+        );
+      } catch (caughtError) {
+        error = caughtError;
+      }
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain("litzNitro() could not find a server entry");
+      expect((error as Error).message).toContain('litzNitro({ server: "..." })');
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("emits route-scoped CSS assets for lazy route entries", () => {
     const repoRoot = process.cwd();
     const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");

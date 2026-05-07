@@ -98,6 +98,16 @@ export function litzNitro(options: LitzNitroPluginOptions = {}): PluginOption {
       finalNitroOutDir = path.resolve(root, ".output");
 
       const serverEntryPath = await discoverServerEntry(root, options.server);
+
+      if (serverEntryPath === null) {
+        throw new Error(
+          [
+            "litzNitro() could not find a server entry for the Nitro renderer.",
+            'Create src/server.ts or src/server/index.ts, or pass the same custom server path to litzNitro({ server: "..." }) that you pass to litz({ server: "..." }).',
+          ].join(" "),
+        );
+      }
+
       writeNitroRendererSync(root, serverEntryPath);
     },
 
