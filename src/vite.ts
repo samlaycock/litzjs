@@ -87,17 +87,20 @@ type DiscoveredRoute = {
   id: string;
   path: string;
   modulePath: string;
+  clientModulePath?: string | null;
 };
 
 type DiscoveredLayout = {
   id: string;
   path: string;
   modulePath: string;
+  clientModulePath?: string | null;
 };
 
 type DiscoveredResource = {
   path: string;
   modulePath: string;
+  clientModulePath?: string | null;
   hasLoader: boolean;
   hasAction: boolean;
   hasComponent: boolean;
@@ -106,6 +109,7 @@ type DiscoveredResource = {
 type DiscoveredApiRoute = {
   path: string;
   modulePath: string;
+  clientModulePath?: string | null;
 };
 
 type HtmlEntryInfo = {
@@ -424,6 +428,13 @@ export async function renderView(node, metadata = {}) {
 
       const refreshSingleFile = async (file: string) => {
         if (pendingFullDiscovery) {
+          return;
+        }
+
+        if (isClientBoundaryModule(file)) {
+          pendingFullDiscovery = true;
+          scheduleRefresh();
+
           return;
         }
 
@@ -806,6 +817,30 @@ export async function discoverServerEntry(
   return null;
 }
 
+function isClientBoundaryModule(file: string): boolean {
+  return /\.[cm]?client\.(ts|tsx|js|jsx)$/.test(file);
+}
+
+function resolveClientBoundaryModule(root: string, file: string): string | null {
+  if (isClientBoundaryModule(file)) {
+    return null;
+  }
+
+  const parsed = path.parse(file);
+  const extensionCandidates =
+    parsed.ext === ".tsx" || parsed.ext === ".jsx" ? [parsed.ext, ".tsx", ".jsx"] : [parsed.ext];
+
+  for (const extension of new Set(extensionCandidates)) {
+    const candidate = path.join(parsed.dir, `${parsed.name}.client${extension}`);
+
+    if (ts.sys.fileExists(candidate)) {
+      return normalizeRelativePath(root, candidate);
+    }
+  }
+
+  return null;
+}
+
 async function discoverRoutes(root: string, patterns: string[]): Promise<DiscoveredRoute[]> {
   const files = await glob(patterns, {
     cwd: root,
@@ -813,7 +848,9 @@ async function discoverRoutes(root: string, patterns: string[]): Promise<Discove
   });
 
   const discovered = await Promise.all(
-    files.map(async (file) => discoverRouteFromFile(root, file)),
+    files
+      .filter((file) => !isClientBoundaryModule(file))
+      .map(async (file) => discoverRouteFromFile(root, file)),
   );
 
   return discovered.filter((entry): entry is DiscoveredRoute => entry !== null);
@@ -826,7 +863,9 @@ async function discoverLayouts(root: string, patterns: string[]): Promise<Discov
   });
 
   const discovered = await Promise.all(
-    files.map(async (file) => discoverLayoutFromFile(root, file)),
+    files
+      .filter((file) => !isClientBoundaryModule(file))
+      .map(async (file) => discoverLayoutFromFile(root, file)),
   );
 
   return discovered.filter((entry): entry is DiscoveredLayout => entry !== null);
@@ -1084,6 +1123,7 @@ export async function discoverRouteFromFile(
     id: routeDefinition.path,
     path: routeDefinition.path,
     modulePath: relativeModulePath,
+    clientModulePath: resolveClientBoundaryModule(root, file),
   };
 }
 
@@ -1107,6 +1147,7 @@ export async function discoverLayoutFromFile(
     id: layoutDefinition.path,
     path: layoutDefinition.path,
     modulePath: normalizeRelativePath(root, file),
+    clientModulePath: resolveClientBoundaryModule(root, file),
   };
 }
 
@@ -1117,7 +1158,9 @@ async function discoverResources(root: string, patterns: string[]): Promise<Disc
   });
 
   const discovered = await Promise.all(
-    files.map(async (file) => discoverResourceFromFile(root, file)),
+    files
+      .filter((file) => !isClientBoundaryModule(file))
+      .map(async (file) => discoverResourceFromFile(root, file)),
   );
 
   return discovered.filter((entry): entry is DiscoveredResource => entry !== null);
@@ -1159,6 +1202,7 @@ export async function discoverResourceFromFile(
   return {
     path: resourceDefinition.path,
     modulePath: normalizeRelativePath(root, file),
+    clientModulePath: resolveClientBoundaryModule(root, file),
     hasLoader: hasObjectProperty(resourceDefinition.options, bindings, "loader"),
     hasAction: hasObjectProperty(resourceDefinition.options, bindings, "action"),
     hasComponent: hasObjectProperty(resourceDefinition.options, bindings, "component"),
@@ -1172,7 +1216,9 @@ async function discoverApiRoutes(root: string, patterns: string[]): Promise<Disc
   });
 
   const discovered = await Promise.all(
-    files.map(async (file) => discoverApiRouteFromFile(root, file)),
+    files
+      .filter((file) => !isClientBoundaryModule(file))
+      .map(async (file) => discoverApiRouteFromFile(root, file)),
   );
 
   return discovered.filter((entry): entry is DiscoveredApiRoute => entry !== null);
@@ -1192,6 +1238,7 @@ export async function discoverApiRouteFromFile(
   return {
     path: apiDefinition.path,
     modulePath: normalizeRelativePath(root, file),
+    clientModulePath: resolveClientBoundaryModule(root, file),
   };
 }
 
@@ -1209,8 +1256,9 @@ function createRouteManifestModule(
     const imports: string[] = [];
     const lines = manifest.map((route, index) => {
       const importName = `routeModule${index}`;
+      const modulePath = route.clientModulePath ?? route.modulePath;
       imports.push(
-        `import * as ${importName} from ${JSON.stringify(toProjectImportSpecifier(route.modulePath))};`,
+        `import * as ${importName} from ${JSON.stringify(toProjectImportSpecifier(modulePath))};`,
       );
 
       return [
@@ -1226,8 +1274,9 @@ function createRouteManifestModule(
   }
 
   const lines = manifest.map((route, index) => {
-    const importPath = toBrowserImportSpecifier(root, route.modulePath, base);
-    const resolvedModuleFile = path.resolve(root, route.modulePath);
+    const modulePath = route.clientModulePath ?? route.modulePath;
+    const importPath = toBrowserImportSpecifier(root, modulePath, base);
+    const resolvedModuleFile = path.resolve(root, modulePath);
 
     return [
       `  {`,
@@ -1250,9 +1299,9 @@ function createClientProjectedFileSet(
   apiRoutes: DiscoveredApiRoute[],
 ): Set<string> {
   return new Set(
-    [...routes, ...layouts, ...resources, ...apiRoutes].map((entry) =>
-      path.resolve(root, entry.modulePath),
-    ),
+    [...routes, ...layouts, ...resources, ...apiRoutes]
+      .filter((entry) => !entry.clientModulePath)
+      .map((entry) => path.resolve(root, entry.modulePath)),
   );
 }
 
