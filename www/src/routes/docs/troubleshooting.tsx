@@ -81,6 +81,20 @@ import { litz } from "litzjs/vite";`}
             <code className="text-sky-400">defineRoute("/path", ...)</code>.
           </li>
           <li>
+            Keep the route path static. Discovery reads string literals in{" "}
+            <code className="text-sky-400">defineRoute</code>,{" "}
+            <code className="text-sky-400">defineLayout</code>,{" "}
+            <code className="text-sky-400">defineResource</code>, and{" "}
+            <code className="text-sky-400">defineApiRoute</code> calls; paths stored in variables
+            are ignored.
+          </li>
+          <li>
+            Treat <code className="text-sky-400">[litzjs]</code> discovery warnings as registration
+            failures. They mean a matched file imports a Litz route factory but does not export the
+            required binding name, or the exported binding does not resolve to a static factory
+            call.
+          </li>
+          <li>
             Keep page routes inside the configured route globs. The default is{" "}
             <code className="text-sky-400">{"src/routes/**/*.{ts,tsx}"}</code>, excluding the{" "}
             <code className="text-sky-400">api</code> and{" "}

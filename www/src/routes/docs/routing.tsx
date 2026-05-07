@@ -176,6 +176,43 @@ function SettingsPage() {
           however you like. The plugin only cares about the exported{" "}
           <code className="text-sky-400">route</code> binding, not the directory structure.
         </p>
+        <p className="text-neutral-400 mb-4">
+          Discovery is intentionally static. The supported declaration forms are:
+        </p>
+        <CodeBlock
+          language="tsx"
+          code={`export const route = defineRoute("/dashboard", {
+  component: DashboardPage,
+});
+
+const dashboardRoute = defineRoute("/dashboard", {
+  component: DashboardPage,
+});
+
+export { dashboardRoute as route };`}
+        />
+        <p className="text-neutral-400 mt-4 mb-4">
+          The path must be a string literal or no-substitution template literal in the{" "}
+          <code className="text-sky-400">defineRoute</code> call. Local aliases and simple wrappers
+          are supported only when they resolve back to that static call.
+        </p>
+        <p className="text-neutral-400 mb-4">
+          These forms are not discovered and will warn during dev or build when the file imports{" "}
+          <code className="text-sky-400">defineRoute</code> from{" "}
+          <code className="text-sky-400">"litzjs"</code>:
+        </p>
+        <CodeBlock
+          language="tsx"
+          code={`const path = "/dashboard";
+
+export const route = defineRoute(path, {
+  component: DashboardPage,
+});
+
+export const dashboardRoute = defineRoute("/dashboard", {
+  component: DashboardPage,
+});`}
+        />
       </section>
 
       <div className="flex justify-between pt-8 border-t border-neutral-800">

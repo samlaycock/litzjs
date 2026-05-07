@@ -1075,6 +1075,7 @@ function discoverExportedRouteLikeDefinition(
   const sourceFile = createModuleSourceFile(filePath, source);
   const bindings = new Map<string, ts.Expression>();
   const exportedBindings = new Map<string, string>();
+  const importsFactory = importsNamedLitzFactory(sourceFile, factoryName);
 
   for (const statement of sourceFile.statements) {
     if (ts.isVariableStatement(statement)) {
@@ -1110,14 +1111,62 @@ function discoverExportedRouteLikeDefinition(
   const exportedBinding = exportedBindings.get(exportName);
 
   if (!exportedBinding) {
+    if (importsFactory) {
+      warnRouteLikeDiscoveryFailure(filePath, exportName, factoryName, "missing-export");
+    }
+
     return null;
   }
 
-  return resolveRouteLikeFactoryCall(
+  const definition = resolveRouteLikeFactoryCall(
     ts.factory.createIdentifier(exportedBinding),
     bindings,
     factoryName,
     new Set(),
+  );
+
+  if (!definition && importsFactory) {
+    warnRouteLikeDiscoveryFailure(filePath, exportName, factoryName, "unsupported-definition");
+  }
+
+  return definition;
+}
+
+function importsNamedLitzFactory(sourceFile: ts.SourceFile, factoryName: string): boolean {
+  return sourceFile.statements.some((statement) => {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      statement.moduleSpecifier.text !== "litzjs"
+    ) {
+      return false;
+    }
+
+    const namedBindings = statement.importClause?.namedBindings;
+
+    if (!namedBindings || !ts.isNamedImports(namedBindings)) {
+      return false;
+    }
+
+    return namedBindings.elements.some((element) => element.name.text === factoryName);
+  });
+}
+
+function warnRouteLikeDiscoveryFailure(
+  filePath: string,
+  exportName: string,
+  factoryName: string,
+  reason: "missing-export" | "unsupported-definition",
+): void {
+  const expected = `export const ${exportName} = ${factoryName}("/path", ...)`;
+  const detail =
+    reason === "missing-export"
+      ? `does not export the expected "${exportName}" binding`
+      : `exports "${exportName}", but the path could not be read from a static ${factoryName} call`;
+
+  console.warn(
+    `[litzjs] ${filePath} imports ${factoryName} from "litzjs" but ${detail}. ` +
+      `Discovery requires ${expected}, or an exported alias that resolves to that static call.`,
   );
 }
 
