@@ -398,6 +398,117 @@ describe("dev server hot updates", () => {
     }
   });
 
+  test("client route manifests import explicit client boundary modules without projection", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-route-client-boundary-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      mkdirSync(path.join(root, "src", "routes"), { recursive: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "index.tsx"),
+        [
+          'import { defineRoute } from "litzjs";',
+          "",
+          "export const route = defineRoute('/', {",
+          "  loader: async () => ({ kind: 'data', data: { ok: true } }),",
+          "  component() {",
+          "    return null;",
+          "  },",
+          "});",
+        ].join("\n"),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(root, "src", "routes", "index.client.tsx"),
+        [
+          'import { defineRoute } from "litzjs";',
+          "",
+          "export const route = defineRoute('/', {",
+          "  component() {",
+          "    return null;",
+          "  },",
+          "});",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.resolveId || !plugin.load || !plugin.transform) {
+        throw new Error("Expected litzjs/vite route-manifest and transform hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const resolveId =
+        typeof plugin.resolveId === "function" ? plugin.resolveId : plugin.resolveId.handler;
+      const load = typeof plugin.load === "function" ? plugin.load : plugin.load.handler;
+      const transform =
+        typeof plugin.transform === "function" ? plugin.transform : plugin.transform.handler;
+      const pluginContext = {} as never;
+
+      await configResolved.call(pluginContext, {
+        root,
+        command: "serve",
+        build: {
+          outDir: "dist",
+        },
+        environments: {
+          client: {
+            build: {
+              outDir: path.join("dist", "client"),
+            },
+          },
+          rsc: {
+            build: {
+              outDir: path.join("dist", "server"),
+              rollupOptions: {
+                output: {
+                  codeSplitting: false,
+                },
+              },
+            },
+          },
+        },
+      } as never);
+
+      const resolvedId = resolveId.call(
+        pluginContext,
+        "virtual:litzjs:route-manifest",
+        undefined,
+        {} as never,
+      );
+      const manifestSource = load.call(
+        {
+          environment: {
+            name: "client",
+          },
+        } as never,
+        resolvedId as string,
+        {} as never,
+      ) as string;
+      const routeFile = path.join(root, "src", "routes", "index.tsx");
+      const transformResult = await transform.call(
+        {
+          environment: {
+            name: "client",
+          },
+        } as never,
+        readFileSync(routeFile, "utf8"),
+        routeFile,
+      );
+
+      expect(manifestSource).toContain("index.client.tsx");
+      expect(manifestSource).not.toContain("index.tsx");
+      expect(transformResult).toBeNull();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("returns client modules for projected route updates in the client environment", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-hot-update-"));
 
@@ -2465,6 +2576,7 @@ describe("manifest discovery", () => {
           id: "/home",
           path: "/home",
           modulePath: "src/routes/home.tsx",
+          clientModulePath: null,
         });
       } finally {
         rmSync(root, { force: true, recursive: true });
@@ -2510,6 +2622,35 @@ describe("manifest discovery", () => {
           id: "/dashboard",
           path: "/dashboard",
           modulePath: "src/routes/dashboard.ts",
+          clientModulePath: null,
+        });
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("discovers an explicit client route boundary next to the server route", async () => {
+      const root = createTempProject();
+
+      try {
+        const file = path.join(root, "src", "routes", "settings.tsx");
+
+        writeFileSync(
+          file,
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/settings", { loader: async () => {}, component: Settings });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "routes", "settings.client.tsx"),
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/settings", { component: Settings });`,
+        );
+
+        const result = await discoverRouteFromFile(root, file);
+
+        expect(result).toEqual({
+          id: "/settings",
+          path: "/settings",
+          modulePath: "src/routes/settings.tsx",
+          clientModulePath: "src/routes/settings.client.tsx",
         });
       } finally {
         rmSync(root, { force: true, recursive: true });
@@ -2535,6 +2676,7 @@ describe("manifest discovery", () => {
           id: "/app",
           path: "/app",
           modulePath: "src/routes/layout.tsx",
+          clientModulePath: null,
         });
       } finally {
         rmSync(root, { force: true, recursive: true });
@@ -2581,6 +2723,7 @@ describe("manifest discovery", () => {
           id: "/app",
           path: "/app",
           modulePath: "src/routes/app-layout.tsx",
+          clientModulePath: null,
         });
       } finally {
         rmSync(root, { force: true, recursive: true });
@@ -2605,6 +2748,7 @@ describe("manifest discovery", () => {
         expect(result).toEqual({
           path: "/resource/summary",
           modulePath: "src/routes/resources/summary.ts",
+          clientModulePath: null,
           hasLoader: true,
           hasAction: true,
           hasComponent: true,
@@ -2630,6 +2774,7 @@ describe("manifest discovery", () => {
         expect(result).toEqual({
           path: "/resource/data",
           modulePath: "src/routes/resources/data.ts",
+          clientModulePath: null,
           hasLoader: true,
           hasAction: false,
           hasComponent: false,
@@ -2666,6 +2811,7 @@ describe("manifest discovery", () => {
         expect(result).toEqual({
           path: "/resource/wrapped",
           modulePath: "src/routes/resources/wrapped.ts",
+          clientModulePath: null,
           hasLoader: true,
           hasAction: true,
           hasComponent: true,
@@ -2699,6 +2845,7 @@ describe("manifest discovery", () => {
         expect(result).toEqual({
           path: "/resource/bound-options",
           modulePath: "src/routes/resources/bound-options.ts",
+          clientModulePath: null,
           hasLoader: true,
           hasAction: true,
           hasComponent: true,
@@ -2726,6 +2873,7 @@ describe("manifest discovery", () => {
         expect(result).toEqual({
           path: "/api/health",
           modulePath: "src/routes/api/health.ts",
+          clientModulePath: null,
         });
       } finally {
         rmSync(root, { force: true, recursive: true });
@@ -2775,6 +2923,7 @@ describe("manifest discovery", () => {
         expect(result).toEqual({
           path: "/api/wrapped-health",
           modulePath: "src/routes/api/wrapped-health.ts",
+          clientModulePath: null,
         });
       } finally {
         rmSync(root, { force: true, recursive: true });
@@ -2804,6 +2953,7 @@ describe("manifest discovery", () => {
         expect(result).toEqual({
           path: "/api/js-health",
           modulePath: "src/routes/api/health.mjs",
+          clientModulePath: null,
         });
       } finally {
         rmSync(root, { force: true, recursive: true });
