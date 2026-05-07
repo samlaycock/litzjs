@@ -2656,6 +2656,34 @@ describe("manifest discovery", () => {
         rmSync(root, { force: true, recursive: true });
       }
     });
+
+    test("discovers a TSX client route boundary next to a TS server route", async () => {
+      const root = createTempProject();
+
+      try {
+        const file = path.join(root, "src", "routes", "profile.ts");
+
+        writeFileSync(
+          file,
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/profile", { loader: async () => {}, component: Profile });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "routes", "profile.client.tsx"),
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/profile", { component: Profile });`,
+        );
+
+        const result = await discoverRouteFromFile(root, file);
+
+        expect(result).toEqual({
+          id: "/profile",
+          path: "/profile",
+          modulePath: "src/routes/profile.ts",
+          clientModulePath: "src/routes/profile.client.tsx",
+        });
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
   });
 
   describe("discoverLayoutFromFile", () => {
@@ -3074,6 +3102,33 @@ describe("manifest discovery", () => {
         expect(result.layoutManifest).toHaveLength(0);
         expect(result.resourceManifest).toHaveLength(0);
         expect(result.apiManifest).toHaveLength(0);
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("does not treat .cclient files as client boundary modules", async () => {
+      const root = createTempProject();
+
+      try {
+        writeFileSync(
+          path.join(root, "src", "routes", "typo.cclient.tsx"),
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/typo", { component: Typo });`,
+        );
+
+        const result = await discoverAllManifests(
+          root,
+          [
+            "src/routes/**/*.{ts,tsx}",
+            "!src/routes/api/**/*.{ts,tsx}",
+            "!src/routes/resources/**/*.{ts,tsx}",
+          ],
+          ["src/routes/resources/**/*.{ts,tsx}"],
+          ["src/routes/api/**/*.{ts,tsx}"],
+        );
+
+        expect(result.routeManifest).toHaveLength(1);
+        expect(result.routeManifest[0]?.path).toBe("/typo");
       } finally {
         rmSync(root, { force: true, recursive: true });
       }
