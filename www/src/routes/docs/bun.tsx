@@ -26,8 +26,10 @@ function DocsBunPage() {
         <CodeBlock
           language="ts"
           code={`import { createServer } from "litzjs/server";
+import { serverManifest } from "virtual:litzjs:server-manifest";
 
 export default createServer({
+  manifest: serverManifest,
   async createContext(request) {
     const token = request.headers.get("authorization");
     return { userId: token ? verifyToken(token) : null };

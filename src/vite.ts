@@ -144,7 +144,6 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
   let browserEntryPath = "src/main.tsx";
   let htmlEntries: HtmlEntryInfo[] = [];
   let serverEntryPath: string | null = null;
-  let serverEntryFilePath: string | null = null;
   let routeManifest: DiscoveredRoute[] = [];
   let layoutManifest: DiscoveredLayout[] = [];
   let resourceManifest: DiscoveredResource[] = [];
@@ -193,7 +192,6 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
       htmlEntries = await discoverHtmlEntries(root, config.build.outDir || "dist");
       browserEntryPath = resolveBrowserEntryPath(htmlEntries);
       serverEntryPath = await discoverServerEntry(root, options.server);
-      serverEntryFilePath = serverEntryPath ? path.resolve(root, serverEntryPath) : null;
 
       ({ routeManifest, layoutManifest, resourceManifest, apiManifest } =
         await discoverAllManifests(root, routePatterns, resourcePatterns, apiPatterns));
@@ -236,7 +234,7 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
       return null;
     },
 
-    // Return generated code for each virtual module. The route/resource
+    // Return generated code for each virtual module. The route/resource/server
     // manifests are built from the discovered filesystem entries; the RSC and
     // browser entries wire up the framework's server and client entry points.
     load(id) {
@@ -594,23 +592,6 @@ export async function renderView(node, metadata = {}) {
 
     async transform(code, id) {
       const cleanId = normalizeViteModuleId(id);
-
-      if (
-        this.environment.name === "nitro" &&
-        serverEntryFilePath &&
-        cleanId === serverEntryFilePath
-      ) {
-        const transformed = injectServerManifestIntoServerEntry(cleanId, code, configuredBase);
-
-        if (!transformed) {
-          return null;
-        }
-
-        return {
-          code: transformed,
-          map: null,
-        };
-      }
 
       if (this.environment.name !== "client") {
         return null;
@@ -1262,188 +1243,6 @@ function createClientProjectedFileSet(
       path.resolve(root, entry.modulePath),
     ),
   );
-}
-
-/**
- * Build-time transform that injects the server manifest into the user's server
- * entry. Uses the TypeScript compiler API to find all `createServer()` calls
- * (imported from `litzjs/server`) and wraps their options argument with a
- * helper that merges in the route/resource/API manifest. Returns `null` if no
- * `createServer` import is found.
- */
-function injectServerManifestIntoServerEntry(
-  filePath: string,
-  source: string,
-  base: string,
-): string | null {
-  const scriptKind = filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
-  const sourceFile = ts.createSourceFile(
-    filePath,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    scriptKind,
-  );
-  const createServerImportNames = new Set<string>();
-  const createServerNamespaceNames = new Set<string>();
-
-  for (const statement of sourceFile.statements) {
-    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
-      continue;
-    }
-
-    if (statement.moduleSpecifier.text !== "litzjs/server") {
-      continue;
-    }
-
-    const namedBindings = statement.importClause?.namedBindings;
-
-    if (!namedBindings) {
-      continue;
-    }
-
-    if (ts.isNamespaceImport(namedBindings)) {
-      createServerNamespaceNames.add(namedBindings.name.text);
-      continue;
-    }
-
-    if (ts.isNamedImports(namedBindings)) {
-      for (const element of namedBindings.elements) {
-        if ((element.propertyName?.text ?? element.name.text) === "createServer") {
-          createServerImportNames.add(element.name.text);
-        }
-      }
-    }
-  }
-
-  if (createServerImportNames.size === 0 && createServerNamespaceNames.size === 0) {
-    return null;
-  }
-
-  let transformedCount = 0;
-
-  const result = ts.transform(sourceFile, [
-    (context) => {
-      const visit: ts.Visitor = (node) => {
-        if (ts.isCallExpression(node)) {
-          const expr = node.expression;
-
-          const isNamedCall = ts.isIdentifier(expr) && createServerImportNames.has(expr.text);
-
-          const isNamespaceCall =
-            ts.isPropertyAccessExpression(expr) &&
-            ts.isIdentifier(expr.expression) &&
-            createServerNamespaceNames.has(expr.expression.text) &&
-            expr.name.text === "createServer";
-
-          if (isNamedCall || isNamespaceCall) {
-            transformedCount++;
-            return ts.factory.updateCallExpression(node, expr, node.typeArguments, [
-              ts.factory.createCallExpression(
-                ts.factory.createIdentifier("__litzjsMergeServerOptions"),
-                undefined,
-                [node.arguments[0] ?? ts.factory.createIdentifier("undefined")],
-              ),
-            ]);
-          }
-        }
-
-        return ts.visitEachChild(node, visit, context);
-      };
-
-      return (node: ts.SourceFile) => ts.visitEachChild(node, visit, context);
-    },
-  ]);
-  const transformedSource = result.transformed[0] as ts.SourceFile;
-  result.dispose();
-
-  if (transformedCount === 0 && createServerImportNames.size > 0) {
-    throw new Error(
-      `Could not inject server manifest into the server entry at ${filePath}. ` +
-        `The server manifest injection requires a direct call to createServer() from "litzjs/server". ` +
-        `Ensure your server entry calls createServer() directly rather than through indirection.`,
-    );
-  }
-
-  if (transformedCount === 0) {
-    return null;
-  }
-
-  const importStatement = ts.factory.createImportDeclaration(
-    undefined,
-    ts.factory.createImportClause(
-      false,
-      undefined,
-      ts.factory.createNamedImports([
-        ts.factory.createImportSpecifier(
-          false,
-          ts.factory.createIdentifier("serverManifest"),
-          ts.factory.createIdentifier("__litzjsServerManifest"),
-        ),
-      ]),
-    ),
-    ts.factory.createStringLiteral(SERVER_MANIFEST_ID),
-    undefined,
-  );
-  const helperStatement = ts.factory.createVariableStatement(
-    undefined,
-    ts.factory.createVariableDeclarationList(
-      [
-        ts.factory.createVariableDeclaration(
-          ts.factory.createIdentifier("__litzjsMergeServerOptions"),
-          undefined,
-          undefined,
-          ts.factory.createArrowFunction(
-            undefined,
-            undefined,
-            [
-              ts.factory.createParameterDeclaration(
-                undefined,
-                undefined,
-                ts.factory.createIdentifier("options"),
-              ),
-            ],
-            undefined,
-            ts.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-            ts.factory.createParenthesizedExpression(
-              ts.factory.createObjectLiteralExpression(
-                [
-                  ts.factory.createPropertyAssignment(
-                    ts.factory.createIdentifier("manifest"),
-                    ts.factory.createIdentifier("__litzjsServerManifest"),
-                  ),
-                  ts.factory.createSpreadAssignment(
-                    ts.factory.createBinaryExpression(
-                      ts.factory.createIdentifier("options"),
-                      ts.factory.createToken(ts.SyntaxKind.QuestionQuestionToken),
-                      ts.factory.createObjectLiteralExpression(),
-                    ),
-                  ),
-                  ts.factory.createPropertyAssignment(
-                    ts.factory.createIdentifier("base"),
-                    ts.factory.createStringLiteral(base),
-                  ),
-                ],
-                true,
-              ),
-            ),
-          ),
-        ),
-      ],
-      ts.NodeFlags.Const,
-    ),
-  );
-
-  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
-
-  return [
-    printer.printNode(ts.EmitHint.Unspecified, importStatement, transformedSource),
-    printer.printNode(ts.EmitHint.Unspecified, helperStatement, transformedSource),
-    ...transformedSource.statements.map((statement) =>
-      printer.printNode(ts.EmitHint.Unspecified, statement, transformedSource),
-    ),
-    "",
-  ].join("\n\n");
 }
 
 function normalizeViteModuleId(id: string): string {

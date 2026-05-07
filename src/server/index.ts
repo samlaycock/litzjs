@@ -121,11 +121,11 @@ type ApiModule = {
   };
 };
 
-type ServerManifest = {
-  routes?: RouteModule[];
-  resources?: ResourceModule[];
-  apiRoutes?: ApiModule[];
-};
+export interface ServerManifest {
+  readonly routes?: RouteModule[];
+  readonly resources?: ResourceModule[];
+  readonly apiRoutes?: ApiModule[];
+}
 
 let rscRendererPromise:
   | Promise<{
