@@ -818,7 +818,7 @@ export async function discoverServerEntry(
 }
 
 function isClientBoundaryModule(file: string): boolean {
-  return /\.[cm]?client\.(ts|tsx|js|jsx)$/.test(file);
+  return /\.client\.(ts|tsx|js|jsx)$/.test(file);
 }
 
 function resolveClientBoundaryModule(root: string, file: string): string | null {
@@ -827,8 +827,7 @@ function resolveClientBoundaryModule(root: string, file: string): string | null 
   }
 
   const parsed = path.parse(file);
-  const extensionCandidates =
-    parsed.ext === ".tsx" || parsed.ext === ".jsx" ? [parsed.ext, ".tsx", ".jsx"] : [parsed.ext];
+  const extensionCandidates = getClientBoundaryExtensionCandidates(parsed.ext);
 
   for (const extension of new Set(extensionCandidates)) {
     const candidate = path.join(parsed.dir, `${parsed.name}.client${extension}`);
@@ -839,6 +838,18 @@ function resolveClientBoundaryModule(root: string, file: string): string | null 
   }
 
   return null;
+}
+
+function getClientBoundaryExtensionCandidates(extension: string): readonly string[] {
+  if (extension === ".ts" || extension === ".tsx") {
+    return [extension, ".tsx"];
+  }
+
+  if (extension === ".js" || extension === ".jsx") {
+    return [extension, ".jsx"];
+  }
+
+  return [extension];
 }
 
 async function discoverRoutes(root: string, patterns: string[]): Promise<DiscoveredRoute[]> {
