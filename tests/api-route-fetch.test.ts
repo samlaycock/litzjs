@@ -53,6 +53,28 @@ describe("defineApiRoute().fetch", () => {
       search: { tab: "details" },
     });
 
-    expect(capturedInput).toBe("https://example.com/api/projects/42?tab=details");
+    expect(capturedInput).toBe("https://example.com/root/api/projects/42?tab=details");
+  });
+
+  test("preserves baseUrl path prefixes when resolving API requests", async () => {
+    let capturedInput: RequestInfo | URL | undefined;
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      capturedInput = input;
+      return new Response(null, { status: 204 });
+    }) as typeof fetch;
+
+    const api = defineApiRoute("/api/projects/:id", {
+      GET() {
+        return new Response(null, { status: 204 });
+      },
+    });
+
+    await api.fetch({
+      baseUrl: "https://example.com/root",
+      params: { id: "42" },
+    });
+
+    expect(capturedInput).toBe("https://example.com/root/api/projects/42");
   });
 });

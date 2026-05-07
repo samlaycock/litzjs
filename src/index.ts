@@ -1736,5 +1736,12 @@ function buildApiHref(
     return href;
   }
 
-  return new URL(href, baseUrl).toString();
+  const resolvedBaseUrl = new URL(baseUrl);
+  const relativeHref = href.startsWith("/") ? href.slice(1) : href;
+
+  if (!resolvedBaseUrl.pathname.endsWith("/")) {
+    resolvedBaseUrl.pathname = `${resolvedBaseUrl.pathname}/`;
+  }
+
+  return new URL(relativeHref, resolvedBaseUrl).toString();
 }
