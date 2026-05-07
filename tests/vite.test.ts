@@ -2816,6 +2816,64 @@ describe("manifest discovery", () => {
         rmSync(root, { force: true, recursive: true });
       }
     });
+
+    test("warns when a route-like file imports defineRoute without exporting route", async () => {
+      const root = createTempProject();
+      const warnings: string[] = [];
+      const originalWarn = console.warn;
+      console.warn = (message?: unknown) => {
+        warnings.push(String(message));
+      };
+
+      try {
+        const file = path.join(root, "src", "routes", "missing-export.tsx");
+
+        writeFileSync(
+          file,
+          `import { defineRoute } from "litzjs";\nexport const dashboard = defineRoute("/dashboard", { component: Dashboard });`,
+        );
+
+        const result = await discoverRouteFromFile(root, file);
+
+        expect(result).toBeNull();
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain(
+          `imports defineRoute from "litzjs" but does not export the expected "route" binding`,
+        );
+      } finally {
+        console.warn = originalWarn;
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("warns when an exported route uses an unsupported dynamic path", async () => {
+      const root = createTempProject();
+      const warnings: string[] = [];
+      const originalWarn = console.warn;
+      console.warn = (message?: unknown) => {
+        warnings.push(String(message));
+      };
+
+      try {
+        const file = path.join(root, "src", "routes", "dynamic-path.tsx");
+
+        writeFileSync(
+          file,
+          `import { defineRoute } from "litzjs";\nconst path = "/dynamic";\nexport const route = defineRoute(path, { component: Dynamic });`,
+        );
+
+        const result = await discoverRouteFromFile(root, file);
+
+        expect(result).toBeNull();
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain(
+          `exports "route", but the path could not be read from a static defineRoute call`,
+        );
+      } finally {
+        console.warn = originalWarn;
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
   });
 
   describe("discoverLayoutFromFile", () => {
@@ -3116,6 +3174,35 @@ describe("manifest discovery", () => {
           clientModulePath: null,
         });
       } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("warns when an API file imports defineApiRoute without exporting api", async () => {
+      const root = createTempProject();
+      const warnings: string[] = [];
+      const originalWarn = console.warn;
+      console.warn = (message?: unknown) => {
+        warnings.push(String(message));
+      };
+
+      try {
+        const file = path.join(root, "src", "routes", "api", "missing-export.ts");
+
+        writeFileSync(
+          file,
+          `import { defineApiRoute } from "litzjs";\nexport const health = defineApiRoute("/api/health", { GET() { return Response.json({ ok: true }); } });`,
+        );
+
+        const result = await discoverApiRouteFromFile(root, file);
+
+        expect(result).toBeNull();
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain(
+          `imports defineApiRoute from "litzjs" but does not export the expected "api" binding`,
+        );
+      } finally {
+        console.warn = originalWarn;
         rmSync(root, { force: true, recursive: true });
       }
     });
