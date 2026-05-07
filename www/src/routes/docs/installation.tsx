@@ -98,7 +98,10 @@ pnpm add react react-dom
 pnpm add -D typescript vite @vitejs/plugin-rsc
 
 # Optional Nitro deployment adapter
-bun add -d nitro`}
+bun add -d nitro
+npm install -D nitro
+yarn add -D nitro
+pnpm add -D nitro`}
         />
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mt-4 mb-4">
           <li>

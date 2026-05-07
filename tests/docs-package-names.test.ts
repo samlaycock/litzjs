@@ -80,8 +80,11 @@ describe("docs package names", () => {
     expect(installationDoc).toContain("bun add -d typescript vite @vitejs/plugin-rsc");
     expect(installationDoc).toContain("bun add -d nitro");
     expect(installationDoc).toContain("npm install -D typescript vite @vitejs/plugin-rsc");
+    expect(installationDoc).toContain("npm install -D nitro");
     expect(installationDoc).toContain("yarn add -D typescript vite @vitejs/plugin-rsc");
+    expect(installationDoc).toContain("yarn add -D nitro");
     expect(installationDoc).toContain("pnpm add -D typescript vite @vitejs/plugin-rsc");
+    expect(installationDoc).toContain("pnpm add -D nitro");
 
     expect(installationDoc).toContain("Compatibility matrix");
     expect(installationDoc).toContain('packageName: "react"');
