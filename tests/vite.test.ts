@@ -2875,6 +2875,37 @@ describe("manifest discovery", () => {
       }
     });
 
+    test("discovers an exported route that uses an aliased defineRoute import", async () => {
+      const root = createTempProject();
+      const warnings: string[] = [];
+      const originalWarn = console.warn;
+      console.warn = (message?: unknown) => {
+        warnings.push(String(message));
+      };
+
+      try {
+        const file = path.join(root, "src", "routes", "aliased-route.tsx");
+
+        writeFileSync(
+          file,
+          `import { defineRoute as makeRoute } from "litzjs";\nexport const route = makeRoute("/aliased", { component: Aliased });`,
+        );
+
+        const result = await discoverRouteFromFile(root, file);
+
+        expect(result).toEqual({
+          id: "/aliased",
+          path: "/aliased",
+          modulePath: "src/routes/aliased-route.tsx",
+          clientModulePath: null,
+        });
+        expect(warnings).toHaveLength(0);
+      } finally {
+        console.warn = originalWarn;
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
     test("warns when an exported route uses an unsupported dynamic path", async () => {
       const root = createTempProject();
       const warnings: string[] = [];

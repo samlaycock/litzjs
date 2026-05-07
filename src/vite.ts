@@ -1008,7 +1008,7 @@ function hasObjectProperty(
 function resolveRouteLikeFactoryCall(
   expression: ts.Expression,
   bindings: ReadonlyMap<string, ts.Expression>,
-  factoryName: string,
+  factoryNames: ReadonlySet<string>,
   seenBindings: Set<string>,
 ): DiscoveredRouteLikeDefinition | null {
   const unwrapped = unwrapManifestExpression(expression);
@@ -1026,13 +1026,13 @@ function resolveRouteLikeFactoryCall(
 
     const nextSeenBindings = new Set(seenBindings);
     nextSeenBindings.add(unwrapped.text);
-    return resolveRouteLikeFactoryCall(binding, bindings, factoryName, nextSeenBindings);
+    return resolveRouteLikeFactoryCall(binding, bindings, factoryNames, nextSeenBindings);
   }
 
   if (
     ts.isCallExpression(unwrapped) &&
     ts.isIdentifier(unwrapped.expression) &&
-    unwrapped.expression.text === factoryName
+    factoryNames.has(unwrapped.expression.text)
   ) {
     const routeLikePath = getStringLiteralValue(unwrapped.arguments[0]);
 
@@ -1056,7 +1056,7 @@ function resolveRouteLikeFactoryCall(
     discoveredDefinition = resolveRouteLikeFactoryCall(
       child,
       bindings,
-      factoryName,
+      factoryNames,
       new Set(seenBindings),
     );
 
@@ -1075,7 +1075,9 @@ function discoverExportedRouteLikeDefinition(
   const sourceFile = createModuleSourceFile(filePath, source);
   const bindings = new Map<string, ts.Expression>();
   const exportedBindings = new Map<string, string>();
-  const importsFactory = importsNamedLitzFactory(sourceFile, factoryName);
+  const importedFactoryNames = getImportedLitzFactoryNames(sourceFile, factoryName);
+  const factoryNames = new Set([factoryName, ...importedFactoryNames]);
+  const importsFactory = importedFactoryNames.size > 0;
 
   for (const statement of sourceFile.statements) {
     if (ts.isVariableStatement(statement)) {
@@ -1121,7 +1123,7 @@ function discoverExportedRouteLikeDefinition(
   const definition = resolveRouteLikeFactoryCall(
     ts.factory.createIdentifier(exportedBinding),
     bindings,
-    factoryName,
+    factoryNames,
     new Set(),
   );
 
@@ -1132,26 +1134,32 @@ function discoverExportedRouteLikeDefinition(
   return definition;
 }
 
-function importsNamedLitzFactory(sourceFile: ts.SourceFile, factoryName: string): boolean {
-  return sourceFile.statements.some((statement) => {
+function getImportedLitzFactoryNames(sourceFile: ts.SourceFile, factoryName: string): Set<string> {
+  const factoryNames = new Set<string>();
+
+  for (const statement of sourceFile.statements) {
     if (
       !ts.isImportDeclaration(statement) ||
       !ts.isStringLiteral(statement.moduleSpecifier) ||
       statement.moduleSpecifier.text !== "litzjs"
     ) {
-      return false;
+      continue;
     }
 
     const namedBindings = statement.importClause?.namedBindings;
 
     if (!namedBindings || !ts.isNamedImports(namedBindings)) {
-      return false;
+      continue;
     }
 
-    return namedBindings.elements.some(
-      (element) => (element.propertyName?.text ?? element.name.text) === factoryName,
-    );
-  });
+    for (const element of namedBindings.elements) {
+      if ((element.propertyName?.text ?? element.name.text) === factoryName) {
+        factoryNames.add(element.name.text);
+      }
+    }
+  }
+
+  return factoryNames;
 }
 
 function warnRouteLikeDiscoveryFailure(
