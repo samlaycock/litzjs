@@ -7,6 +7,7 @@ export default defineConfig({
     server: "./src/server/index.ts",
     "server/nitro": "./src/server/nitro.ts",
     vite: "./src/vite.ts",
+    "vite-nitro": "./src/vite-nitro.ts",
   },
   format: ["cjs", "esm"],
   platform: "neutral",

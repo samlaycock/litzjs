@@ -48,6 +48,11 @@
       "types": "./dist/vite.d.ts",
       "import": "./dist/vite.mjs",
       "require": "./dist/vite.js"
+    },
+    "./vite/nitro": {
+      "types": "./dist/vite-nitro.d.ts",
+      "import": "./dist/vite-nitro.mjs",
+      "require": "./dist/vite-nitro.js"
     }
   },
   "publishConfig": {
@@ -98,5 +103,10 @@
     "react-dom": "^19",
     "typescript": "^6.0.2",
     "vite": "^8"
+  },
+  "peerDependenciesMeta": {
+    "nitro": {
+      "optional": true
+    }
   }
 }

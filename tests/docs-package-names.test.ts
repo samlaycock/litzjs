@@ -39,7 +39,7 @@ describe("getting started docs flow", () => {
     expect(firstAppDoc).toContain('defineRoute("/docs/first-app"');
     expect(firstAppDoc).toContain("mkdir hello-litz");
     expect(firstAppDoc).toContain("bun add litzjs react react-dom");
-    expect(firstAppDoc).toContain("bun add -d typescript vite @vitejs/plugin-rsc nitro");
+    expect(firstAppDoc).toContain("bun add -d typescript vite @vitejs/plugin-rsc");
     expect(firstAppDoc).toContain('import { litz } from "litzjs/vite";');
     expect(firstAppDoc).toContain(
       'Open <code className="text-sky-400">http://localhost:5173</code>.',
@@ -69,7 +69,7 @@ describe("docs package names", () => {
     expect(installationDoc).not.toMatch(/pnpm add litz(?!js)/);
   });
 
-  test("installation docs list the full peer dependency surface and compatibility matrix", () => {
+  test("installation docs list the core peer dependency surface and optional Nitro adapter", () => {
     const installationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/installation.tsx"));
 
     expect(installationDoc).toContain("bun add react react-dom");
@@ -78,7 +78,7 @@ describe("docs package names", () => {
     expect(installationDoc).toContain("pnpm add react react-dom");
 
     expect(installationDoc).toContain("bun add -d typescript vite @vitejs/plugin-rsc");
-    expect(installationDoc).toContain("nitro");
+    expect(installationDoc).toContain("bun add -d nitro");
     expect(installationDoc).toContain("npm install -D typescript vite @vitejs/plugin-rsc");
     expect(installationDoc).toContain("yarn add -D typescript vite @vitejs/plugin-rsc");
     expect(installationDoc).toContain("pnpm add -D typescript vite @vitejs/plugin-rsc");
@@ -232,8 +232,10 @@ describe("docs package names", () => {
     const viteExports = [
       "buildLitzApp",
       "LitzPluginOptions",
+      "LitzNitroPluginOptions",
       "cleanupRscPluginArtifacts",
       "litz",
+      "litzNitro",
       "transformServerModuleSource",
     ];
 
