@@ -2846,6 +2846,35 @@ describe("manifest discovery", () => {
       }
     });
 
+    test("warns when a route-like file imports an aliased defineRoute without exporting route", async () => {
+      const root = createTempProject();
+      const warnings: string[] = [];
+      const originalWarn = console.warn;
+      console.warn = (message?: unknown) => {
+        warnings.push(String(message));
+      };
+
+      try {
+        const file = path.join(root, "src", "routes", "aliased-missing-export.tsx");
+
+        writeFileSync(
+          file,
+          `import { defineRoute as makeRoute } from "litzjs";\nexport const dashboard = makeRoute("/dashboard", { component: Dashboard });`,
+        );
+
+        const result = await discoverRouteFromFile(root, file);
+
+        expect(result).toBeNull();
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain(
+          `imports defineRoute from "litzjs" but does not export the expected "route" binding`,
+        );
+      } finally {
+        console.warn = originalWarn;
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
     test("warns when an exported route uses an unsupported dynamic path", async () => {
       const root = createTempProject();
       const warnings: string[] = [];

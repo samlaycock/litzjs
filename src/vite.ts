@@ -1148,7 +1148,9 @@ function importsNamedLitzFactory(sourceFile: ts.SourceFile, factoryName: string)
       return false;
     }
 
-    return namedBindings.elements.some((element) => element.name.text === factoryName);
+    return namedBindings.elements.some(
+      (element) => (element.propertyName?.text ?? element.name.text) === factoryName,
+    );
   });
 }
 
