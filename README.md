@@ -24,7 +24,12 @@ Inside a React + Vite app:
 
 ```bash
 bun add litzjs react react-dom
+bun add -d typescript vite @vitejs/plugin-rsc nitro
 ```
+
+Litz currently expects the full peer dependency surface above. `nitro` is required for the
+current Vite-first production build pipeline even if your application code does not import it
+directly.
 
 ## Quick Start
 
@@ -776,7 +781,18 @@ Supported method keys:
 
 `ALL` acts as a fallback when there is no method-specific handler.
 
-`api.fetch(...)` accepts route params, search params, headers, and the HTTP method when needed.
+`api.fetch(...)` accepts route params, search params, headers, an optional `baseUrl`, and the HTTP
+method when needed.
+
+In the browser, the helper defaults to a relative URL. In server-side code or test environments,
+pass `baseUrl` when you need an absolute request target:
+
+```ts
+const response = await api.fetch({
+  baseUrl: "https://example.com",
+  params: { id: "42" },
+});
+```
 
 ## Input Validation
 
@@ -1060,6 +1076,8 @@ Middleware receives:
 - `view(...)` uses RSC as a transport, not as the whole app architecture.
 - Routes, resources, and API routes are discovered from top-level glob options.
 - Paths are explicit and absolute.
+- `server(...)` is a declarative marker on a normal JavaScript function, not an isolation boundary
+  or security boundary by itself.
 
 ## Try The Fixture
 

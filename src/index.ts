@@ -627,6 +627,7 @@ export type ApiFetchOptions<
 > = Omit<RequestInit, "method"> &
   PathRequestParams<TPath> &
   SearchRequest & {
+    baseUrl?: string | URL;
     method?: ApiFetchMethod<TMethods>;
   };
 
@@ -646,9 +647,16 @@ export type ResourceServerHandler<
     undefined,
 > = (context: ResourceHandlerContext<TContext, TPath, TInput>) => Promise<TResult> | TResult;
 
-export type ServerHandler<TContext = unknown, TResult extends ServerResult = ServerResult> =
+type ServerHandlerBase<TContext = unknown, TResult extends ServerResult = ServerResult> =
   | RouteServerHandler<TContext, TResult>
   | ResourceServerHandler<TContext, TResult>;
+
+export type ServerHandler<
+  TContext = unknown,
+  TResult extends ServerResult = ServerResult,
+> = ServerHandlerBase<TContext, TResult> & {
+  __litzServer?: true;
+};
 
 export type DefineRouteOptions<
   TPath extends string = string,
@@ -1371,8 +1379,8 @@ export function defineApiRoute<
     methods: methods as TMethods,
     fetch(...args: MaybeRequiredArg<TPath, ApiFetchOptions<TPath, TMethods>>) {
       const options = (args[0] ?? {}) as ApiFetchOptions<TPath, TMethods>;
-      const { params, search, method, ...init } = options;
-      const href = buildApiHref(path, params, search);
+      const { params, search, method, baseUrl, ...init } = options;
+      const href = buildApiHref(path, params, search, baseUrl);
 
       return fetch(href, {
         ...init,
@@ -1576,8 +1584,10 @@ export function server<
   handler: (
     context: RouteHandlerContext<NoInferType<TContext>, NoInferType<TPath>, TInput>,
   ) => Promise<TResult> | TResult,
-): RouteServerHandler<TContext, TResult, TPath, TInput> {
-  return handler;
+): RouteServerHandler<TContext, TResult, TPath, TInput> & { __litzServer: true } {
+  return Object.assign(handler, {
+    __litzServer: true as const,
+  });
 }
 
 export function withHeaders<TResponse extends Response>(
@@ -1637,13 +1647,15 @@ export function view<TNode extends React.ReactNode>(
   };
 }
 
-export function invalid<TData = unknown>(options: {
-  headers?: HeadersInit;
-  status?: number;
-  fields?: Record<string, string>;
-  formError?: string;
-  data?: TData;
-}): InvalidResult<TData> {
+export function invalid<TData = unknown>(
+  options: {
+    headers?: HeadersInit;
+    status?: number;
+    fields?: Record<string, string>;
+    formError?: string;
+    data?: TData;
+  } = {},
+): InvalidResult<TData> {
   return {
     kind: "invalid",
     headers: options.headers,
@@ -1713,10 +1725,16 @@ function buildApiHref(
   pathPattern: string,
   params?: Record<string, string>,
   search?: SearchParamsInput,
+  baseUrl?: string | URL,
 ): string {
   const pathname = interpolatePath(pathPattern, params ?? {}, "API");
   const searchParams = createSearchParams(search);
   const searchString = searchParams.toString();
+  const href = searchString ? `${pathname}?${searchString}` : pathname;
 
-  return searchString ? `${pathname}?${searchString}` : pathname;
+  if (!baseUrl) {
+    return href;
+  }
+
+  return new URL(href, baseUrl).toString();
 }

@@ -112,6 +112,7 @@ function UserCard() {
         details: [
           "`definition` is shaped by `DefineApiRouteOptions`, so it can include any subset of `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `HEAD`, `ALL`, plus `middleware` and `input`.",
           "`api.fetch(...)` interpolates path params, serializes search params, and forwards the remaining `RequestInit` fields to the platform `fetch`.",
+          "Use `baseUrl` when calling it from server-side code or test environments that require absolute request URLs.",
         ],
         example: {
           language: "ts",
@@ -132,10 +133,10 @@ const response = await api.fetch({
         name: "server",
         signature: `server(handler): ServerHandler<TContext, TResult> & { __litzServer?: true }`,
         summary:
-          "Marks a route or resource handler as server-only without changing its runtime behavior.",
+          "Marks a route or resource handler for the framework while preserving its normal callable shape.",
         details: [
-          "Use it around loaders and actions so the bundler can keep that logic on the server side.",
-          "The returned function is still the same callable handler shape; the marker is metadata for the framework.",
+          "Use it around loaders and actions so Litz can treat that function as an explicit server handler during build and runtime wiring.",
+          "The returned value is the same callable handler with lightweight marker metadata attached; it is not a sandbox or security boundary by itself.",
         ],
       },
     ],
@@ -674,7 +675,10 @@ function SaveFiltersButton() {
   fetch(options?: ApiFetchOptions<TPath, TMethods>): Promise<Response>;
 };`,
         summary: "Returned API route object with typed handlers and a fetch helper.",
-        details: ["When the API path contains params, the `options.params` object is required."],
+        details: [
+          "When the API path contains params, the `options.params` object is required.",
+          "Pass `baseUrl` for server-side or test callers that cannot use relative fetch URLs.",
+        ],
       },
       {
         name: "LitzResource",
@@ -865,11 +869,15 @@ export const route = defineRoute("/posts/:id", {
         signature: `type ApiFetchOptions<TPath, TMethods> = Omit<RequestInit, "method"> & {
     params?: PathParams<TPath>;
     search?: URLSearchParams | SearchParamRecord;
+    baseUrl?: string | URL;
     method?: ApiFetchMethod<TMethods>;
   };`,
         summary:
           "Options accepted by `api.fetch(...)`, including typed path params and allowed methods.",
-        details: ["`method` is limited to the declared method keys, excluding `ALL`."],
+        details: [
+          "`method` is limited to the declared method keys, excluding `ALL`.",
+          "Adds an absolute base URL for server-side or test callers that need one.",
+        ],
       },
       {
         name: "RouteServerHandler",
@@ -883,8 +891,9 @@ export const route = defineRoute("/posts/:id", {
       },
       {
         name: "ServerHandler",
-        signature: `type ServerHandler<TContext = unknown, TResult extends ServerResult = ServerResult> = RouteServerHandler<TContext, TResult> | ResourceServerHandler<TContext, TResult>;`,
-        summary: "Union of route and resource server handler signatures.",
+        signature: `type ServerHandler<TContext = unknown, TResult extends ServerResult = ServerResult> = (RouteServerHandler<TContext, TResult> | ResourceServerHandler<TContext, TResult>) & { __litzServer?: true };`,
+        summary:
+          "Union of route and resource server handler signatures plus optional framework marker metadata.",
       },
     ],
   },

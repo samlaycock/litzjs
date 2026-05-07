@@ -47,8 +47,13 @@ bun init -y`}
         <CodeBlock
           language="bash"
           code={`bun add litzjs react react-dom
-bun add -d typescript vite @vitejs/plugin-rsc @types/react @types/react-dom`}
+bun add -d typescript vite @vitejs/plugin-rsc nitro @types/react @types/react-dom`}
         />
+        <p className="text-neutral-400 mt-4 mb-4">
+          <code className="text-sky-400">nitro</code> is part of the required peer dependency
+          surface for the current Vite-first build pipeline, even if your app code never imports it
+          directly.
+        </p>
       </section>
 
       <section className="mb-12">
