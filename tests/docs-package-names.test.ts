@@ -101,6 +101,9 @@ describe("docs package names", () => {
     expect(installationDoc).toContain("Optional capabilities");
     expect(installationDoc).toContain("@vitejs/plugin-rsc");
     expect(installationDoc).toContain("is bundled with");
+    expect(installationDoc).toContain("your app still needs its own TypeScript install");
+    expect(installationDoc).toContain("editor integration");
+    expect(installationDoc).toContain("local type-check scripts");
     expect(installationDoc).toContain("Runtime compatibility notes");
     expect(installationDoc).toContain("does not publish a single runtime engine floor");
   });
