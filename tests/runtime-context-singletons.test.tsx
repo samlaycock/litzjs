@@ -66,14 +66,14 @@ function createResourceRuntimeState(): ResourceRuntimeState {
   };
 }
 
-describe("runtime context singletons", () => {
+describe("runtime context isolation", () => {
   afterEach(() => {
     for (const key of [...routeRuntimeGlobalKeys, ...resourceRuntimeGlobalKeys]) {
-      delete globalThis[key];
+      Reflect.deleteProperty(globalThis, key);
     }
   });
 
-  test("route runtime contexts survive hot re-imports", async () => {
+  test("route runtime contexts stay module-local across fresh imports", async () => {
     const dom = installTestDom();
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -86,29 +86,29 @@ describe("runtime context singletons", () => {
       const routeRuntimeB = await importFresh<typeof import("../src/client/route-runtime")>(
         "../src/client/route-runtime",
       );
-      const observedRouteId: { current: string | null } = { current: null };
+      const observedRouteIds: string[] = [];
 
       expect(routeRuntimeA.RouteRuntimeProvider).not.toBe(routeRuntimeB.RouteRuntimeProvider);
 
-      function Reader(): React.ReactElement {
-        observedRouteId.current = routeRuntimeB.useRequiredRouteLocation("/projects/:id").id;
-        return <div data-route-id={observedRouteId.current} />;
+      function ReaderA(): React.ReactElement {
+        const routeId = routeRuntimeA.useRequiredRouteLocation("/projects/:id").id;
+        observedRouteIds.push(routeId);
+        return <div data-route-id={routeId} />;
       }
 
       await act(async () => {
         root.render(
           <routeRuntimeA.RouteRuntimeProvider value={createRouteRuntimeState()}>
-            <Reader />
+            <ReaderA />
           </routeRuntimeA.RouteRuntimeProvider>,
         );
         await flushDom();
       });
 
-      expect(observedRouteId.current).toEqual("/projects/:id");
-      expect(globalThis.__litzjsRouteLocationContext).toBeDefined();
-      expect(globalThis.__litzjsRouteStatusContext).toBeDefined();
-      expect(globalThis.__litzjsRouteDataContext).toBeDefined();
-      expect(globalThis.__litzjsRouteActionsContext).toBeDefined();
+      expect(observedRouteIds).toEqual(["/projects/:id"]);
+      for (const key of routeRuntimeGlobalKeys) {
+        expect(key in globalThis).toBe(false);
+      }
     } finally {
       await act(async () => {
         root.unmount();
@@ -118,7 +118,7 @@ describe("runtime context singletons", () => {
     }
   });
 
-  test("resource runtime contexts survive hot re-imports", async () => {
+  test("resource runtime contexts stay module-local across fresh imports", async () => {
     const dom = installTestDom();
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -129,32 +129,32 @@ describe("runtime context singletons", () => {
         await importFresh<typeof import("../src/client/resources")>("../src/client/resources");
       const resourceRuntimeB =
         await importFresh<typeof import("../src/client/resources")>("../src/client/resources");
-      const observedResourceId: { current: string | null } = { current: null };
+      const observedResourceIds: string[] = [];
 
       expect(resourceRuntimeA.ResourceRuntimeProvider).not.toBe(
         resourceRuntimeB.ResourceRuntimeProvider,
       );
 
-      function Reader(): React.ReactElement {
-        observedResourceId.current =
-          resourceRuntimeB.useRequiredResourceLocation("/resources/projects/:id").id;
-        return <div data-resource-id={observedResourceId.current} />;
+      function ReaderA(): React.ReactElement {
+        const resourceId =
+          resourceRuntimeA.useRequiredResourceLocation("/resources/projects/:id").id;
+        observedResourceIds.push(resourceId);
+        return <div data-resource-id={resourceId} />;
       }
 
       await act(async () => {
         root.render(
           <resourceRuntimeA.ResourceRuntimeProvider value={createResourceRuntimeState()}>
-            <Reader />
+            <ReaderA />
           </resourceRuntimeA.ResourceRuntimeProvider>,
         );
         await flushDom();
       });
 
-      expect(observedResourceId.current).toEqual("/resources/projects/:id");
-      expect(globalThis.__litzjsResourceLocationContext).toBeDefined();
-      expect(globalThis.__litzjsResourceStatusContext).toBeDefined();
-      expect(globalThis.__litzjsResourceDataContext).toBeDefined();
-      expect(globalThis.__litzjsResourceActionsContext).toBeDefined();
+      expect(observedResourceIds).toEqual(["/resources/projects/:id"]);
+      for (const key of resourceRuntimeGlobalKeys) {
+        expect(key in globalThis).toBe(false);
+      }
     } finally {
       await act(async () => {
         root.unmount();

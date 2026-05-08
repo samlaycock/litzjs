@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import type { LoaderSettledResult } from "../src/client/loader-fetch";
 import type { LoaderHookResult } from "../src/index";
 
+import { configureClientBaseUrl } from "../src/client/base-url";
+
 const mockFetch = mock<typeof fetch>();
 const originalFetch = globalThis.fetch;
-const baseUrlTarget = globalThis as typeof globalThis & { __litzjsBaseUrl?: string };
-const originalBaseUrl = baseUrlTarget.__litzjsBaseUrl;
 
 import { processLoaderResults } from "../src/client/loader-fetch";
 
@@ -40,12 +40,12 @@ beforeEach(() => {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
-  baseUrlTarget.__litzjsBaseUrl = originalBaseUrl;
+  configureClientBaseUrl(undefined);
 });
 
 describe("fetchRouteLoadersInParallel", () => {
   test("uses the configured client base for internal route loader requests", async () => {
-    baseUrlTarget.__litzjsBaseUrl = "/app/";
+    configureClientBaseUrl("/app/");
     mockFetch.mockResolvedValue(
       createTransportResponse({
         kind: "data",
@@ -66,7 +66,7 @@ describe("fetchRouteLoadersInParallel", () => {
   });
 
   test("uses the configured client base for internal route action requests", async () => {
-    baseUrlTarget.__litzjsBaseUrl = "/app/";
+    configureClientBaseUrl("/app/");
     mockFetch.mockResolvedValue(
       createTransportResponse({
         kind: "data",

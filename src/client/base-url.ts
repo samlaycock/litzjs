@@ -1,7 +1,9 @@
 import { joinBasePath } from "../base-path";
 
-declare global {
-  var __litzjsBaseUrl: string | undefined;
+let configuredBaseUrl: string | undefined;
+
+export function configureClientBaseUrl(baseUrl: string | undefined): void {
+  configuredBaseUrl = baseUrl;
 }
 
 export function resolveClientTransportPath(pathname: string): string {
@@ -9,5 +11,5 @@ export function resolveClientTransportPath(pathname: string): string {
 }
 
 function resolveConfiguredBaseUrl(): string | undefined {
-  return globalThis.__litzjsBaseUrl;
+  return configuredBaseUrl;
 }

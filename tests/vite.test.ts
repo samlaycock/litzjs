@@ -1193,6 +1193,11 @@ describe("dev server hot updates", () => {
       ) as string;
 
       expect(browserEntrySource).toContain('import "/app/@fs/');
+      expect(browserEntrySource).toContain(
+        'import { configureClientRuntime } from "litzjs/client";',
+      );
+      expect(browserEntrySource).toContain('baseUrl: "/app"');
+      expect(browserEntrySource).not.toContain("__litzjsBaseUrl");
     } finally {
       rmSync(root, { force: true, recursive: true });
     }

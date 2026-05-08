@@ -13,6 +13,7 @@ import {
 } from "../path-matching";
 import { createSearchParamRecord, type SearchParamRecord } from "../search-params";
 import { isAbortError } from "./abort-error";
+import { configureClientBaseUrl } from "./base-url";
 import { installClientBindings } from "./bindings";
 import { getLocationContext, getMatchesContext, getNavigationContext } from "./contexts";
 import {
@@ -150,6 +151,10 @@ export interface MountAppOptions {
   readonly notFound?: React.ComponentType;
   readonly scrollRestoration?: boolean;
   readonly focusManagement?: boolean;
+}
+
+export function configureClientRuntime(options: { baseUrl?: string | undefined }): void {
+  configureClientBaseUrl(options.baseUrl);
 }
 
 for (const entry of manifest) {

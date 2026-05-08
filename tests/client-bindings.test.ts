@@ -93,25 +93,24 @@ function createBindings(): LitzClientBindings {
 
 describe("client binding singletons", () => {
   afterEach(() => {
-    delete globalThis.__litzjsClientBindings;
     resetClientBindings();
   });
 
-  test("stores installed client bindings on globalThis", () => {
+  test("stores installed client bindings in module-local runtime state", () => {
     const bindings = createBindings();
 
     installClientBindings(bindings);
 
     expect(getClientBindings()).toBe(bindings);
-    expect(globalThis.__litzjsClientBindings).toBe(bindings);
+    expect("__litzjsClientBindings" in globalThis).toBe(false);
   });
 
-  test("clears global client bindings on reset", () => {
+  test("clears client bindings on reset without writing to globalThis", () => {
     installClientBindings(createBindings());
 
     resetClientBindings();
 
     expect(getClientBindings()).toBeNull();
-    expect(globalThis.__litzjsClientBindings).toBeNull();
+    expect("__litzjsClientBindings" in globalThis).toBe(false);
   });
 });
