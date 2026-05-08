@@ -100,7 +100,9 @@ pnpm add -D nitro`}
           </li>
           <li>
             Install <code className="text-sky-400">vite</code> and{" "}
-            <code className="text-sky-400">typescript</code> as development tooling.
+            <code className="text-sky-400">typescript</code> as development tooling. Litz depends on
+            TypeScript internally, but your app still needs its own TypeScript install for editor
+            integration, <code className="text-sky-400">tsc</code>, and local type-check scripts.
           </li>
           <li>
             <code className="text-sky-400">@vitejs/plugin-rsc</code> is bundled with{" "}
