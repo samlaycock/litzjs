@@ -1773,15 +1773,28 @@ export async function handleLitzDocumentRequest(
     return;
   }
 
+  if (pathname === "/") {
+    next();
+    return;
+  }
+
+  const templatePath = path.join(server.config.root, "index.html");
+  let template: string;
+
   try {
-    if (pathname === "/") {
+    template = await readFile(templatePath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       next();
       return;
     }
 
-    const templatePath = path.join(server.config.root, "index.html");
-    const template = await readFile(templatePath, "utf8");
+    server.ssrFixStacktrace(error as Error);
+    next(error as Error);
+    return;
+  }
 
+  try {
     const html = await server.transformIndexHtml(url, template);
     response.statusCode = 200;
     response.setHeader("content-type", "text/html; charset=utf-8");

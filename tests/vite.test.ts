@@ -1730,11 +1730,14 @@ describe("document entry resolution", () => {
         headers: { accept: "text/html" },
       });
       const response = createMockResponse();
-      const next = mock(() => {});
+      const next = mock((error?: unknown) => {
+        void error;
+      });
 
       await handleLitzDocumentRequest(server, request, response, next);
 
       expect(next).toHaveBeenCalledTimes(1);
+      expect(next.mock.calls[0]?.[0]).toBeUndefined();
       expect(response.getBody()).toBe("");
     } finally {
       rmSync(root, { recursive: true, force: true });
