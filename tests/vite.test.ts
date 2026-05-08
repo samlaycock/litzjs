@@ -21,7 +21,6 @@ import {
   buildLitzApp,
   discoverAllManifests,
   discoverApiRouteFromFile,
-  discoverHtmlEntries,
   discoverLayoutFromFile,
   discoverResourceFromFile,
   discoverRouteFromFile,
@@ -1203,24 +1202,16 @@ describe("dev server hot updates", () => {
     }
   });
 
-  test("uses a shared external HTML module script for the generated browser entry", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-html-shared-"));
+  test("uses the configured client entry for the generated browser entry", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-client-entry-"));
 
     try {
       mkdirSync(path.join(root, "src"), { recursive: true });
-      writeFileSync(
-        path.join(root, "index.html"),
-        '<!doctype html><html><body><script type="module" src="/src/entry.tsx"></script></body></html>\n',
-        "utf8",
-      );
-      writeFileSync(
-        path.join(root, "about.html"),
-        '<!doctype html><html><body><script type="module" src="/src/entry.tsx"></script></body></html>\n',
-        "utf8",
-      );
       writeFileSync(path.join(root, "src", "entry.tsx"), "export {};\n", "utf8");
 
-      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz({ clientEntry: "src/entry.tsx" }) as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/vite",
+      );
 
       if (!plugin?.configResolved || !plugin.resolveId || !plugin.load) {
         throw new Error("Expected litzjs/vite browser-entry hooks to be available.");
@@ -1285,110 +1276,14 @@ describe("dev server hot updates", () => {
     }
   });
 
-  test("discovers external module scripts when src appears before type", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-attr-order-"));
+  test("does not inspect HTML module scripts when resolving the default browser entry", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-vite-html-"));
 
     try {
       mkdirSync(path.join(root, "src"), { recursive: true });
       writeFileSync(
         path.join(root, "index.html"),
-        '<!doctype html><html><body><script src="./src/main.tsx" type="module"></script></body></html>\n',
-        "utf8",
-      );
-      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
-
-      const entries = await discoverHtmlEntries(root);
-
-      expect(entries).toEqual([
-        {
-          htmlPath: "index.html",
-          type: "external",
-          modulePath: "./src/main.tsx",
-        },
-      ]);
-    } finally {
-      rmSync(root, { force: true, recursive: true });
-    }
-  });
-
-  test("ignores HTML files inside a custom build output directory", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-custom-outdir-"));
-
-    try {
-      mkdirSync(path.join(root, "src"), { recursive: true });
-      mkdirSync(path.join(root, "build"), { recursive: true });
-      writeFileSync(
-        path.join(root, "index.html"),
-        '<!doctype html><html><body><script type="module" src="/src/main.tsx"></script></body></html>\n',
-        "utf8",
-      );
-      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
-      writeFileSync(
-        path.join(root, "build", "index.html"),
-        '<!doctype html><html><body><script type="module" src="/build/assets/app.js"></script></body></html>\n',
-        "utf8",
-      );
-
-      const entries = await discoverHtmlEntries(root, "build");
-
-      expect(entries).toEqual([
-        {
-          htmlPath: "index.html",
-          type: "external",
-          modulePath: "src/main.tsx",
-        },
-      ]);
-    } finally {
-      rmSync(root, { force: true, recursive: true });
-    }
-  });
-
-  test("ignores HTML files inside tool and fixture directories", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-tooling-html-"));
-
-    try {
-      mkdirSync(path.join(root, "src"), { recursive: true });
-      mkdirSync(path.join(root, "cypress"), { recursive: true });
-      mkdirSync(path.join(root, ".storybook"), { recursive: true });
-      writeFileSync(
-        path.join(root, "index.html"),
-        '<!doctype html><html><body><script type="module" src="/src/main.tsx"></script></body></html>\n',
-        "utf8",
-      );
-      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
-      writeFileSync(
-        path.join(root, "cypress", "fixture.html"),
-        '<!doctype html><html><body><script type="module" src="/cypress/fixture.js"></script></body></html>\n',
-        "utf8",
-      );
-      writeFileSync(
-        path.join(root, ".storybook", "preview-head.html"),
-        '<!doctype html><html><body><script type="module" src="/storybook/preview.js"></script></body></html>\n',
-        "utf8",
-      );
-
-      const entries = await discoverHtmlEntries(root);
-
-      expect(entries).toEqual([
-        {
-          htmlPath: "index.html",
-          type: "external",
-          modulePath: "src/main.tsx",
-        },
-      ]);
-    } finally {
-      rmSync(root, { force: true, recursive: true });
-    }
-  });
-
-  test("rejects HTML entries that use different external module scripts", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-html-mismatch-"));
-
-    try {
-      mkdirSync(path.join(root, "src"), { recursive: true });
-      writeFileSync(
-        path.join(root, "index.html"),
-        '<!doctype html><html><body><script type="module" src="/src/main.tsx"></script></body></html>\n',
+        '<!doctype html><html><body><script type="module">console.log("inline");</script></body></html>\n',
         "utf8",
       );
       writeFileSync(
@@ -1410,108 +1305,34 @@ describe("dev server hot updates", () => {
           ? plugin.configResolved
           : plugin.configResolved.handler;
 
-      let error: unknown;
-
-      try {
-        await configResolved.call(
-          {} as never,
-          {
-            root,
-            base: "/",
-            command: "serve",
-            build: {
-              outDir: "dist",
-            },
-            environments: {
-              client: {
-                build: {
-                  outDir: path.join("dist", "client"),
-                },
+      await configResolved.call(
+        {} as never,
+        {
+          root,
+          base: "/",
+          command: "serve",
+          build: {
+            outDir: "dist",
+          },
+          environments: {
+            client: {
+              build: {
+                outDir: path.join("dist", "client"),
               },
-              rsc: {
-                build: {
-                  outDir: path.join("dist", "server"),
-                  rollupOptions: {
-                    output: {
-                      codeSplitting: false,
-                    },
+            },
+            rsc: {
+              build: {
+                outDir: path.join("dist", "server"),
+                rollupOptions: {
+                  output: {
+                    codeSplitting: false,
                   },
                 },
               },
             },
-          } as never,
-        );
-      } catch (caughtError) {
-        error = caughtError;
-      }
-
-      expect(error).toBeInstanceOf(Error);
-      expect((error as Error).message).toContain(
-        "All HTML entries must share the same external module script",
+          },
+        } as never,
       );
-    } finally {
-      rmSync(root, { force: true, recursive: true });
-    }
-  });
-
-  test("rejects HTML entries that use inline module scripts", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-html-inline-"));
-
-    try {
-      writeFileSync(
-        path.join(root, "index.html"),
-        '<!doctype html><html><body><script type="module">console.log("inline");</script></body></html>\n',
-        "utf8",
-      );
-
-      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
-
-      if (!plugin?.configResolved) {
-        throw new Error("Expected litzjs/vite configResolved hook to be available.");
-      }
-
-      const configResolved =
-        typeof plugin.configResolved === "function"
-          ? plugin.configResolved
-          : plugin.configResolved.handler;
-
-      let error: unknown;
-
-      try {
-        await configResolved.call(
-          {} as never,
-          {
-            root,
-            base: "/",
-            command: "serve",
-            build: {
-              outDir: "dist",
-            },
-            environments: {
-              client: {
-                build: {
-                  outDir: path.join("dist", "client"),
-                },
-              },
-              rsc: {
-                build: {
-                  outDir: path.join("dist", "server"),
-                  rollupOptions: {
-                    output: {
-                      codeSplitting: false,
-                    },
-                  },
-                },
-              },
-            },
-          } as never,
-        );
-      } catch (caughtError) {
-        error = caughtError;
-      }
-
-      expect(error).toBeInstanceOf(Error);
-      expect((error as Error).message).toContain("Inline module scripts are not supported");
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
@@ -1883,8 +1704,8 @@ function createMockResponse(): ServerResponse & { getBody(): string } {
 }
 
 describe("document entry resolution", () => {
-  test("prefers the more specific non-index entry over a sibling index entry", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "litz-document-specificity-"));
+  test("calls next for explicit MPA HTML paths so Vite can serve them", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-document-vite-mpa-"));
 
     try {
       mkdirSync(path.join(root, "about", "team"), { recursive: true });
@@ -1911,28 +1732,10 @@ describe("document entry resolution", () => {
       const response = createMockResponse();
       const next = mock(() => {});
 
-      await handleLitzDocumentRequest(
-        server,
-        [
-          {
-            htmlPath: "about/team/index.html",
-            type: "external",
-            modulePath: "src/main.tsx",
-          },
-          {
-            htmlPath: "about/team/foo.html",
-            type: "external",
-            modulePath: "src/main.tsx",
-          },
-        ],
-        request,
-        response,
-        next,
-      );
+      await handleLitzDocumentRequest(server, request, response, next);
 
-      expect(response.statusCode).toBe(200);
-      expect(response.getBody()).toContain("team foo");
-      expect(next).not.toHaveBeenCalled();
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(response.getBody()).toBe("");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -1957,16 +1760,7 @@ describe("document entry resolution", () => {
       const response = createMockResponse();
       const next = mock(() => {});
 
-      await handleLitzDocumentRequest(
-        server,
-        [
-          { htmlPath: "index.html", type: "external", modulePath: "src/main.tsx" },
-          { htmlPath: "about.html", type: "external", modulePath: "src/main.tsx" },
-        ],
-        request,
-        response,
-        next,
-      );
+      await handleLitzDocumentRequest(server, request, response, next);
 
       expect(response.statusCode).toBe(200);
       expect(response.getBody()).toContain("index");
@@ -1995,16 +1789,7 @@ describe("document entry resolution", () => {
       const response = createMockResponse();
       const next = mock(() => {});
 
-      await handleLitzDocumentRequest(
-        server,
-        [
-          { htmlPath: "about.html", type: "external", modulePath: "src/main.tsx" },
-          { htmlPath: "contact.html", type: "external", modulePath: "src/main.tsx" },
-        ],
-        request,
-        response,
-        next,
-      );
+      await handleLitzDocumentRequest(server, request, response, next);
 
       expect(next).toHaveBeenCalledTimes(1);
       expect(response.getBody()).toBe("");
