@@ -42,12 +42,14 @@ bun init -y`}
           2. Install Litz and the required packages
         </h2>
         <p className="text-neutral-400 mb-4">
-          Install the runtime packages first, then the TypeScript and Vite tooling:
+          Install the runtime packages first, then the TypeScript and Vite tooling. Litz bundles its
+          internal React Server Components plugin, so you do not need to install{" "}
+          <code className="text-sky-400">@vitejs/plugin-rsc</code> yourself.
         </p>
         <CodeBlock
           language="bash"
           code={`bun add litzjs react react-dom
-bun add -d typescript vite @vitejs/plugin-rsc @types/react @types/react-dom`}
+bun add -d typescript vite @types/react @types/react-dom`}
         />
         <p className="text-neutral-400 mt-4 mb-4">
           Install <code className="text-sky-400">nitro</code> only when you opt into the optional

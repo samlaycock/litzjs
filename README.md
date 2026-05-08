@@ -24,11 +24,13 @@ Inside a React + Vite app:
 
 ```bash
 bun add litzjs react react-dom
-bun add -d typescript vite @vitejs/plugin-rsc
+bun add -d vite typescript
 ```
 
-The core Vite plugin does not require a deployment adapter. Install `nitro` only when you opt into
-the Nitro-backed production output shown below.
+Litz bundles the React Server Components plugin it uses internally, so the default setup does not
+ask applications to install `@vitejs/plugin-rsc` directly. The core Vite plugin also does not
+require a deployment adapter. Install `nitro` only when you opt into the Nitro-backed production
+output shown below.
 
 ## Quick Start
 

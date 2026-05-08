@@ -21,19 +21,9 @@ const compatibilityRows: readonly CompatibilityRow[] = [
     notes: "Required peer dependency for client mounting and server rendering.",
   },
   {
-    packageName: "typescript",
-    supportedVersion: "^6.0.2",
-    notes: "Required peer dependency for type-safe route definitions and the published types.",
-  },
-  {
     packageName: "vite",
     supportedVersion: "^8",
     notes: "Required peer dependency because Litz ships as a Vite-first framework plugin.",
-  },
-  {
-    packageName: "@vitejs/plugin-rsc",
-    supportedVersion: "^0.5.21",
-    notes: "Required peer dependency for the React Server Components pipeline.",
   },
   {
     packageName: "nitro",
@@ -75,7 +65,7 @@ function DocsInstallationPage() {
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Peer dependencies</h2>
         <p className="text-neutral-400 mb-4">
-          Litz expects your app to provide the core peer dependencies below. If your React + Vite
+          Litz keeps the default peer dependency surface close to a standard Vite React app. If your
           app already includes some of these packages, keep them within the supported ranges in the
           compatibility matrix.
         </p>
@@ -83,19 +73,19 @@ function DocsInstallationPage() {
           language="bash"
           code={`# With Bun
 bun add react react-dom
-bun add -d typescript vite @vitejs/plugin-rsc
+bun add -d vite typescript
 
 # With npm
 npm install react react-dom
-npm install -D typescript vite @vitejs/plugin-rsc
+npm install -D vite typescript
 
 # With Yarn
 yarn add react react-dom
-yarn add -D typescript vite @vitejs/plugin-rsc
+yarn add -D vite typescript
 
 # With pnpm
 pnpm add react react-dom
-pnpm add -D typescript vite @vitejs/plugin-rsc
+pnpm add -D vite typescript
 
 # Optional Nitro deployment adapter
 bun add -d nitro
@@ -109,13 +99,13 @@ pnpm add -D nitro`}
             <code className="text-sky-400">react-dom</code> as application dependencies.
           </li>
           <li>
-            Install <code className="text-sky-400">typescript</code>,{" "}
-            <code className="text-sky-400">vite</code>, and{" "}
-            <code className="text-sky-400">@vitejs/plugin-rsc</code> as development tooling.
+            Install <code className="text-sky-400">vite</code> and{" "}
+            <code className="text-sky-400">typescript</code> as development tooling.
           </li>
           <li>
-            Add <code className="text-sky-400">nitro</code> only when your Vite config uses{" "}
-            <code className="text-sky-400">litzNitro()</code>.
+            <code className="text-sky-400">@vitejs/plugin-rsc</code> is bundled with{" "}
+            <code className="text-sky-400">litzjs</code> for the core{" "}
+            <code className="text-sky-400">litz()</code> plugin.
           </li>
         </ul>
 
@@ -146,6 +136,15 @@ pnpm add -D nitro`}
             </tbody>
           </table>
         </div>
+
+        <h3 className="text-xl font-medium text-neutral-100 mb-3">Optional capabilities</h3>
+        <p className="text-neutral-400 mb-4">
+          The default <code className="text-sky-400">litz()</code> plugin includes the React Server
+          Components integration used by <code className="text-sky-400">view(...)</code>. Add{" "}
+          <code className="text-sky-400">nitro</code> only when your Vite config imports and uses{" "}
+          <code className="text-sky-400">litzNitro()</code> from{" "}
+          <code className="text-sky-400">"litzjs/vite/nitro"</code>.
+        </p>
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">Runtime compatibility notes</h3>
         <p className="text-neutral-400 mb-4">
