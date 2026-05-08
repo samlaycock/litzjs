@@ -37,6 +37,7 @@ Add the Litz Vite plugin. By default, Litz discovers:
 - routes from `src/routes/**/*.{ts,tsx}`
 - API routes from `src/routes/api/**/*.{ts,tsx}`
 - resources from `src/routes/resources/**/*.{ts,tsx}`
+- the browser entry from `src/main.tsx`
 - a custom server entry from `src/server.ts`, falling back to `src/server/index.ts`
 
 `vite.config.ts`
@@ -56,6 +57,7 @@ You can still override discovery explicitly when you need a different project la
 export default defineConfig({
   plugins: [
     litz({
+      clientEntry: "app/main.tsx",
       routes: ["app/pages/**/*.{ts,tsx}"],
       resources: ["app/resources/**/*.{ts,tsx}"],
       api: ["app/api/**/*.{ts,tsx}"],
@@ -64,6 +66,11 @@ export default defineConfig({
   ],
 });
 ```
+
+Litz does not infer the browser entry by scanning HTML module scripts. Keep standard Vite
+`index.html` behavior and point Litz at a different browser entry with `clientEntry` when your
+project does not use `src/main.tsx`. During development, Vite serves explicit HTML documents such as
+`/about.html`; Litz only falls back to `index.html` for extensionless app routes.
 
 Mount the Litz app from your browser entry.
 
