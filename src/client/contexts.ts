@@ -1,35 +1,33 @@
 import * as React from "react";
 
-declare global {
-  var __litzjsNavigationContext:
-    | React.Context<{
-        navigate(href: string, options?: { replace?: boolean }): void;
-      } | null>
-    | undefined;
-  var __litzjsLocationContext:
-    | React.Context<{
-        href: string;
-        pathname: string;
+let navigationContext:
+  | React.Context<{
+      navigate(href: string, options?: { replace?: boolean }): void;
+    } | null>
+  | undefined;
+let locationContext:
+  | React.Context<{
+      href: string;
+      pathname: string;
+      search: URLSearchParams;
+      hash: string;
+    } | null>
+  | undefined;
+let matchesContext:
+  | React.Context<
+      Array<{
+        id: string;
+        path: string;
+        params: Record<string, string>;
         search: URLSearchParams;
-        hash: string;
-      } | null>
-    | undefined;
-  var __litzjsMatchesContext:
-    | React.Context<
-        Array<{
-          id: string;
-          path: string;
-          params: Record<string, string>;
-          search: URLSearchParams;
-        }>
-      >
-    | undefined;
-}
+      }>
+    >
+  | undefined;
 
 export function getNavigationContext(): React.Context<{
   navigate(href: string, options?: { replace?: boolean }): void;
 } | null> {
-  if (!globalThis.__litzjsNavigationContext) {
+  if (!navigationContext) {
     const createContext = (
       React as typeof React & {
         createContext?: typeof React.createContext;
@@ -40,12 +38,12 @@ export function getNavigationContext(): React.Context<{
       throw new Error("Litz client navigation is not available in this environment.");
     }
 
-    globalThis.__litzjsNavigationContext = createContext<{
+    navigationContext = createContext<{
       navigate(href: string, options?: { replace?: boolean }): void;
     } | null>(null);
   }
 
-  return globalThis.__litzjsNavigationContext;
+  return navigationContext;
 }
 
 export function getLocationContext(): React.Context<{
@@ -54,7 +52,7 @@ export function getLocationContext(): React.Context<{
   search: URLSearchParams;
   hash: string;
 } | null> {
-  if (!globalThis.__litzjsLocationContext) {
+  if (!locationContext) {
     const createContext = (
       React as typeof React & {
         createContext?: typeof React.createContext;
@@ -65,7 +63,7 @@ export function getLocationContext(): React.Context<{
       throw new Error("Litz client location is not available in this environment.");
     }
 
-    globalThis.__litzjsLocationContext = createContext<{
+    locationContext = createContext<{
       href: string;
       pathname: string;
       search: URLSearchParams;
@@ -73,7 +71,7 @@ export function getLocationContext(): React.Context<{
     } | null>(null);
   }
 
-  return globalThis.__litzjsLocationContext;
+  return locationContext;
 }
 
 export function getMatchesContext(): React.Context<
@@ -84,7 +82,7 @@ export function getMatchesContext(): React.Context<
     search: URLSearchParams;
   }>
 > {
-  if (!globalThis.__litzjsMatchesContext) {
+  if (!matchesContext) {
     const createContext = (
       React as typeof React & {
         createContext?: typeof React.createContext;
@@ -95,7 +93,7 @@ export function getMatchesContext(): React.Context<
       throw new Error("Litz client matches are not available in this environment.");
     }
 
-    globalThis.__litzjsMatchesContext = createContext<
+    matchesContext = createContext<
       Array<{
         id: string;
         path: string;
@@ -105,5 +103,5 @@ export function getMatchesContext(): React.Context<
     >([]);
   }
 
-  return globalThis.__litzjsMatchesContext;
+  return matchesContext;
 }

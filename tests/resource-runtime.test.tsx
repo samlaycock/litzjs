@@ -4,6 +4,7 @@ import { act } from "react";
 import { useFormStatus } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
+import { configureClientBaseUrl } from "../src/client/base-url";
 import { installClientBindings, resetClientBindings } from "../src/client/bindings";
 import {
   createResourceComponent,
@@ -27,9 +28,6 @@ type Deferred<T> = {
   promise: Promise<T>;
   resolve(value: T): void;
 };
-
-const baseUrlTarget = globalThis as typeof globalThis & { __litzjsBaseUrl?: string };
-const originalBaseUrl = baseUrlTarget.__litzjsBaseUrl;
 
 type IsExact<T, U> =
   (<Value>() => Value extends T ? 1 : 2) extends <Value>() => Value extends U ? 1 : 2
@@ -303,7 +301,7 @@ describe("resource runtime", () => {
     }
 
     globalThis.fetch = originalFetch;
-    baseUrlTarget.__litzjsBaseUrl = originalBaseUrl;
+    configureClientBaseUrl(undefined);
     resetClientBindings();
     container?.remove();
     cleanupDom?.();
@@ -402,7 +400,7 @@ describe("resource runtime", () => {
 
   test("uses the configured client base for internal resource requests", async () => {
     const requestUrls: string[] = [];
-    baseUrlTarget.__litzjsBaseUrl = "/app/";
+    configureClientBaseUrl("/app/");
 
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       requestUrls.push(

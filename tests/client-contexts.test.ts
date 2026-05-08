@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 import {
   getLocationContext,
@@ -7,33 +7,27 @@ import {
 } from "../src/client/contexts";
 
 describe("client context singletons", () => {
-  afterEach(() => {
-    delete globalThis.__litzjsNavigationContext;
-    delete globalThis.__litzjsLocationContext;
-    delete globalThis.__litzjsMatchesContext;
-  });
-
-  test("reuses the global navigation context across repeated access", () => {
+  test("reuses the module-local navigation context across repeated access", () => {
     const first = getNavigationContext();
     const second = getNavigationContext();
 
     expect(first).toBe(second);
-    expect(globalThis.__litzjsNavigationContext).toBe(first);
+    expect("__litzjsNavigationContext" in globalThis).toBe(false);
   });
 
-  test("reuses the global location context across repeated access", () => {
+  test("reuses the module-local location context across repeated access", () => {
     const first = getLocationContext();
     const second = getLocationContext();
 
     expect(first).toBe(second);
-    expect(globalThis.__litzjsLocationContext).toBe(first);
+    expect("__litzjsLocationContext" in globalThis).toBe(false);
   });
 
-  test("reuses the global matches context across repeated access", () => {
+  test("reuses the module-local matches context across repeated access", () => {
     const first = getMatchesContext();
     const second = getMatchesContext();
 
     expect(first).toBe(second);
-    expect(globalThis.__litzjsMatchesContext).toBe(first);
+    expect("__litzjsMatchesContext" in globalThis).toBe(false);
   });
 });

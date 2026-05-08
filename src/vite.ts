@@ -292,15 +292,17 @@ export default createServer({
       if (id === RESOLVED_LITZ_BROWSER_ENTRY_ID) {
         return `
 if (import.meta.hot) {
+  // Dev-only HMR bridge for Vite updates. Ordinary client runtime state is
+  // configured through configureClientRuntime instead of globalThis.
   globalThis.__litzjsViteHot = import.meta.hot;
 }
 
-// The imported app graph executes before this assignment, but the transport
-// helpers only read the value lazily during fetch calls, matching the existing
-// HMR global pattern above.
-globalThis.__litzjsBaseUrl = ${JSON.stringify(configuredBase)};
-
+import { configureClientRuntime } from "litzjs/client";
 import ${JSON.stringify(toBrowserImportSpecifier(root, browserEntryPath, configuredBase))};
+
+configureClientRuntime({
+  baseUrl: ${JSON.stringify(configuredBase)},
+});
 `;
       }
 
