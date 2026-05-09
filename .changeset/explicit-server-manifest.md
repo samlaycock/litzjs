@@ -1,5 +1,5 @@
 ---
-"litzjs": major
+"litzjs": minor
 ---
 
 Replace custom server entry injection with explicit manifest and base wiring.

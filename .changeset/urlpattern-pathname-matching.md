@@ -1,5 +1,5 @@
 ---
-"litzjs": major
+"litzjs": minor
 ---
 
 Refactor route pathname matching to follow URLPattern pathname semantics. This is a breaking change that replaces the custom pathname matcher with native `URLPattern` behavior.
