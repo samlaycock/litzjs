@@ -25,6 +25,9 @@ function HomePage() {
     ["/features/api-route", "Feature: API Route"],
     ["/features/resource-data", "Feature: Resource Data"],
     ["/features/resource-actions", "Feature: Resource Actions"],
+    ["/features/input-validation?tab=overview", "Feature: Input Validation"],
+    ["/features/navigation-variants", "Feature: Navigation Variants"],
+    ["/features/offline", "Feature: Offline Options"],
   ] as const;
 
   return (
@@ -38,7 +41,9 @@ function HomePage() {
           <ul>
             {links.map(([href, label]) => (
               <li key={href}>
-                <Link href={href}>{label}</Link>
+                <Link href={href} prefetch={href.includes("navigation") ? "render" : undefined}>
+                  {label}
+                </Link>
               </li>
             ))}
           </ul>

@@ -496,9 +496,32 @@ describe("vite production server helpers", () => {
       const rootResponse = await fetch(`${baseUrl}/`);
       const featureResponse = await fetch(`${baseUrl}/features/loader-data`);
       const apiResponse = await fetch(`${baseUrl}/api/health`);
+      const echoResponse = await fetch(`${baseUrl}/api/echo/runtime?tab=full`, {
+        body: JSON.stringify({ source: "runtime-test" }),
+        headers: {
+          "content-type": "application/json",
+          "x-fixture-request-id": "runtime-smoke",
+        },
+        method: "POST",
+      });
+      const assetResponse = await fetch(`${baseUrl}/server-asset.txt`);
+      const notFoundResponse = await fetch(`${baseUrl}/missing-page`, {
+        headers: {
+          accept: "text/html",
+        },
+      });
       const rootHtml = await rootResponse.text();
       const featureHtml = await featureResponse.text();
       const apiBody = (await apiResponse.json()) as { ok?: boolean; runtime?: string };
+      const echoBody = (await echoResponse.json()) as {
+        body?: { source?: string };
+        id?: string;
+        method?: string;
+        requestId?: string;
+        tab?: string;
+      };
+      const assetBody = await assetResponse.text();
+      const notFoundHtml = await notFoundResponse.text();
 
       expect(rootResponse.status).toBe(200);
       expect(rootResponse.headers.get("content-type")).toContain("text/html");
@@ -511,6 +534,21 @@ describe("vite production server helpers", () => {
 
       expect(apiResponse.status).toBe(200);
       expect(apiBody).toEqual({ ok: true, runtime: "litz-fixture" });
+
+      expect(echoResponse.status).toBe(200);
+      expect(echoBody).toEqual({
+        body: { source: "runtime-test" },
+        id: "RUNTIME",
+        method: "POST",
+        requestId: "runtime-smoke",
+        tab: "full",
+      });
+
+      expect(assetResponse.status).toBe(200);
+      expect(assetBody).toBe("served by createServer assets");
+
+      expect(notFoundResponse.status).toBe(200);
+      expect(notFoundHtml).toContain('id="app"');
     } finally {
       if (serverProcess && !serverProcess.killed) {
         serverProcess.kill();

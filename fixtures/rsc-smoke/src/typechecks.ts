@@ -113,6 +113,7 @@ const allApi = defineApiRoute("/api/typechecks/all", {
 });
 
 void allApi.fetch({ method: "DELETE" });
+void allApi.fetch({ baseUrl: "https://example.test", method: "POST", search: { tab: "all" } });
 
 const faultRoute = defineRoute("/typechecks/fault", {
   component() {
