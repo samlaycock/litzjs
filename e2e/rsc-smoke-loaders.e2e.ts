@@ -52,4 +52,20 @@ test.describe("smoke fixture loaders and views", () => {
     await expect(page.getByText("Hook term: litz")).toBeVisible();
     await expect(page.getByText("Hook tab: active")).toBeVisible();
   });
+
+  test("updates route search params in place without replacing the mounted route", async ({
+    page,
+  }) => {
+    await page.goto("/features/search-params?term=litz&tab=active");
+
+    await page.getByRole("button", { name: "Update search in-place" }).click();
+
+    await expect(page).toHaveURL("/features/search-params?term=bun&tab=recent");
+    await expect(page.getByRole("heading", { name: "Search Params" })).toBeVisible();
+    await expect(page.getByText("Loader term: bun")).toBeVisible();
+    await expect(page.getByText("Loader tab: recent")).toBeVisible();
+    await expect(page.getByText("Hook term: bun")).toBeVisible();
+    await expect(page.getByText("Hook tab: recent")).toBeVisible();
+    await expect(page.getByText("Route module did not export route.")).toBeHidden();
+  });
 });
