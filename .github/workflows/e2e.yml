@@ -1,0 +1,43 @@
+name: 🎭 E2E
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/e2e.yml"
+      - "playwright.config.ts"
+      - "e2e/**"
+      - "src/client/**"
+      - "src/server/**"
+      - "src/vite/**"
+      - "src/vite.ts"
+      - "src/vite-nitro.ts"
+      - "fixtures/rsc-smoke/**"
+      - "package.json"
+      - "bun.lock"
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Print Bun version
+        run: bun --version
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run Playwright suite
+        run: bun run test:e2e

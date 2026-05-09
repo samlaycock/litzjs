@@ -633,48 +633,6 @@ describe("client wildcard route runtime", () => {
     expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe("home-route");
   });
 
-  test("restores scroll on popstate and focuses the destination main landmark after navigation", async () => {
-    clientModule = await import("../src/client/index");
-
-    await act(async () => {
-      clientModule?.mountApp(container!);
-      await flushApp();
-    });
-
-    const docsLink = container?.querySelector('a[href="/docs/getting-started/install"]');
-
-    window.scrollTo(0, 180);
-    window.dispatchEvent(new Event("scroll"));
-
-    await act(async () => {
-      docsLink?.dispatchEvent(
-        new MouseEvent("click", {
-          bubbles: true,
-          cancelable: true,
-          button: 0,
-        }),
-      );
-      await flushApp();
-    });
-
-    expect(window.location.pathname).toBe("/docs/getting-started/install");
-    expect(window.scrollY).toBe(0);
-    expect(document.activeElement?.id).toBe("docs-main");
-    expect(document.getElementById("docs-main")?.getAttribute("tabindex")).toBe("-1");
-
-    window.scrollTo(0, 320);
-    window.dispatchEvent(new Event("scroll"));
-
-    await act(async () => {
-      window.history.back();
-      await flushApp();
-    });
-
-    expect(window.location.pathname).toBe("/");
-    expect(window.scrollY).toBe(180);
-    expect(document.activeElement?.id).toBe("home-main");
-  });
-
   test("allows apps to opt out of managed scroll restoration and focus handoff", async () => {
     clientModule = await import("../src/client/index");
 

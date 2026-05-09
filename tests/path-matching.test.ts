@@ -9,6 +9,11 @@ import {
 } from "../src/path-matching";
 
 describe("path matching", () => {
+  test("matches exact static paths without URLPattern", () => {
+    expect(matchPathname("/api/health", "/api/health")).toEqual({});
+    expect(matchPathname("/api/health", "/api/health/")).toBeNull();
+  });
+
   test("matches exact route params", () => {
     expect(matchPathname("/users/:id", "/users/42")).toEqual({ id: "42" });
     expect(matchPathname("/users/:id", "/users")).toBeNull();
