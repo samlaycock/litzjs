@@ -1,3 +1,5 @@
+import type { PropsWithChildren } from "react";
+
 import { mountApp } from "litzjs/client";
 
 import { AppShell } from "./components/app-shell";
@@ -8,4 +10,31 @@ if (!root) {
   throw new Error('Fixture root element "#app" was not found.');
 }
 
-mountApp(root, { component: AppShell });
+function ClientLayout(props: PropsWithChildren) {
+  return (
+    <section data-fixture-client-layout="mounted">
+      <a href="#main">Skip to smoke content</a>
+      {props.children}
+    </section>
+  );
+}
+
+function ClientNotFound() {
+  return (
+    <main id="main">
+      <h1>Client Fixture Not Found</h1>
+    </main>
+  );
+}
+
+mountApp(root, {
+  component: AppShell,
+  focusManagement: false,
+  layout: {
+    id: "fixture-client-layout",
+    path: "/",
+    component: ClientLayout,
+  },
+  notFound: ClientNotFound,
+  scrollRestoration: false,
+});
