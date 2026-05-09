@@ -12,7 +12,7 @@ export const route = defineRoute("/features/offline", {
 });
 
 function OfflinePage() {
-  const data = route.useLoaderData();
+  const loaderData = route.useLoaderData();
   const status = route.useStatus();
 
   return (
@@ -20,7 +20,7 @@ function OfflinePage() {
       <title>Offline Options | Litz RSC Smoke</title>
       <main>
         <h1>Offline Options</h1>
-        <p>Loader status: {data?.status ?? "(loading)"}</p>
+        <p>Loader status: {loaderData?.status ?? "(loading)"}</p>
         <p>Route status: {status}</p>
       </main>
     </>

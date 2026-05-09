@@ -14,22 +14,24 @@ export const resource = defineResource("/resource/validated-card/:id", {
       };
     },
   },
-  loader: server<unknown, any, "/resource/validated-card/:id">(async ({ input }) => {
-    return data({
-      id: input.params.id,
-      mode: input.search.mode,
-    });
-  }),
+  loader: server<unknown, { id: string; mode: string }, "/resource/validated-card/:id">(
+    async ({ input }) => {
+      return data({
+        id: input.params.id,
+        mode: input.search.mode,
+      });
+    },
+  ),
 });
 
 function ValidatedCard() {
-  const data = resource.useLoaderData();
+  const loaderData = resource.useLoaderData();
 
   return (
     <aside>
       <h2>Validated Resource</h2>
       <p>
-        {data?.id ?? "(loading)"} in {data?.mode ?? "(loading)"} mode
+        {loaderData?.id ?? "(loading)"} in {loaderData?.mode ?? "(loading)"} mode
       </p>
     </aside>
   );

@@ -25,15 +25,15 @@ export const route = defineRoute("/features/input-validation", {
 });
 
 function InputValidationPage() {
-  const data = route.useLoaderData();
+  const loaderData = route.useLoaderData();
 
   return (
     <>
       <title>Input Validation | Litz RSC Smoke</title>
       <main>
         <h1>Input Validation</h1>
-        <p>Route tab: {data?.tab ?? "(loading)"}</p>
-        <p>Request id: {data?.requestId ?? "(loading)"}</p>
+        <p>Route tab: {loaderData?.tab ?? "(loading)"}</p>
+        <p>Request id: {loaderData?.requestId ?? "(loading)"}</p>
         <validatedCard.Component params={{ id: "card" }} search={{ mode: "full" }} />
       </main>
     </>
