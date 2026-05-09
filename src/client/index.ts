@@ -29,6 +29,7 @@ import { resolveSettledPageStatus, withSettledPageState } from "./page-state";
 import {
   createResourceComponent,
   createResourceFormComponent,
+  invalidateResourceHotUpdateCaches,
   useRequiredResourceActions,
   useRequiredResourceData,
   useRequiredResourceLocation,
@@ -187,6 +188,7 @@ export function mountApp(element: Element, options?: MountAppOptions): void {
 function clearClientHotUpdateCaches(): void {
   routeCache.clear();
   routeDataPrefetchCache.clear();
+  invalidateResourceHotUpdateCaches();
 }
 
 function clearClientRouteModuleCaches(): void {
@@ -394,6 +396,10 @@ function LitzApp(props: {
         routeModulePrefetchCache.delete(update.definition.id);
       } else {
         clearClientRouteModuleCaches();
+      }
+
+      if (update.kind === "resource") {
+        clearClientHotUpdateCaches();
       }
 
       React.startTransition(() => {

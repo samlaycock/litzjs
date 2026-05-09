@@ -440,11 +440,6 @@ export async function handleLitzDocumentRequest(
     return;
   }
 
-  if (pathname === "/") {
-    next();
-    return;
-  }
-
   const templatePath = path.join(server.config.root, "index.html");
   let template: string;
 

@@ -9,6 +9,7 @@ import { installClientBindings, resetClientBindings } from "../src/client/bindin
 import {
   createResourceComponent,
   createResourceFormComponent,
+  invalidateResourceHotUpdateCaches,
   useRequiredResourceActions,
   useRequiredResourceData,
   useRequiredResourceLocation,
@@ -396,6 +397,68 @@ describe("resource runtime", () => {
       "idle",
       "idle",
     ]);
+  });
+
+  test("resource component cache uses the latest component implementation after HMR", async () => {
+    globalThis.fetch = (async () =>
+      Response.json({
+        kind: "data",
+        data: { ok: true },
+      })) as unknown as typeof fetch;
+
+    function FirstComponent() {
+      return <div className="hot-resource" data-version="first" />;
+    }
+
+    function SecondComponent() {
+      return <div className="hot-resource" data-version="second" />;
+    }
+
+    const ResourceComponent = createResourceComponent("/resource/hot/:id", FirstComponent);
+
+    await act(async () => {
+      root?.render(<ResourceComponent params={{ id: "hmr" }} />);
+      await flushDom();
+    });
+
+    expect(document.querySelector(".hot-resource")?.getAttribute("data-version")).toBe("first");
+
+    const UpdatedResourceComponent = createResourceComponent("/resource/hot/:id", SecondComponent);
+
+    expect(UpdatedResourceComponent).toBe(ResourceComponent);
+
+    await act(async () => {
+      root?.render(<UpdatedResourceComponent params={{ id: "hmr" }} />);
+      await flushDom();
+    });
+
+    expect(document.querySelector(".hot-resource")?.getAttribute("data-version")).toBe("second");
+  });
+
+  test("resource hot invalidation clears settled loader data and reloads active resources", async () => {
+    let loaderCalls = 0;
+
+    globalThis.fetch = (async () => {
+      loaderCalls += 1;
+      return Response.json({
+        kind: "data",
+        data: { id: "user-hmr", count: loaderCalls },
+      });
+    }) as unknown as typeof fetch;
+
+    await act(async () => {
+      root?.render(<accountResource.Component params={{ id: "user-hmr" }} />);
+      await flushDom();
+    });
+
+    expect(document.querySelector(".resource-count")?.getAttribute("data-value")).toBe("1");
+
+    await act(async () => {
+      invalidateResourceHotUpdateCaches();
+      await flushDom();
+    });
+
+    expect(document.querySelector(".resource-count")?.getAttribute("data-value")).toBe("2");
   });
 
   test("uses the configured client base for internal resource requests", async () => {
