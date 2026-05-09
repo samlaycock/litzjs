@@ -21,6 +21,11 @@ export type RouteLoadFailureState<TRoute, TPageState> = {
   pageState: TPageState;
 };
 
+interface RenderedRouteSnapshot<TRoute> {
+  readonly entryId: string | null;
+  readonly route: TRoute | null;
+}
+
 export function useResolvedRouteState<TRoute, TPageState>(options: {
   matched: MatchedManifestEntry<TRoute>;
   location: string;
@@ -47,32 +52,41 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
   const [displayLocation, setDisplayLocation] = React.useState(() => options.location);
   const [renderedRoute, setRenderedRoute] = React.useState<TRoute | null>(null);
   const [pageState, setPageState] = React.useState<TPageState>(() => createEmptyPageState());
-  const renderedRouteRef = React.useRef<TRoute | null>(null);
-  const renderedEntryIdRef = React.useRef<string | null>(null);
+  const renderedRouteSnapshotRef = React.useRef<RenderedRouteSnapshot<TRoute>>({
+    entryId: null,
+    route: null,
+  });
 
   React.useEffect(() => {
-    renderedRouteRef.current = renderedRoute;
+    renderedRouteSnapshotRef.current = {
+      entryId: renderedRouteSnapshotRef.current.entryId,
+      route: renderedRoute,
+    };
   }, [renderedRoute]);
 
   React.useLayoutEffect(() => {
     let cancelled = false;
 
     async function loadRouteModule(): Promise<void> {
+      const renderedRouteSnapshot = renderedRouteSnapshotRef.current;
       const routeState = resolveRouteModuleLoadState({
         matched: Boolean(options.matched),
         cachedRoute: options.matched
-          ? renderedEntryIdRef.current === options.matched.entry.id
-            ? renderedRouteRef.current
+          ? renderedRouteSnapshot.entryId === options.matched.entry.id
+            ? renderedRouteSnapshot.route
             : getCachedRoute(options.matched.entry.id)
           : null,
-        previousRoute: renderedRouteRef.current,
+        previousRoute: renderedRouteSnapshot.route,
         nextLocation: options.location,
         createEmptyPageState: () => createEmptyPageState(),
         createBootstrapPageState: (route) => createBootstrapPageState(route),
       });
 
       if (routeState.kind === "not-found") {
-        renderedEntryIdRef.current = null;
+        renderedRouteSnapshotRef.current = {
+          entryId: null,
+          route: routeState.loadedRoute,
+        };
         setRenderedRoute(routeState.loadedRoute);
         setDisplayLocation(routeState.displayLocation);
         setPageState(routeState.pageState);
@@ -80,7 +94,10 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
       }
 
       if (routeState.kind === "cached") {
-        renderedEntryIdRef.current = options.matched?.entry.id ?? null;
+        renderedRouteSnapshotRef.current = {
+          entryId: options.matched?.entry.id ?? null,
+          route: routeState.loadedRoute,
+        };
         setPageState(routeState.pageState);
         setRenderedRoute(routeState.loadedRoute);
         setDisplayLocation(routeState.displayLocation);
@@ -88,7 +105,10 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
       }
 
       if (routeState.kind === "reset-before-load") {
-        renderedEntryIdRef.current = null;
+        renderedRouteSnapshotRef.current = {
+          entryId: null,
+          route: routeState.loadedRoute,
+        };
         setRenderedRoute(routeState.loadedRoute);
         setDisplayLocation(routeState.displayLocation);
         setPageState(routeState.pageState);
@@ -112,12 +132,15 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
         }
 
         setCachedRoute(matchedEntry.id, loaded.route);
-        renderedEntryIdRef.current = matchedEntry.id;
         const loadedRouteState = resolveLoadedRouteState({
           loadedRoute: loaded.route,
           nextLocation: options.location,
           createBootstrapPageState: (route) => createBootstrapPageState(route),
         });
+        renderedRouteSnapshotRef.current = {
+          entryId: matchedEntry.id,
+          route: loadedRouteState.loadedRoute,
+        };
         setPageState(loadedRouteState.pageState);
         setRenderedRoute(loadedRouteState.loadedRoute);
         setDisplayLocation(loadedRouteState.displayLocation);
@@ -126,8 +149,14 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
           throw error;
         }
 
-        const failedRouteState = resolveRouteLoadFailureState(error, renderedRouteRef.current);
-        renderedEntryIdRef.current = null;
+        const failedRouteState = resolveRouteLoadFailureState(
+          error,
+          renderedRouteSnapshotRef.current.route,
+        );
+        renderedRouteSnapshotRef.current = {
+          entryId: null,
+          route: failedRouteState.renderedRoute,
+        };
         setRenderedRoute(failedRouteState.renderedRoute);
         setDisplayLocation(failedRouteState.displayLocation);
         setPageState(failedRouteState.pageState);
