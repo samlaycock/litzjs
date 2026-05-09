@@ -29,12 +29,10 @@ function ClientNotFound() {
 
 mountApp(root, {
   component: AppShell,
-  focusManagement: false,
   layout: {
     id: "fixture-client-layout",
     path: "/",
     component: ClientLayout,
   },
   notFound: ClientNotFound,
-  scrollRestoration: false,
 });

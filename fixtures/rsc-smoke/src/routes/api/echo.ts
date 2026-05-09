@@ -33,7 +33,7 @@ export const api = defineApiRoute<FixtureContext>("/api/echo/:id", {
       body: input.body,
       id: input.params.id,
       method: request.method,
-      requestId: context.requestId,
+      requestId: context?.requestId ?? "fixture-request",
       tab: input.search.tab,
     });
   },

@@ -10,7 +10,17 @@ export const route = defineRoute("/features/api-route", {
 
 function ApiDemoPage() {
   const request = React.useMemo(() => loadHealth(), []);
-  const echoRequest = React.useMemo(() => loadEcho(), []);
+  const echoRequest = React.useMemo(
+    () =>
+      loadEcho().catch((error: unknown) => ({
+        body: { source: error instanceof Error ? error.message : "unknown-error" },
+        id: "ERROR",
+        method: "ERROR",
+        requestId: "ERROR",
+        tab: "ERROR",
+      })),
+    [],
+  );
 
   return (
     <>
