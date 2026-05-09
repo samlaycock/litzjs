@@ -1,8 +1,9 @@
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin, ViteDevServer } from "vite";
 
 import { describe, expect, mock, test } from "bun:test";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   cpSync,
   existsSync,
@@ -32,6 +33,74 @@ import {
   litz,
 } from "../src/vite";
 import { litzNitro } from "../src/vite-nitro";
+
+async function waitForHttpOk(
+  url: string,
+  serverProcess: ChildProcessWithoutNullStreams,
+): Promise<void> {
+  const stderrChunks: string[] = [];
+  const stdoutChunks: string[] = [];
+
+  serverProcess.stderr.on("data", (chunk) => stderrChunks.push(String(chunk)));
+  serverProcess.stdout.on("data", (chunk) => stdoutChunks.push(String(chunk)));
+
+  const started = Date.now();
+  let lastError: unknown;
+
+  while (Date.now() - started < 10_000) {
+    if (serverProcess.exitCode !== null) {
+      throw new Error(
+        [
+          `Smoke server exited with code ${serverProcess.exitCode}.`,
+          stdoutChunks.join(""),
+          stderrChunks.join(""),
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+    }
+
+    try {
+      const response = await fetch(url);
+
+      if (response.ok) {
+        return;
+      }
+
+      lastError = new Error(`Received ${response.status} from ${url}.`);
+    } catch (error) {
+      lastError = error;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error(
+    [
+      `Timed out waiting for smoke server at ${url}.`,
+      lastError instanceof Error ? lastError.message : String(lastError),
+      stdoutChunks.join(""),
+      stderrChunks.join(""),
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
+}
+
+async function waitForProcessExit(serverProcess: ChildProcessWithoutNullStreams): Promise<void> {
+  if (serverProcess.exitCode !== null) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const timeout = setTimeout(resolve, 2_000);
+
+    serverProcess.once("exit", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
+}
 
 describe("vite production server helpers", () => {
   test("build completes without warnings", () => {
@@ -151,6 +220,66 @@ describe("vite production server helpers", () => {
     } finally {
       process.chdir(previousCwd);
       rmSync(projectRoot, { force: true, recursive: true });
+    }
+  });
+
+  test("writes the production Nitro renderer to the path captured before Vite root resolves", async () => {
+    const workspaceRoot = process.cwd();
+    const root = mkdtempSync(path.join(tmpdir(), "litz-nitro-root-"));
+    const rendererPath = path.join(workspaceRoot, ".litzjs", "nitro-renderer.ts");
+    const previousRendererSource = existsSync(rendererPath)
+      ? readFileSync(rendererPath, "utf8")
+      : null;
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "server.ts"), "export default null;\n", "utf8");
+
+      const plugin = (litzNitro() as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/nitro",
+      );
+
+      if (!plugin?.configResolved) {
+        throw new Error("Expected litzjs/nitro configResolved hook to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+
+      await configResolved.call(
+        {} as never,
+        {
+          root,
+          base: "/",
+          command: "build",
+          build: {
+            outDir: "dist",
+          },
+          environments: {
+            rsc: {
+              build: {
+                outDir: path.join("dist", "rsc"),
+              },
+            },
+          },
+        } as never,
+      );
+
+      const rendererSource = readFileSync(rendererPath, "utf8");
+
+      expect(rendererSource).toContain(path.resolve(root, "dist", "rsc", "index.js"));
+      expect(rendererSource).not.toContain("Not ready");
+      expect(rendererSource).not.toContain(path.resolve(root, "src", "server.ts"));
+    } finally {
+      if (previousRendererSource === null) {
+        rmSync(rendererPath, { force: true });
+      } else {
+        writeFileSync(rendererPath, previousRendererSource, "utf8");
+      }
+
+      rmSync(root, { force: true, recursive: true });
     }
   });
 
@@ -318,6 +447,72 @@ describe("vite production server helpers", () => {
       rmSync(root, { recursive: true, force: true });
     }
   }, 60000);
+
+  test("built smoke fixture serves document and API routes", async () => {
+    const repoRoot = process.cwd();
+    const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
+    const root = mkdtempSync(path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-runtime-"));
+    const port = 4300 + Math.floor(Math.random() * 1000);
+    const baseUrl = `http://127.0.0.1:${port}`;
+    let serverProcess: ChildProcessWithoutNullStreams | undefined;
+
+    try {
+      cpSync(path.join(sourceFixtureRoot, "."), root, { recursive: true });
+
+      const build = spawnSync(
+        process.execPath,
+        ["x", "vite", "build", "--config", path.join(root, "vite.config.ts")],
+        {
+          cwd: repoRoot,
+          encoding: "utf8",
+          timeout: 55_000,
+        },
+      );
+
+      if (build.status !== 0) {
+        throw new Error(
+          ["vite build failed", build.stdout, build.stderr].filter(Boolean).join("\n\n"),
+        );
+      }
+
+      serverProcess = spawn(process.execPath, [path.join(root, ".output", "server", "index.mjs")], {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          HOST: "127.0.0.1",
+          PORT: String(port),
+        },
+      });
+
+      await waitForHttpOk(`${baseUrl}/api/health`, serverProcess);
+
+      const rootResponse = await fetch(`${baseUrl}/`);
+      const featureResponse = await fetch(`${baseUrl}/features/loader-data`);
+      const apiResponse = await fetch(`${baseUrl}/api/health`);
+      const rootHtml = await rootResponse.text();
+      const featureHtml = await featureResponse.text();
+      const apiBody = (await apiResponse.json()) as { ok?: boolean; runtime?: string };
+
+      expect(rootResponse.status).toBe(200);
+      expect(rootResponse.headers.get("content-type")).toContain("text/html");
+      expect(rootHtml).toContain('id="app"');
+      expect(rootHtml).toContain('type="module"');
+
+      expect(featureResponse.status).toBe(200);
+      expect(featureResponse.headers.get("content-type")).toContain("text/html");
+      expect(featureHtml).toContain('id="app"');
+
+      expect(apiResponse.status).toBe(200);
+      expect(apiBody).toEqual({ ok: true, runtime: "litz-fixture" });
+    } finally {
+      if (serverProcess && !serverProcess.killed) {
+        serverProcess.kill();
+        await waitForProcessExit(serverProcess);
+      }
+
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 70000);
 });
 
 describe("dev server hot updates", () => {
@@ -1767,6 +1962,38 @@ describe("document entry resolution", () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.getBody()).toContain("index");
+      expect(next).not.toHaveBeenCalled();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("serves index.html for the root document route", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-document-root-"));
+
+    try {
+      writeFileSync(
+        path.join(root, "index.html"),
+        "<html><body>root index</body></html>\n",
+        "utf8",
+      );
+
+      const server = {
+        ...createMockViteDevServer(async () => ({})),
+        config: { root },
+      } as ViteDevServer;
+      const request = createMockRequest({
+        url: "/",
+        method: "GET",
+        headers: { accept: "text/html" },
+      });
+      const response = createMockResponse();
+      const next = mock(() => {});
+
+      await handleLitzDocumentRequest(server, request, response, next);
+
+      expect(response.statusCode).toBe(200);
+      expect(response.getBody()).toContain("root index");
       expect(next).not.toHaveBeenCalled();
     } finally {
       rmSync(root, { recursive: true, force: true });

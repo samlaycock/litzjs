@@ -82,6 +82,11 @@ type ResourceStoreEntry = {
   actionSequence: number;
 };
 
+type ResourceComponentCacheEntry<TProps extends ResourceComponentProps = ResourceComponentProps> = {
+  current: React.ComponentType<TProps>;
+  component: React.ComponentType<TProps>;
+};
+
 type NormalizedResourceRequest = {
   params: Record<string, string>;
   search: SearchParamRecord;
@@ -95,7 +100,7 @@ type PreparedResourceRequest = {
 const RESOURCE_STORE_LIMIT = 200;
 const resourceStore = new Map<string, ResourceStoreEntry>();
 const resourceFormComponentCache = new Map<string, React.ComponentType<RouteFormProps>>();
-const resourceComponentCache = new Map<string, React.ComponentType<any>>();
+const resourceComponentCache = new Map<string, ResourceComponentCacheEntry<any>>();
 
 let resourceLocationContext: React.Context<ResourceLocationState | null> | undefined;
 let resourceStatusContext: React.Context<ResourceStatusState | null> | undefined;
@@ -300,23 +305,47 @@ export function createResourceComponent<
   const cached = resourceComponentCache.get(resourcePath);
 
   if (cached) {
-    return cached as React.ComponentType<TProps>;
+    cached.current = Component;
+    return cached.component as React.ComponentType<TProps>;
   }
 
   const LitzResourceComponent = function LitzResourceComponent(props: TProps): React.ReactElement {
     const runtime = useResourceRuntime(resourcePath, props);
+    const entry = resourceComponentCache.get(resourcePath) as
+      | ResourceComponentCacheEntry<TProps>
+      | undefined;
+    const CurrentComponent = entry?.current ?? Component;
 
     return (
       <ResourceRuntimeProvider value={runtime}>
-        <Component {...props} />
+        <CurrentComponent {...props} />
       </ResourceRuntimeProvider>
     );
   };
 
-  const MemoizedLitzResourceComponent = React.memo(LitzResourceComponent);
-  MemoizedLitzResourceComponent.displayName = `LitzResource(${resourcePath})`;
-  resourceComponentCache.set(resourcePath, MemoizedLitzResourceComponent);
-  return MemoizedLitzResourceComponent;
+  LitzResourceComponent.displayName = `LitzResource(${resourcePath})`;
+  resourceComponentCache.set(resourcePath, {
+    current: Component,
+    component: LitzResourceComponent,
+  });
+  return LitzResourceComponent;
+}
+
+export function invalidateResourceHotUpdateCaches(): void {
+  for (const [key, entry] of Array.from(resourceStore.entries())) {
+    entry.actionSequence += 1;
+    entry.actionController?.abort();
+    entry.actionController = undefined;
+    entry.loaderInFlight = undefined;
+    entry.loaderMode = undefined;
+    entry.snapshot = getInitialSnapshot();
+
+    if (entry.listeners.size > 0) {
+      notify(entry);
+    } else {
+      resourceStore.delete(key);
+    }
+  }
 }
 
 function useResourceRuntime(resourcePath: string, request?: ResourceRequest): ResourceRuntimeState {
