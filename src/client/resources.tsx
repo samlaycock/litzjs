@@ -78,6 +78,7 @@ type ResourceStoreEntry = {
   listeners: Set<() => void>;
   loaderInFlight?: Promise<LoaderHookResult | void>;
   loaderMode?: "loading" | "revalidating";
+  loaderSequence: number;
   actionController?: AbortController;
   actionSequence: number;
 };
@@ -334,6 +335,7 @@ export function createResourceComponent<
 export function invalidateResourceHotUpdateCaches(): void {
   for (const [key, entry] of Array.from(resourceStore.entries())) {
     entry.actionSequence += 1;
+    entry.loaderSequence += 1;
     entry.actionController?.abort();
     entry.actionController = undefined;
     entry.loaderInFlight = undefined;
@@ -488,6 +490,7 @@ async function performPreparedResourceRequest(
 ): Promise<NonNullable<ActionHookResult> | LoaderHookResult | void> {
   const { key, normalizedRequest } = preparedRequest;
   const entry = getEntry(key);
+  const loaderSequence = operation === "loader" ? entry.loaderSequence + 1 : undefined;
   const actionSequence = operation === "action" ? entry.actionSequence + 1 : undefined;
   const actionController = operation === "action" ? new AbortController() : undefined;
 
@@ -496,6 +499,7 @@ async function performPreparedResourceRequest(
   }
 
   if (operation === "loader") {
+    entry.loaderSequence = loaderSequence!;
     entry.loaderMode = mode === "revalidating" ? "revalidating" : "loading";
   } else {
     entry.actionController?.abort();
@@ -503,7 +507,9 @@ async function performPreparedResourceRequest(
     entry.actionSequence = actionSequence!;
   }
 
-  const request = (async () => {
+  let request!: Promise<NonNullable<ActionHookResult> | LoaderHookResult | void>;
+
+  request = (async () => {
     try {
       const response =
         operation === "action"
@@ -540,6 +546,11 @@ async function performPreparedResourceRequest(
 
       if (operation === "loader") {
         const loaderResult = await parseLoaderResponse(response);
+
+        if (entry.loaderSequence !== loaderSequence) {
+          return;
+        }
+
         entry.snapshot = {
           ...entry.snapshot,
           loaderResult,
@@ -616,8 +627,10 @@ async function performPreparedResourceRequest(
       throw error;
     } finally {
       if (operation === "loader") {
-        entry.loaderInFlight = undefined;
-        entry.loaderMode = undefined;
+        if (entry.loaderInFlight === request) {
+          entry.loaderInFlight = undefined;
+          entry.loaderMode = undefined;
+        }
       } else {
         if (entry.actionController === actionController) {
           entry.actionController = undefined;
@@ -713,6 +726,7 @@ function getEntry(key: string): ResourceStoreEntry {
     const entry: ResourceStoreEntry = {
       snapshot: getInitialSnapshot(),
       listeners: new Set<() => void>(),
+      loaderSequence: 0,
       actionSequence: 0,
     };
     resourceStore.set(key, entry);

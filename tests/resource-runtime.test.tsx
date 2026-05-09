@@ -330,7 +330,7 @@ describe("resource runtime", () => {
         kind: "data",
         data: { id: "user-001", count: 1 },
       });
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     await act(async () => {
       root?.render(
@@ -459,6 +459,63 @@ describe("resource runtime", () => {
     });
 
     expect(document.querySelector(".resource-count")?.getAttribute("data-value")).toBe("2");
+  });
+
+  test("resource hot invalidation ignores pre-invalidation loader completions", async () => {
+    const responses = [createDeferred<Response>(), createDeferred<Response>()];
+    let loaderCalls = 0;
+
+    globalThis.fetch = (async () => {
+      const response = responses[loaderCalls];
+      loaderCalls += 1;
+
+      if (!response) {
+        throw new Error("Unexpected resource loader call.");
+      }
+
+      return response.promise;
+    }) as unknown as typeof fetch;
+
+    await act(async () => {
+      root?.render(<accountResource.Component params={{ id: "user-hmr-race" }} />);
+      await flushDom();
+    });
+
+    expect(loaderCalls).toBe(1);
+    expect(document.querySelector(".resource-pending")?.getAttribute("data-value")).toBe("yes");
+
+    await act(async () => {
+      invalidateResourceHotUpdateCaches();
+      await flushDom();
+    });
+
+    expect(loaderCalls).toBe(2);
+
+    await act(async () => {
+      responses[0]?.resolve(
+        Response.json({
+          kind: "data",
+          data: { id: "user-hmr-race", count: 1 },
+        }),
+      );
+      await flushDom();
+    });
+
+    expect(document.querySelector(".resource-count")?.getAttribute("data-value")).toBe("-1");
+    expect(document.querySelector(".resource-pending")?.getAttribute("data-value")).toBe("yes");
+
+    await act(async () => {
+      responses[1]?.resolve(
+        Response.json({
+          kind: "data",
+          data: { id: "user-hmr-race", count: 2 },
+        }),
+      );
+      await flushDom();
+    });
+
+    expect(document.querySelector(".resource-count")?.getAttribute("data-value")).toBe("2");
+    expect(document.querySelector(".resource-pending")?.getAttribute("data-value")).toBe("no");
   });
 
   test("uses the configured client base for internal resource requests", async () => {

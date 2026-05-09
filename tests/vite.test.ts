@@ -233,6 +233,11 @@ describe("vite production server helpers", () => {
 
     try {
       mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(
+        path.join(root, "index.html"),
+        '<html><body><div id="app"></div><script type="module" src="/src/index.tsx"></script></body></html>\n',
+        "utf8",
+      );
       writeFileSync(path.join(root, "src", "server.ts"), "export default null;\n", "utf8");
 
       const plugin = (litzNitro() as Plugin[]).find(
@@ -270,8 +275,10 @@ describe("vite production server helpers", () => {
       const rendererSource = readFileSync(rendererPath, "utf8");
 
       expect(rendererSource).toContain(path.resolve(root, "dist", "rsc", "index.js"));
+      expect(rendererSource).toContain("stripDevModuleScripts");
       expect(rendererSource).not.toContain("Not ready");
       expect(rendererSource).not.toContain(path.resolve(root, "src", "server.ts"));
+      expect(rendererSource).not.toContain("/src/main.tsx");
     } finally {
       if (previousRendererSource === null) {
         rmSync(rendererPath, { force: true });
