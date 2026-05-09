@@ -58,6 +58,35 @@ test.describe("smoke fixture navigation", () => {
     await expect(page.getByRole("main")).toHaveAttribute("tabindex", "-1");
   });
 
+  test("restores scroll and focuses the main landmark after back navigation", async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 500 });
+    await page.goto("/");
+    await page.addStyleTag({
+      content: "body { min-height: 2400px; } main { display: block; min-height: 1200px; }",
+    });
+    await page.evaluate(() => window.scrollTo(0, 180));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(180);
+
+    await page.getByRole("link", { name: "Feature: Loader Data" }).click();
+
+    await expect(page).toHaveURL("/features/loader-data");
+    await expect(page.getByRole("heading", { name: "Data Loader Route" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
+    await page.evaluate(() => window.scrollTo(0, 640));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(640);
+
+    await page.goBack();
+
+    await expect(page).toHaveURL("/");
+    await expect(page.getByRole("heading", { name: "Litz RSC Smoke" }).first()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(180);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(260);
+    await expect(
+      page.getByRole("main").evaluate((main) => document.activeElement === main),
+    ).resolves.toBe(true);
+  });
+
   test("updates client component state in the shared shell", async ({ page }) => {
     await page.goto("/");
 
