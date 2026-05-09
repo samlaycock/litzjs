@@ -475,7 +475,9 @@ export async function handleLitzApiRequest(
   next: Connect.NextFunction,
   base = "/",
 ): Promise<void> {
-  if (!hasRunnableRscEnvironment(server)) {
+  const runnable = hasRunnableRscEnvironment(server);
+
+  if (!runnable) {
     next();
     return;
   }

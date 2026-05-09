@@ -143,7 +143,7 @@ export function litzNitro(options: LitzNitroPluginOptions = {}): PluginOption {
           ? resolveBasePathname(requestUrl.pathname, configuredBase)
           : "/";
 
-        if (pathname.startsWith("/_litzjs/")) {
+        if (pathname.startsWith("/_litzjs/") || pathname.startsWith("/api/")) {
           (request as unknown as Record<string, unknown>)._nitroHandled = true;
         }
         next();
