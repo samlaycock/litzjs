@@ -77,7 +77,7 @@ export function hasMalformedPathnameEncoding(pathname: string): boolean {
 }
 
 export function matchPathname(routePath: string, pathname: string): Record<string, string> | null {
-  if (!/[:*?+(){}]/.test(routePath)) {
+  if (!/[:*?+(){}[\]]/.test(routePath)) {
     return routePath === pathname ? {} : null;
   }
 
