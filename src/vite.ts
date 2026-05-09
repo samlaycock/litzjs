@@ -70,14 +70,7 @@ import {
   normalizeViteModuleId,
 } from "./vite/virtual-modules";
 
-export type {
-  DiscoveredApiRoute,
-  DiscoveredLayout,
-  DiscoveredResource,
-  DiscoveredRoute,
-  LitzPluginOptions,
-  LitzRouteRule,
-};
+export type { LitzPluginOptions, LitzRouteRule };
 export {
   discoverAllManifests,
   discoverApiRouteFromFile,
