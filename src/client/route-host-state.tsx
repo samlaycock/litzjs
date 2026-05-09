@@ -48,6 +48,7 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
   const [renderedRoute, setRenderedRoute] = React.useState<TRoute | null>(null);
   const [pageState, setPageState] = React.useState<TPageState>(() => createEmptyPageState());
   const renderedRouteRef = React.useRef<TRoute | null>(null);
+  const renderedEntryIdRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     renderedRouteRef.current = renderedRoute;
@@ -59,7 +60,11 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
     async function loadRouteModule(): Promise<void> {
       const routeState = resolveRouteModuleLoadState({
         matched: Boolean(options.matched),
-        cachedRoute: options.matched ? getCachedRoute(options.matched.entry.id) : null,
+        cachedRoute: options.matched
+          ? renderedEntryIdRef.current === options.matched.entry.id
+            ? renderedRouteRef.current
+            : getCachedRoute(options.matched.entry.id)
+          : null,
         previousRoute: renderedRouteRef.current,
         nextLocation: options.location,
         createEmptyPageState: () => createEmptyPageState(),
@@ -67,6 +72,7 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
       });
 
       if (routeState.kind === "not-found") {
+        renderedEntryIdRef.current = null;
         setRenderedRoute(routeState.loadedRoute);
         setDisplayLocation(routeState.displayLocation);
         setPageState(routeState.pageState);
@@ -74,6 +80,7 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
       }
 
       if (routeState.kind === "cached") {
+        renderedEntryIdRef.current = options.matched?.entry.id ?? null;
         setPageState(routeState.pageState);
         setRenderedRoute(routeState.loadedRoute);
         setDisplayLocation(routeState.displayLocation);
@@ -81,6 +88,7 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
       }
 
       if (routeState.kind === "reset-before-load") {
+        renderedEntryIdRef.current = null;
         setRenderedRoute(routeState.loadedRoute);
         setDisplayLocation(routeState.displayLocation);
         setPageState(routeState.pageState);
@@ -104,6 +112,7 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
         }
 
         setCachedRoute(matchedEntry.id, loaded.route);
+        renderedEntryIdRef.current = matchedEntry.id;
         const loadedRouteState = resolveLoadedRouteState({
           loadedRoute: loaded.route,
           nextLocation: options.location,
@@ -118,6 +127,7 @@ export function useResolvedRouteState<TRoute, TPageState>(options: {
         }
 
         const failedRouteState = resolveRouteLoadFailureState(error, renderedRouteRef.current);
+        renderedEntryIdRef.current = null;
         setRenderedRoute(failedRouteState.renderedRoute);
         setDisplayLocation(failedRouteState.displayLocation);
         setPageState(failedRouteState.pageState);

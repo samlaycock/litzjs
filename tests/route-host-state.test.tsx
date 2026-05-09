@@ -226,6 +226,92 @@ describe("route host state", () => {
     expect(mountEvents).toEqual(["mount"]);
   });
 
+  test("reuses the current route module when only the current entry location changes", async () => {
+    const cache = new Map<string, TestRoute>();
+    const loadCalls: string[] = [];
+
+    const currentRoute: TestRoute = {
+      id: "search-route",
+      component() {
+        return <div id="route-state" data-value="search-route" />;
+      },
+    };
+
+    const matchedEntry = {
+      entry: {
+        id: "search-route",
+        load: async () => {
+          loadCalls.push("load");
+          return { route: currentRoute };
+        },
+      } satisfies RouteManifestEntry<TestRoute>,
+    } satisfies MatchedManifestEntry<TestRoute>;
+
+    function TestHarness(props: { location: string }) {
+      const createEmptyPageState = React.useCallback(
+        () => ({
+          routeId: null,
+          status: "loading" as const,
+          errorMessage: null,
+        }),
+        [],
+      );
+      const createBootstrapPageState = React.useCallback(
+        (route: TestRoute) => ({
+          routeId: route.id,
+          status: "idle" as const,
+          errorMessage: null,
+        }),
+        [],
+      );
+      const getCachedRoute = React.useCallback((id: string) => cache.get(id) ?? null, []);
+      const setCachedRoute = React.useCallback((id: string, route: TestRoute) => {
+        cache.set(id, route);
+      }, []);
+      const state = useResolvedRouteState<TestRoute, TestPageState>({
+        matched: matchedEntry,
+        location: props.location,
+        createEmptyPageState,
+        createBootstrapPageState,
+        getCachedRoute,
+        setCachedRoute,
+      });
+
+      return (
+        <div>
+          <div id="display-location" data-value={state.displayLocation} />
+          <div id="page-state" data-value={state.pageState.routeId ?? "none"} />
+          {state.renderedRoute ? renderTestRoute(state.renderedRoute) : null}
+        </div>
+      );
+    }
+
+    await act(async () => {
+      root?.render(<TestHarness location="https://example.com/search?term=litz" />);
+      await flushDom();
+    });
+
+    expect(loadCalls).toEqual(["load"]);
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe("search-route");
+    expect(document.getElementById("display-location")?.getAttribute("data-value")).toBe(
+      "https://example.com/search?term=litz",
+    );
+
+    cache.clear();
+
+    await act(async () => {
+      root?.render(<TestHarness location="https://example.com/search?term=bun&tab=recent" />);
+      await flushDom();
+    });
+
+    expect(loadCalls).toEqual(["load"]);
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe("search-route");
+    expect(document.getElementById("display-location")?.getAttribute("data-value")).toBe(
+      "https://example.com/search?term=bun&tab=recent",
+    );
+    expect(document.getElementById("page-state")?.getAttribute("data-value")).toBe("search-route");
+  });
+
   test("routes rejected route module loads through the failure state callback", async () => {
     const loadError = new Error("Chunk 404");
     const fallbackRoute: TestRoute = {
