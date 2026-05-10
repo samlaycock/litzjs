@@ -55,6 +55,26 @@ describe("defineApiRoute().fetch", () => {
     expect(capturedInput).toBe("/app/api/projects");
   });
 
+  test("prepends configured client base path and preserves query params", async () => {
+    let capturedInput: RequestInfo | URL | undefined;
+
+    configureClientBaseUrl("/app/");
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      capturedInput = input;
+      return new Response(null, { status: 204 });
+    }) as typeof fetch;
+
+    const api = defineApiRoute("/api/projects", {
+      GET() {
+        return new Response(null, { status: 204 });
+      },
+    });
+
+    await api.fetch({ search: { tag: "bun" } });
+
+    expect(capturedInput).toBe("/app/api/projects?tag=bun");
+  });
+
   test("supports an explicit baseUrl for server-side and test callers", async () => {
     let capturedInput: RequestInfo | URL | undefined;
 
