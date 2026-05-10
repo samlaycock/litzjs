@@ -52,9 +52,9 @@ bun init -y`}
 bun add -d typescript vite @types/react @types/react-dom`}
         />
         <p className="text-neutral-400 mt-4 mb-4">
-          Litz includes the Nitro production adapter used by the default{" "}
-          <code className="text-sky-400">litz()</code> Vite plugin, so you do not install{" "}
-          <code className="text-sky-400">nitro</code> separately for the standard setup.
+          Litz includes the framework build pipeline used by the default{" "}
+          <code className="text-sky-400">litz()</code> Vite plugin, so the standard setup only needs
+          Vite, React, and Litz.
         </p>
       </section>
 

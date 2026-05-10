@@ -88,11 +88,6 @@ export interface LitzPluginOptions {
   readonly server?: string;
   /** Options forwarded to `@vitejs/plugin-rsc`. */
   readonly rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
-  /**
-   * Nitro production adapter options. Pass `false` to disable Nitro when
-   * composing lower-level plugins manually.
-   */
-  readonly nitro?: false | LitzNitroPluginOptions;
 }
 
 export interface DiscoveredRoute {

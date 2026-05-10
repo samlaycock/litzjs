@@ -20,7 +20,7 @@ function DocsDenoDeployPage() {
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Build outputs</h2>
         <p className="text-neutral-400 mb-4">
-          A production build gives you the same two artifacts as every Nitro-backed Litz runtime:
+          A production build gives you the same two artifacts as every Litz runtime:
         </p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>

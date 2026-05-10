@@ -150,52 +150,72 @@ describe("vite production server helpers", () => {
     }
   });
 
-  test("includes Nitro in the default litz plugin path", () => {
+  test("does not include Nitro in the default litz plugin path", () => {
     const plugins = litz() as Plugin[];
-
-    expect(plugins.some((plugin) => plugin.name.startsWith("nitro"))).toBe(true);
-    expect(plugins.some((plugin) => plugin.name === "litzjs/nitro")).toBe(true);
-  });
-
-  test("can disable Nitro for advanced manual plugin composition", () => {
-    const plugins = litz({ nitro: false }) as Plugin[];
 
     expect(plugins.some((plugin) => plugin.name.startsWith("nitro"))).toBe(false);
     expect(plugins.some((plugin) => plugin.name === "litzjs/nitro")).toBe(false);
   });
 
-  test("passes Nitro options through the default litz plugin path", () => {
-    const plugins = litz({
-      nitro: {
-        preset: "node-server",
-      },
-    }) as Plugin[];
+  test("routes the framework server entry to the RSC build output", async () => {
+    const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
 
-    expect(plugins.some((plugin) => plugin.name === "litzjs/nitro")).toBe(true);
+    if (!plugin?.config) {
+      throw new Error("Expected litzjs/vite config hook to be available.");
+    }
+
+    const config = typeof plugin.config === "function" ? plugin.config : plugin.config.handler;
+    const result = await config.call(
+      {} as never,
+      {
+        build: {
+          outDir: "build",
+        },
+      } as never,
+      {
+        command: "build",
+        mode: "production",
+      } as never,
+    );
+
+    expect(result).toMatchObject({
+      environments: {
+        client: {
+          build: {
+            outDir: path.join("build", "public"),
+            manifest: true,
+          },
+        },
+        rsc: {
+          build: {
+            outDir: path.join("build", "server"),
+            manifest: true,
+          },
+        },
+      },
+    });
   });
 
-  test("passes the top-level custom server entry to default Nitro", async () => {
-    const previousCwd = process.cwd();
-    const root = mkdtempSync(path.join(tmpdir(), "litz-nitro-forward-server-"));
-    const rendererPath = path.join(root, ".litzjs", "nitro-renderer.ts");
+  test("uses the top-level custom server entry for the framework server entry", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-ssr-forward-server-"));
 
     try {
       mkdirSync(path.join(root, "app"), { recursive: true });
       writeFileSync(path.join(root, "app", "server.ts"), "export default null;\n", "utf8");
-      process.chdir(root);
 
       const plugin = (litz({ server: "app/server.ts" }) as Plugin[]).find(
-        (candidate) => candidate.name === "litzjs/nitro",
+        (candidate) => candidate.name === "litzjs/vite",
       );
 
-      if (!plugin?.configResolved) {
-        throw new Error("Expected litzjs/nitro configResolved hook to be available.");
+      if (!plugin?.configResolved || !plugin.load) {
+        throw new Error("Expected litzjs/vite configResolved and load hooks to be available.");
       }
 
       const configResolved =
         typeof plugin.configResolved === "function"
           ? plugin.configResolved
           : plugin.configResolved.handler;
+      const load = typeof plugin.load === "function" ? plugin.load : plugin.load.handler;
 
       await configResolved.call(
         {} as never,
@@ -210,9 +230,17 @@ describe("vite production server helpers", () => {
         } as never,
       );
 
-      expect(readFileSync(rendererPath, "utf8")).toContain(path.resolve(root, "app", "server.ts"));
+      const result = await load.call(
+        {
+          environment: {
+            name: "rsc",
+          },
+        } as never,
+        "\0virtual:litzjs:rsc-entry",
+      );
+
+      expect(result).toBe('export { default } from "/app/server.ts";');
     } finally {
-      process.chdir(previousCwd);
       rmSync(root, { force: true, recursive: true });
     }
   });
@@ -495,7 +523,7 @@ describe("vite production server helpers", () => {
     }
   }, 60000);
 
-  test("keeps only Nitro final outputs after a production build", () => {
+  test("keeps only framework final outputs after a production build", () => {
     const repoRoot = process.cwd();
     const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
     const root = mkdtempSync(path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-clean-"));
@@ -528,7 +556,7 @@ describe("vite production server helpers", () => {
     }
   }, 60000);
 
-  test("programmatic build helper completes and leaves only Nitro final outputs", async () => {
+  test("programmatic build helper completes and leaves only framework final outputs", async () => {
     const repoRoot = process.cwd();
     const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
     const root = mkdtempSync(path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-build-app-"));
@@ -642,8 +670,8 @@ describe("vite production server helpers", () => {
       expect(assetResponse.status).toBe(200);
       expect(assetBody).toBe("served by createServer assets");
 
-      expect(notFoundResponse.status).toBe(200);
-      expect(notFoundHtml).toContain('id="app"');
+      expect(notFoundResponse.status).toBe(404);
+      expect(notFoundHtml).toContain("Fixture Not Found");
     } finally {
       if (serverProcess && !serverProcess.killed) {
         serverProcess.kill();
@@ -1667,22 +1695,15 @@ describe("dev server hot updates", () => {
         'import { createServer } from "litzjs/server";\n\nexport default createServer({ createContext: () => ({}) });\n',
         path.join(root, "src", "server.ts"),
       );
+      const code = typeof result === "string" ? result : result?.code?.toString();
 
-      expect(result).toEqual({
-        code: [
-          "const __litzjsServerManifest = {",
-          "  routes: [],",
-          "  resources: [],",
-          "  apiRoutes: [],",
-          "};",
-          'const __litzjsBase = "/app";',
-          'import { createServer } from "litzjs/server";',
-          "",
-          "export default createServer({ base: __litzjsBase, manifest: __litzjsServerManifest, createContext: () => ({}) });",
-          "",
-        ].join("\n"),
-        map: null,
-      });
+      expect(result).toMatchObject({ map: null });
+      expect(code).toContain('const __litzjsBase = "/app";');
+      expect(code).toContain("function __litzjsCreateDocumentResponse(request)");
+      expect(code).toContain('import { createServer } from "litzjs/server";');
+      expect(code).toContain(
+        "export default createServer({ base: __litzjsBase, document: __litzjsCreateDocumentResponse, manifest: __litzjsServerManifest, createContext: () => ({}) });",
+      );
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
@@ -1752,22 +1773,15 @@ describe("dev server hot updates", () => {
         'import { createServer } from "litzjs/server";\n\nexport default createServer();\n',
         path.join(root, "src", "server.ts"),
       );
+      const code = typeof result === "string" ? result : result?.code?.toString();
 
-      expect(result).toEqual({
-        code: [
-          "const __litzjsServerManifest = {",
-          "  routes: [],",
-          "  resources: [],",
-          "  apiRoutes: [],",
-          "};",
-          'const __litzjsBase = "/app";',
-          'import { createServer } from "litzjs/server";',
-          "",
-          "export default createServer({ base: __litzjsBase, manifest: __litzjsServerManifest });",
-          "",
-        ].join("\n"),
-        map: null,
-      });
+      expect(result).toMatchObject({ map: null });
+      expect(code).toContain('const __litzjsBase = "/app";');
+      expect(code).toContain("function __litzjsCreateDocumentResponse(request)");
+      expect(code).toContain('import { createServer } from "litzjs/server";');
+      expect(code).toContain(
+        "export default createServer({ base: __litzjsBase, document: __litzjsCreateDocumentResponse, manifest: __litzjsServerManifest });",
+      );
     } finally {
       rmSync(root, { force: true, recursive: true });
     }

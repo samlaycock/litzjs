@@ -94,10 +94,9 @@ describe("docs package names", () => {
     expect(installationDoc).toContain('packageName: "react"');
     expect(installationDoc).toContain('packageName: "react-dom"');
     expect(installationDoc).toContain('packageName: "vite"');
-    expect(installationDoc).toContain('packageName: "nitro"');
+    expect(installationDoc).not.toContain('packageName: "nitro"');
     expect(installationDoc).toContain("^19");
     expect(installationDoc).toContain("^8");
-    expect(installationDoc).toContain("Bundled");
     expect(installationDoc).toContain("Included capabilities");
     expect(installationDoc).toContain("@vitejs/plugin-rsc");
     expect(installationDoc).toContain("is bundled with");
@@ -134,9 +133,7 @@ describe("docs package names", () => {
 
     expect(configurationDoc).toContain("clientEntry");
     expect(apiReferenceDoc).toContain("clientEntry?: string;");
-    expect(apiReferenceDoc).toContain(
-      "output?: { dir?: string; publicDir?: string; serverDir?: string; };",
-    );
+    expect(apiReferenceDoc).toContain("rsc?: Omit<RscPluginOptions");
     expect(troubleshootingDoc).toContain('import app from "./dist/server/index.mjs";');
     expect(troubleshootingDoc).toContain('const clientDir = path.resolve("dist/public");');
     expect(troubleshootingDoc).not.toContain("dist/client");
@@ -294,10 +291,8 @@ describe("docs package names", () => {
     const viteExports = [
       "buildLitzApp",
       "LitzPluginOptions",
-      "LitzNitroPluginOptions",
       "cleanupRscPluginArtifacts",
       "litz",
-      "litzNitro",
       "transformServerModuleSource",
     ];
 
