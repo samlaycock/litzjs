@@ -8,13 +8,13 @@ import { litz } from "../src/vite";
 
 const rootDir = __dirname;
 const packageRoot = path.resolve(__dirname, "..");
-const pwaPlugins = pwa({ registerType: "autoUpdate", outDir: "dist/public" });
+const pwaPlugins = pwa({ registerType: "autoUpdate", outDir: "dist/client" });
 
 for (const plugin of pwaPlugins) {
   plugin.applyToEnvironment = (environment) => environment.name === "client";
 }
 
-export default defineConfig(() => ({
+export default defineConfig({
   root: rootDir,
   build: {
     chunkSizeWarningLimit: 2_000,
@@ -51,4 +51,4 @@ export default defineConfig(() => ({
     ],
     dedupe: ["react", "react-dom"],
   },
-}));
+});

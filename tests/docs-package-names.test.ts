@@ -135,8 +135,8 @@ describe("docs package names", () => {
     expect(apiReferenceDoc).toContain("clientEntry?: string;");
     expect(apiReferenceDoc).toContain("rsc?: Omit<RscPluginOptions");
     expect(troubleshootingDoc).toContain('import app from "./dist/server/index.mjs";');
-    expect(troubleshootingDoc).toContain('const clientDir = path.resolve("dist/public");');
-    expect(troubleshootingDoc).not.toContain("dist/client");
+    expect(troubleshootingDoc).toContain('const clientDir = path.resolve("dist/client");');
+    expect(troubleshootingDoc).not.toContain("dist/public");
     expect(troubleshootingDoc).not.toContain("dist/server/index.js");
   });
 

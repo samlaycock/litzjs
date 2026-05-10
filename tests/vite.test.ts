@@ -182,7 +182,7 @@ describe("vite production server helpers", () => {
       environments: {
         client: {
           build: {
-            outDir: path.join("build", "public"),
+            outDir: path.join("build", "client"),
             manifest: true,
           },
         },
@@ -514,7 +514,7 @@ describe("vite production server helpers", () => {
         );
       }
 
-      const publicAssets = readdirSync(path.join(root, "dist", "public", "assets")).sort();
+      const publicAssets = readdirSync(path.join(root, "dist", "client", "assets")).sort();
 
       expect(publicAssets.some((file) => /^routes-.*\.css$/.test(file))).toBe(true);
       expect(publicAssets.some((file) => /^loader-data-.*\.css$/.test(file))).toBe(true);
@@ -547,7 +547,7 @@ describe("vite production server helpers", () => {
         );
       }
 
-      expect(existsSync(path.join(root, "dist", "public"))).toBe(true);
+      expect(existsSync(path.join(root, "dist", "client"))).toBe(true);
       expect(existsSync(path.join(root, "dist", "server"))).toBe(true);
       expect(existsSync(path.join(root, "dist", "rsc"))).toBe(false);
       expect(existsSync(path.join(root, "dist", "ssr"))).toBe(false);
@@ -569,7 +569,7 @@ describe("vite production server helpers", () => {
         root,
       });
 
-      expect(existsSync(path.join(root, "dist", "public"))).toBe(true);
+      expect(existsSync(path.join(root, "dist", "client"))).toBe(true);
       expect(existsSync(path.join(root, "dist", "server"))).toBe(true);
       expect(existsSync(path.join(root, "dist", "rsc"))).toBe(false);
       expect(existsSync(path.join(root, "dist", "ssr"))).toBe(false);
