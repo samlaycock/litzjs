@@ -14,7 +14,7 @@ function DocsDenoDeployPage() {
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">Deno Deploy</h1>
       <p className="text-xl text-neutral-300 mb-8">
         Deploy Litz apps to Deno Deploy by publishing the generated server handler and uploading
-        <code className="text-sky-400"> .output/public</code> as static assets alongside it.
+        <code className="text-sky-400"> dist/public</code> as static assets alongside it.
       </p>
 
       <section className="mb-12">
@@ -24,17 +24,17 @@ function DocsDenoDeployPage() {
         </p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>
-            <code className="text-sky-400">.output/public</code> for HTML and browser assets
+            <code className="text-sky-400">dist/public</code> for HTML and browser assets
           </li>
           <li>
-            <code className="text-sky-400">.output/server/index.mjs</code> for the fetch-style Litz
+            <code className="text-sky-400">dist/server/index.mjs</code> for the fetch-style Litz
             handler
           </li>
         </ul>
         <p className="text-neutral-400 mb-4">
           Deno Deploy needs both parts of that build. Upload{" "}
-          <code className="text-sky-400">.output/public</code> with your deployment so static files
-          are available at runtime, and use the generated server bundle as the dynamic entry point.
+          <code className="text-sky-400">dist/public</code> with your deployment so static files are
+          available at runtime, and use the generated server bundle as the dynamic entry point.
         </p>
       </section>
 
@@ -65,7 +65,7 @@ export default createServer({
         </p>
         <CodeBlock
           language="ts"
-          code={`import app from "./.output/server/index.mjs";
+          code={`import app from "./dist/server/index.mjs";
 
 export default {
   fetch(request: Request) {
@@ -107,7 +107,7 @@ export default {
 deno serve ./server.ts
 
 # Production deploy
-deployctl deploy --project=my-litz-app --include=.output/public ./.output/server/index.mjs`}
+deployctl deploy --project=my-litz-app --include=dist/public ./dist/server/index.mjs`}
         />
       </section>
 
@@ -118,11 +118,11 @@ deployctl deploy --project=my-litz-app --include=.output/public ./.output/server
         <p className="text-neutral-400 mt-4 mb-4">This generates:</p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>
-            <code className="text-sky-400">.output/public</code> — browser assets that must be
-            uploaded with the deployment
+            <code className="text-sky-400">dist/public</code> — browser assets that must be uploaded
+            with the deployment
           </li>
           <li>
-            <code className="text-sky-400">.output/server/index.mjs</code> — the generated fetch
+            <code className="text-sky-400">dist/server/index.mjs</code> — the generated fetch
             handler you publish to Deno Deploy
           </li>
         </ul>
@@ -137,7 +137,7 @@ deployctl deploy --project=my-litz-app --include=.output/public ./.output/server
     "dev": "vite",
     "build": "vite build",
     "start": "vite build && deno serve ./server.ts",
-    "deploy": "vite build && deployctl deploy --project=my-litz-app --include=.output/public ./.output/server/index.mjs"
+    "deploy": "vite build && deployctl deploy --project=my-litz-app --include=dist/public ./dist/server/index.mjs"
   }
 }`}
         />
@@ -155,7 +155,7 @@ deployctl deploy --project=my-litz-app --include=.output/public ./.output/server
             <code className="text-sky-400">Deno.ServeDefaultExport</code>
           </li>
           <li>
-            <code className="text-sky-400">.output/public</code> is uploaded with the deployment
+            <code className="text-sky-400">dist/public</code> is uploaded with the deployment
           </li>
         </ul>
       </section>

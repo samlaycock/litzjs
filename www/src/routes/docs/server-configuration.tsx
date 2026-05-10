@@ -97,18 +97,18 @@ export default createServer();`}
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Production output</h2>
         <p className="text-neutral-400 mb-4">
           When you run <code className="text-sky-400">vite build</code>, Litz writes browser assets
-          to <code className="text-sky-400">.output/public</code> and produces a server bundle.
+          to <code className="text-sky-400">dist/public</code> and produces a server bundle.
         </p>
         <p className="text-neutral-400 mb-4">
-          Litz emits <code className="text-sky-400">.output/server/index.mjs</code> from your server
+          Litz emits <code className="text-sky-400">dist/server/index.mjs</code> from your server
           entry. Your platform is responsible for serving{" "}
-          <code className="text-sky-400">.output/public</code> as static files (via CDN,{" "}
+          <code className="text-sky-400">dist/public</code> as static files (via CDN,{" "}
           <code className="text-sky-400">express.static</code>, platform asset binding, etc.).
         </p>
         <p className="text-neutral-400 mb-4">
           If your runtime cannot read from the local filesystem directly, upload{" "}
-          <code className="text-sky-400">.output/public</code> through that platform&apos;s asset
-          pipeline and keep <code className="text-sky-400">.output/server/index.mjs</code> as the
+          <code className="text-sky-400">dist/public</code> through that platform&apos;s asset
+          pipeline and keep <code className="text-sky-400">dist/server/index.mjs</code> as the
           dynamic request handler.
         </p>
       </section>
