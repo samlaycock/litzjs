@@ -174,6 +174,39 @@ describe("vite production server helpers", () => {
     expect(plugins.some((plugin) => plugin.name === "litzjs/nitro")).toBe(true);
   });
 
+  test("allows Nitro dev runtime dependencies outside the Vite root", () => {
+    const plugin = (litzNitro() as Plugin[]).find((candidate) => candidate.name === "litzjs/nitro");
+
+    if (!plugin?.config) {
+      throw new Error("Expected litzjs/nitro config hook to be available.");
+    }
+
+    const config = typeof plugin.config === "function" ? plugin.config : plugin.config.handler;
+    const result = config.call(
+      {} as never,
+      {
+        server: {
+          fs: {
+            allow: ["/existing-allow"],
+          },
+        },
+      },
+      {
+        command: "serve",
+        mode: "development",
+      },
+    );
+
+    if (result instanceof Promise) {
+      throw new Error("Expected litzjs/nitro config hook to be synchronous.");
+    }
+
+    const allow = result?.server?.fs?.allow;
+
+    expect(allow).toContain("/existing-allow");
+    expect(allow?.some((entry) => entry.endsWith("node_modules"))).toBe(true);
+  });
+
   test("normalizes generated Nitro renderer import paths before embedding them", async () => {
     const previousCwd = process.cwd();
     const projectRoot = mkdtempSync(path.join(tmpdir(), "litz\\nitro-workspace-"));

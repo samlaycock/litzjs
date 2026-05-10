@@ -1,5 +1,6 @@
 import type { Plugin, PluginOption } from "vite";
 
+import { pkgDir as nitroPackageDir } from "nitro/meta";
 import { nitro as nitroVitePlugin } from "nitro/vite";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -15,6 +16,7 @@ const LITZ_NITRO_RENDERER_FILENAME = "nitro-renderer.ts";
 
 export function litzNitro(options: LitzNitroPluginOptions = {}): PluginOption {
   const rendererRoot = process.cwd();
+  const nitroDependenciesRoot = path.dirname(path.resolve(nitroPackageDir));
   let root = rendererRoot;
   let configuredBase = "/";
   let intermediateBuildOutDir = path.resolve(root, "dist");
@@ -61,6 +63,18 @@ export function litzNitro(options: LitzNitroPluginOptions = {}): PluginOption {
   const litzNitroPlugin: Plugin = {
     name: "litzjs/nitro",
     sharedDuringBuild: true,
+
+    config(config) {
+      const allow = config.server?.fs?.allow ?? [];
+
+      return {
+        server: {
+          fs: {
+            allow: [...allow, rendererRoot, nitroDependenciesRoot],
+          },
+        },
+      };
+    },
 
     async configResolved(config) {
       root = config.root;
