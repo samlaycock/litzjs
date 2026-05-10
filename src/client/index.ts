@@ -13,7 +13,7 @@ import {
 } from "../path-matching";
 import { createSearchParamRecord, type SearchParamRecord } from "../search-params";
 import { isAbortError } from "./abort-error";
-import { configureClientBaseUrl } from "./base-url";
+import { configureClientBaseUrl, resolveClientHref, resolveClientRoutePathname } from "./base-url";
 import { installClientBindings } from "./bindings";
 import { getLocationContext, getMatchesContext, getNavigationContext } from "./contexts";
 import {
@@ -476,6 +476,8 @@ function LitzApp(props: {
 
   const navigate = React.useCallback(
     (next: string, replace = false) => {
+      const href = resolveClientHref(next);
+
       if (props.navigationBehavior.scrollRestoration) {
         persistScrollPositionNow();
       }
@@ -490,7 +492,7 @@ function LitzApp(props: {
             ? withManagedNavigationState(window.history.state, getScrollPosition())
             : null,
           "",
-          next,
+          href,
         );
       } else {
         window.history.pushState(
@@ -501,7 +503,7 @@ function LitzApp(props: {
               })
             : null,
           "",
-          next,
+          href,
         );
       }
 
@@ -522,9 +524,11 @@ function LitzApp(props: {
   );
   const locationValue = React.useMemo(() => {
     const url = new URL(location);
+    const pathname = resolveClientRoutePathname(url.pathname);
+
     return {
       href: location,
-      pathname: url.pathname,
+      pathname,
       search: new URLSearchParams(url.search),
       hash: url.hash,
     };
@@ -579,18 +583,22 @@ function RouteHost(props: {
     [props.navigate],
   );
   const url = React.useMemo(() => new URL(props.location), [props.location]);
+  const routePathname = React.useMemo(
+    () => resolveClientRoutePathname(url.pathname),
+    [url.pathname],
+  );
   const search = React.useMemo(() => new URLSearchParams(url.search), [url.search]);
-  const matched = React.useMemo(() => findMatch(url.pathname), [url.pathname]);
+  const matched = React.useMemo(() => findMatch(routePathname), [routePathname]);
   const createBootstrapPageStateForLocation = React.useCallback(
-    (route: LoadedRoute) => createBootstrapPageState(route, url.pathname, search),
-    [search, url.pathname],
+    (route: LoadedRoute) => createBootstrapPageState(route, routePathname, search),
+    [routePathname, search],
   );
   const resolveRouteLoadFailureState = React.useCallback(
     (error: unknown) => {
       const failedRoute = createRouteLoadFailureRoute(
         matched?.entry ?? {
-          id: url.pathname,
-          path: url.pathname,
+          id: routePathname,
+          path: routePathname,
           load: async () => ({}),
         },
       );
@@ -598,10 +606,10 @@ function RouteHost(props: {
       return {
         displayLocation: props.location,
         renderedRoute: failedRoute,
-        pageState: createRouteLoadFailurePageState(failedRoute, url.pathname, search, error),
+        pageState: createRouteLoadFailurePageState(failedRoute, routePathname, search, error),
       };
     },
-    [matched, props.location, search, url.pathname],
+    [matched, props.location, routePathname, search],
   );
   const { displayLocation, renderedRoute, pageState, setPageState } = useResolvedRouteState<
     LoadedRoute,
@@ -617,6 +625,10 @@ function RouteHost(props: {
   });
 
   const displayedUrl = React.useMemo(() => new URL(displayLocation), [displayLocation]);
+  const displayedRoutePathname = React.useMemo(
+    () => resolveClientRoutePathname(displayedUrl.pathname),
+    [displayedUrl.pathname],
+  );
   const displayedSearch = React.useMemo(
     () => new URLSearchParams(displayedUrl.search),
     [displayedUrl.search],
@@ -626,17 +638,21 @@ function RouteHost(props: {
       return null;
     }
 
-    const activeMatches = buildActiveMatches(renderedRoute, displayedUrl.pathname, displayedSearch);
+    const activeMatches = buildActiveMatches(
+      renderedRoute,
+      displayedRoutePathname,
+      displayedSearch,
+    );
 
     return {
       activeMatches,
       loaderMatches: activeMatches.filter((entry) => Boolean(entry.options?.loader)),
       baseRequest: {
-        params: extractRouteParams(renderedRoute.path, displayedUrl.pathname) ?? {},
+        params: extractRouteParams(renderedRoute.path, displayedRoutePathname) ?? {},
         search: displayedSearch,
       },
     };
-  }, [displayedSearch, displayedUrl.pathname, renderedRoute]);
+  }, [displayedRoutePathname, displayedSearch, renderedRoute]);
 
   React.useEffect(() => {
     if (!renderedRoute || !activeRouteState || pageState.errorInfo) {
@@ -742,14 +758,14 @@ function RouteHost(props: {
       renderedRoute
         ? reloadCurrentRoute({
             route: renderedRoute,
-            pathname: displayedUrl.pathname,
+            pathname: displayedRoutePathname,
             search: displayedSearch,
             navigate,
             setPageState,
             mode,
           })
         : Promise.resolve(),
-    [displayedSearch, displayedUrl.pathname, navigate, renderedRoute, setPageState],
+    [displayedRoutePathname, displayedSearch, navigate, renderedRoute, setPageState],
   );
 
   const content = !matched
@@ -1868,6 +1884,7 @@ function prefetchRouteForHref(
 ): void {
   const currentUrl = new URL(window.location.href);
   const nextUrl = new URL(href, currentUrl);
+  const nextRoutePathname = resolveClientRoutePathname(nextUrl.pathname);
 
   if (
     !shouldPrefetchLink({
@@ -1880,7 +1897,7 @@ function prefetchRouteForHref(
     return;
   }
 
-  const matched = findMatch(nextUrl.pathname);
+  const matched = findMatch(nextRoutePathname);
 
   if (!matched) {
     return;
@@ -1891,7 +1908,7 @@ function prefetchRouteForHref(
     return;
   }
 
-  const dataPrefetchKey = createRouteDataPrefetchKey(nextUrl);
+  const dataPrefetchKey = createRouteDataPrefetchKey(nextRoutePathname, nextUrl.search);
   const inFlight = routeDataPrefetchCache.get(dataPrefetchKey);
 
   if (inFlight) {
@@ -1904,7 +1921,7 @@ function prefetchRouteForHref(
         return;
       }
 
-      await prefetchRouteLoaderData(route, nextUrl, options?.signal);
+      await prefetchRouteLoaderData(route, nextRoutePathname, nextUrl.search, options?.signal);
     })
     .finally(() => {
       routeDataPrefetchCache.delete(dataPrefetchKey);
@@ -1913,8 +1930,8 @@ function prefetchRouteForHref(
   routeDataPrefetchCache.set(dataPrefetchKey, prefetch);
 }
 
-function createRouteDataPrefetchKey(nextUrl: URL): string {
-  return `${nextUrl.pathname}${nextUrl.search}`;
+function createRouteDataPrefetchKey(pathname: string, search: string): string {
+  return `${pathname}${search}`;
 }
 
 function prefetchMatchedRouteModule(
@@ -1955,11 +1972,12 @@ function prefetchMatchedRouteModule(
 
 async function prefetchRouteLoaderData(
   route: LoadedRoute,
-  nextUrl: URL,
+  pathname: string,
+  searchString: string,
   signal?: AbortSignal,
 ): Promise<void> {
-  const search = new URLSearchParams(nextUrl.search);
-  const loaderMatches = buildActiveMatches(route, nextUrl.pathname, search).filter(
+  const search = new URLSearchParams(searchString);
+  const loaderMatches = buildActiveMatches(route, pathname, search).filter(
     (entry) => Boolean(entry.options?.loader) && !getCachedLoaderResult(entry.cacheKey),
   );
 
@@ -1970,7 +1988,7 @@ async function prefetchRouteLoaderData(
   const settled = await fetchRouteLoadersInParallel(loaderMatches, {
     routePath: route.path,
     baseRequest: {
-      params: extractRouteParams(route.path, nextUrl.pathname) ?? {},
+      params: extractRouteParams(route.path, pathname) ?? {},
       search,
     },
     signal,
