@@ -2,10 +2,8 @@
 "litzjs": minor
 ---
 
-Include the Nitro production adapter in the default `litz()` Vite plugin stack and configure it through `litz({ nitro: ... })`, so standard apps only need `plugins: [litz()]` for development and production builds.
+Make the default `litz()` Vite plugin own the framework production build directly, so standard apps only need `plugins: [litz()]` for development and production builds.
 
-Allow Nitro's dev runtime dependencies when Vite roots are nested inside a fixture or package, preventing module-runner load errors during `bun dev`.
+Emit a platform-neutral fetch-handler server bundle at `dist/server/index.mjs`, with browser assets in `dist/public`, and remove Nitro options from the public `litz()` configuration surface.
 
-Use Vite's standard `dist` directory for the default Nitro production output, with browser assets in `dist/public` and the server runtime in `dist/server`.
-
-Forward the top-level `server` option into the default Nitro adapter so custom server entries only need to be configured once.
+Forward the top-level `server` option into the framework server build so custom server entries only need to be configured once.

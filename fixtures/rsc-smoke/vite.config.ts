@@ -24,10 +24,6 @@ export default defineConfig({
         replacement: path.resolve(packageRoot, "src/vite.ts"),
       },
       {
-        find: /^litzjs\/vite\/nitro$/,
-        replacement: path.resolve(packageRoot, "src/vite-nitro.ts"),
-      },
-      {
         find: /^litzjs$/,
         replacement: path.resolve(packageRoot, "src/index.ts"),
       },

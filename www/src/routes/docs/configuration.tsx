@@ -164,35 +164,6 @@ litz({
       </section>
 
       <section className="mb-12">
-        <h3 className="text-xl font-medium text-neutral-100 mb-3">nitro</h3>
-        <p className="text-neutral-400 mb-4">
-          <strong>Type:</strong>{" "}
-          <code className="text-sky-400">false | LitzNitroPluginOptions</code>
-        </p>
-        <p className="text-neutral-400 mb-4">
-          Configure the default Nitro production adapter, or pass{" "}
-          <code className="text-sky-400">false</code> for advanced manual plugin composition.
-        </p>
-        <p className="text-neutral-400 mb-4">
-          <strong>Default output:</strong> browser assets in{" "}
-          <code className="text-sky-400">dist/public</code> and the server runtime in{" "}
-          <code className="text-sky-400">dist/server/index.mjs</code>
-        </p>
-        <CodeBlock
-          language="ts"
-          code={`// Example: configure deployment output
-litz({
-  nitro: {
-    preset: "node-server",
-    output: {
-      dir: "build",
-    },
-  },
-})`}
-        />
-      </section>
-
-      <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Complete example</h2>
         <p className="text-neutral-400 mb-4">A full configuration with all options:</p>
         <CodeBlock
@@ -221,11 +192,6 @@ export default defineConfig({
 
       // Custom server entry (optional)
       server: "src/server.ts",
-
-      // Nitro production adapter options (optional)
-      nitro: {
-        preset: "node-server",
-      },
     }),
   ],
 });`}

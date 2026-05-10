@@ -8,6 +8,7 @@
 import type { InlineConfig, Plugin, PluginOption } from "vite";
 
 import vitePluginRsc from "@vitejs/plugin-rsc";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import picomatch from "picomatch";
 import { createBuilder } from "vite";
@@ -17,7 +18,6 @@ import type {
   DiscoveredLayout,
   DiscoveredResource,
   DiscoveredRoute,
-  LitzNitroPluginOptions,
   LitzPluginOptions,
   LitzRouteRule,
 } from "./vite/types";
@@ -25,7 +25,6 @@ import type {
 import { normalizeBasePath } from "./base-path";
 import { createClientModuleProjection } from "./client-projection";
 import { sortByPathSpecificity } from "./path-matching";
-import { litzNitro } from "./vite-nitro";
 import {
   handleLitzApiRequest,
   handleLitzDocumentRequest,
@@ -68,7 +67,7 @@ import {
   normalizeViteModuleId,
 } from "./vite/virtual-modules";
 
-export type { LitzNitroPluginOptions, LitzPluginOptions, LitzRouteRule };
+export type { LitzPluginOptions, LitzRouteRule };
 export {
   discoverAllManifests,
   discoverApiRouteFromFile,
@@ -83,14 +82,14 @@ export {
 };
 
 /**
- * Creates the Litz Vite plugin stack. Returns the `@vitejs/plugin-rsc` plugins,
- * the core Litz plugin, and the Nitro production adapter by default. Mutable
- * state is populated during `configResolved` and kept in sync during dev via
- * file watching.
+ * Creates the Litz Vite plugin stack. Returns the `@vitejs/plugin-rsc` plugins
+ * and the core Litz plugin. Mutable state is populated during `configResolved`
+ * and kept in sync during dev via file watching.
  */
 export function litz(options: LitzPluginOptions = {}): PluginOption {
   let root = process.cwd();
   let configuredBase = "/";
+  let baseOutDir = "dist";
   const browserEntryPath = options.clientEntry ?? "src/main.tsx";
   let serverEntryPath: string | null = null;
   let routeManifest: DiscoveredRoute[] = [];
@@ -118,14 +117,25 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
     name: "litzjs/vite",
 
     config(userConfig) {
-      const baseOutDir = userConfig.build?.outDir ?? "dist";
+      baseOutDir = userConfig.build?.outDir ?? "dist";
 
       return {
         environments: {
           client: {
             build: {
-              outDir: path.join(baseOutDir, "client"),
+              outDir: path.join(baseOutDir, "public"),
               manifest: true,
+            },
+          },
+          rsc: {
+            build: {
+              outDir: path.join(baseOutDir, "server"),
+              manifest: true,
+              rollupOptions: {
+                output: {
+                  entryFileNames: "index.mjs",
+                },
+              },
             },
           },
         },
@@ -172,21 +182,14 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
       }
 
       if (id === RESOLVED_LITZ_RSC_ENTRY_ID) {
-        if (serverEntryPath) {
-          return `export { default } from ${JSON.stringify(toProjectImportSpecifier(serverEntryPath))};`;
-        }
-
-        return `${createInlineServerRuntime(configuredBase, createServerManifestModule(routeManifest, resourceManifest, apiManifest))}
-import { createServer } from "litzjs/server";
-
-export default createServer({
-  base: __litzjsBase,
-  manifest: __litzjsServerManifest,
-  createContext() {
-    return undefined;
-  },
-});
-`;
+        return createGeneratedServerEntryModule(
+          root,
+          serverEntryPath,
+          configuredBase,
+          routeManifest,
+          resourceManifest,
+          apiManifest,
+        );
       }
 
       if (id === RESOLVED_LITZ_BROWSER_ENTRY_ID) {
@@ -227,6 +230,13 @@ export async function renderView(node, metadata = {}) {
       }
 
       return null;
+    },
+
+    buildApp: {
+      order: "post",
+      async handler() {
+        finalizeFrameworkBuild(root, baseOutDir);
+      },
     },
 
     configureServer(server) {
@@ -492,6 +502,7 @@ export async function renderView(node, metadata = {}) {
         if (relativeId === serverEntryPath) {
           const transformed = injectServerRuntimeOptions(
             code,
+            root,
             configuredBase,
             createServerManifestModule(routeManifest, resourceManifest, apiManifest),
           );
@@ -510,21 +521,38 @@ export async function renderView(node, metadata = {}) {
     },
   };
 
-  const nitroPlugins =
-    options.nitro === false
-      ? []
-      : (litzNitro({
-          ...options.nitro,
-          server: options.nitro?.server ?? options.server,
-        }) as Plugin[]);
+  return [...rscPlugins, litzPlugin] as Plugin[];
+}
 
-  // The explicit cast prevents a "Plugin<any>[]" leak caused by Nitro's module
-  // augmentation when consumers pass the result into defineConfig plugins.
-  return [...rscPlugins, litzPlugin, ...nitroPlugins] as Plugin[];
+function createGeneratedServerEntryModule(
+  root: string,
+  serverEntryPath: string | null,
+  base: string,
+  routes: DiscoveredRoute[],
+  resources: DiscoveredResource[],
+  apiRoutes: DiscoveredApiRoute[],
+): string {
+  if (serverEntryPath) {
+    return `export { default } from ${JSON.stringify(toProjectImportSpecifier(serverEntryPath))};`;
+  }
+
+  return `${createInlineServerRuntime(root, base, createServerManifestModule(routes, resources, apiRoutes))}
+import { createServer } from "litzjs/server";
+
+export default createServer({
+  base: __litzjsBase,
+  document: __litzjsCreateDocumentResponse,
+  manifest: __litzjsServerManifest,
+  createContext() {
+    return undefined;
+  },
+});
+`;
 }
 
 function injectServerRuntimeOptions(
   code: string,
+  root: string,
   base: string,
   serverManifestModule: string,
 ): string {
@@ -532,15 +560,15 @@ function injectServerRuntimeOptions(
     return code;
   }
 
-  const runtimeSource = createInlineServerRuntime(base, serverManifestModule);
+  const runtimeSource = createInlineServerRuntime(root, base, serverManifestModule);
 
   const withObjectOptions = code.replaceAll(
     /(?<!\.)\bcreateServer\s*\(\s*\{/g,
-    "createServer({ base: __litzjsBase, manifest: __litzjsServerManifest,",
+    "createServer({ base: __litzjsBase, document: __litzjsCreateDocumentResponse, manifest: __litzjsServerManifest,",
   );
   const withEmptyOptions = withObjectOptions.replaceAll(
     /(?<!\.)\bcreateServer\s*\(\s*\)/g,
-    "createServer({ base: __litzjsBase, manifest: __litzjsServerManifest })",
+    "createServer({ base: __litzjsBase, document: __litzjsCreateDocumentResponse, manifest: __litzjsServerManifest })",
   );
 
   if (withEmptyOptions === code) {
@@ -550,14 +578,86 @@ function injectServerRuntimeOptions(
   return `${runtimeSource}${withEmptyOptions}`;
 }
 
-function createInlineServerRuntime(base: string, serverManifestModule: string): string {
+function createInlineServerRuntime(
+  root: string,
+  base: string,
+  serverManifestModule: string,
+): string {
   return [
     serverManifestModule
       .replace("export const serverManifest =", "const __litzjsServerManifest =")
       .trimStart(),
     `const __litzjsBase = ${JSON.stringify(base)};`,
+    `const __litzjsDocumentTemplate = ${JSON.stringify(readDocumentTemplate(root))};`,
+    `const __litzjsClientEntry = "__LITZJS_CLIENT_ENTRY__";`,
+    "",
+    "function __litzjsJoinBase(base, pathname) {",
+    '  const normalizedBase = base === "/" ? "" : base.replace(/\\/$/, "");',
+    '  const normalizedPathname = pathname.startsWith("/") ? pathname : `/${pathname}`;',
+    '  return `${normalizedBase}${normalizedPathname}` || "/";',
+    "}",
+    "",
+    "function __litzjsStripDevModuleScripts(html) {",
+    '  return html.replace(/<script\\b(?=[^>]*\\btype=["\']module["\'])(?=[^>]*\\bsrc=["\'][^"\']+["\'])[^>]*>\\s*<\\/script>/gi, "");',
+    "}",
+    "",
+    "function __litzjsCreateDocumentResponse(request) {",
+    '  if (request.method !== "GET" && request.method !== "HEAD") return null;',
+    '  const accept = request.headers.get("accept") ?? "";',
+    '  if (!accept.includes("text/html") && !accept.includes("*/*")) return null;',
+    '  const script = __litzjsClientEntry ? `<script type="module" src="${__litzjsJoinBase(__litzjsBase, __litzjsClientEntry)}"></script>` : "";',
+    "  const html = __litzjsStripDevModuleScripts(__litzjsDocumentTemplate).replace(/<\\/body>/i, `${script}\\n  </body>`);",
+    '  return new Response(request.method === "HEAD" ? null : html, {',
+    "    status: 200,",
+    '    headers: { "content-type": "text/html; charset=utf-8" },',
+    "  });",
+    "}",
     "",
   ].join("\n");
+}
+
+function readDocumentTemplate(root: string): string {
+  const templatePath = path.resolve(root, "index.html");
+
+  if (!existsSync(templatePath)) {
+    return '<!doctype html><html><head><meta charset="UTF-8" /></head><body><div id="app"></div></body></html>';
+  }
+
+  return readFileSync(templatePath, "utf8");
+}
+
+function finalizeFrameworkBuild(root: string, outDir: string): void {
+  const distDir = path.resolve(root, outDir);
+  const ssrDir = path.join(distDir, "ssr");
+  const serverEntryPath = path.join(distDir, "server", "index.mjs");
+  const clientManifestPath = path.join(distDir, "public", ".vite", "manifest.json");
+
+  if (existsSync(ssrDir)) {
+    rmSync(ssrDir, { force: true, recursive: true });
+  }
+
+  if (!existsSync(serverEntryPath) || !existsSync(clientManifestPath)) {
+    return;
+  }
+
+  const clientManifest = JSON.parse(readFileSync(clientManifestPath, "utf8")) as Record<
+    string,
+    { file?: string; isEntry?: boolean }
+  >;
+  const entry =
+    clientManifest["../../virtual:litzjs:browser-entry"] ??
+    Object.values(clientManifest).find((candidate) => candidate?.isEntry);
+
+  if (!entry?.file) {
+    return;
+  }
+
+  const serverCode = readFileSync(serverEntryPath, "utf8");
+  writeFileSync(
+    serverEntryPath,
+    serverCode.replaceAll("__LITZJS_CLIENT_ENTRY__", entry.file.replaceAll("\\", "/")),
+    "utf8",
+  );
 }
 
 export async function buildLitzApp(inlineConfig: InlineConfig = {}): Promise<void> {

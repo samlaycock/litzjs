@@ -1028,7 +1028,6 @@ const viteGroups: readonly ReferenceGroupSpec[] = [
   clientEntry?: string;
   server?: string;
   rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
-  nitro?: false | LitzNitroPluginOptions;
 };`,
         summary: "Options accepted by the main Vite plugin factory.",
       },
@@ -1036,7 +1035,7 @@ const viteGroups: readonly ReferenceGroupSpec[] = [
         name: "litz",
         signature: `litz(options?: LitzPluginOptions): PluginOption`,
         summary:
-          "Creates the Litz Vite plugin stack, including route/resource/API discovery, `@vitejs/plugin-rsc`, and Nitro-backed production builds.",
+          "Creates the Litz Vite plugin stack, including route/resource/API discovery, `@vitejs/plugin-rsc`, and the framework server build.",
         example: {
           language: "ts",
           code: `import { defineConfig } from "vite";
@@ -1091,50 +1090,6 @@ await buildLitzApp({
         details: [
           "This is another advanced helper intended for tooling and adapter authors rather than normal app code.",
         ],
-      },
-    ],
-  },
-];
-
-const viteNitroGroups: readonly ReferenceGroupSpec[] = [
-  {
-    title: "Nitro adapter exports",
-    intro:
-      "Most apps configure Nitro through `litz({ nitro: ... })`. Import these from `litzjs/vite/nitro` only for advanced manual plugin composition.",
-    entries: [
-      {
-        name: "LitzNitroPluginOptions",
-        signature: `type LitzNitroPluginOptions = {
-  server?: string;
-  preset?: string;
-  routeRules?: Record<string, LitzRouteRule>;
-  compressPublicAssets?: boolean | { gzip?: boolean; brotli?: boolean; zstd?: boolean };
-  baseURL?: string;
-  sourcemap?: boolean;
-  minify?: boolean;
-  output?: {
-    dir?: string;
-    publicDir?: string;
-    serverDir?: string;
-  };
-};`,
-        summary: "Options accepted by the Nitro Vite plugin factory.",
-      },
-      {
-        name: "litzNitro",
-        signature: `litzNitro(options?: LitzNitroPluginOptions): PluginOption`,
-        summary:
-          "Adds the Nitro production adapter directly for advanced setups that disable or manually compose the default `litz()` stack.",
-        example: {
-          language: "ts",
-          code: `import { defineConfig } from "vite";
-import { litz } from "litzjs/vite";
-import { litzNitro } from "litzjs/vite/nitro";
-
-export default defineConfig({
-  plugins: [litz({ nitro: false }), litzNitro({ preset: "node-server" })],
-});`,
-        },
       },
     ],
   },
@@ -1272,13 +1227,6 @@ function ApiReference() {
         importPath={`"litzjs/vite"`}
         description="Build-time Vite integration and advanced bundling helpers."
         groups={viteGroups}
-      />
-
-      <PackageSection
-        title="litzjs/vite/nitro"
-        importPath={`"litzjs/vite/nitro"`}
-        description="Advanced Nitro deployment adapter exports for manual Vite plugin composition."
-        groups={viteNitroGroups}
       />
 
       <div className="flex justify-start pt-8 border-t border-neutral-800">

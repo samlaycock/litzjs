@@ -27,8 +27,8 @@ bun add litzjs react react-dom
 bun add -d vite typescript
 ```
 
-Litz bundles the React Server Components plugin and Nitro production adapter it uses internally, so
-the default setup does not ask applications to install or compose those Vite plugins directly.
+Litz bundles the React Server Components Vite integration it uses internally, so the default setup
+does not ask applications to install or compose those Vite plugins directly.
 
 ## Quick Start
 

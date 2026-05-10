@@ -25,11 +25,6 @@ const compatibilityRows: readonly CompatibilityRow[] = [
     supportedVersion: "^8",
     notes: "Required peer dependency because Litz ships as a Vite-first framework plugin.",
   },
-  {
-    packageName: "nitro",
-    supportedVersion: "Bundled",
-    notes: "Installed through litzjs and used by the default production build adapter.",
-  },
 ];
 
 export const route = defineRoute("/docs/installation", {
@@ -137,7 +132,7 @@ pnpm add -D vite typescript`}
         <p className="text-neutral-400 mb-4">
           The default <code className="text-sky-400">litz()</code> plugin includes the React Server
           Components integration used by <code className="text-sky-400">view(...)</code> and the
-          Nitro adapter used for production builds. Most apps only need{" "}
+          framework build pipeline used for production builds. Most apps only need{" "}
           <code className="text-sky-400">plugins: [litz()]</code>.
         </p>
 

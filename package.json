@@ -39,20 +39,10 @@
       "import": "./dist/server.mjs",
       "require": "./dist/server.js"
     },
-    "./server/nitro": {
-      "types": "./dist/server/nitro.d.ts",
-      "import": "./dist/server/nitro.mjs",
-      "require": "./dist/server/nitro.js"
-    },
     "./vite": {
       "types": "./dist/vite.d.ts",
       "import": "./dist/vite.mjs",
       "require": "./dist/vite.js"
-    },
-    "./vite/nitro": {
-      "types": "./dist/vite-nitro.d.ts",
-      "import": "./dist/vite-nitro.mjs",
-      "require": "./dist/vite-nitro.js"
     }
   },
   "publishConfig": {
