@@ -1,19 +1,18 @@
 import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig } from "vite";
 import { VitePWA as pwa } from "vite-plugin-pwa";
 
 import { litz } from "../src/vite";
 
 const rootDir = __dirname;
 const packageRoot = path.resolve(__dirname, "..");
-const pwaPlugins = pwa({ registerType: "autoUpdate", outDir: "dist/public" }).map(
-  (plugin): Plugin => ({
-    ...plugin,
-    applyToEnvironment: (environment) => environment.name === "client",
-  }),
-);
+const pwaPlugins = pwa({ registerType: "autoUpdate", outDir: "dist/public" });
+
+for (const plugin of pwaPlugins) {
+  plugin.applyToEnvironment = (environment) => environment.name === "client";
+}
 
 export default defineConfig(() => ({
   root: rootDir,
