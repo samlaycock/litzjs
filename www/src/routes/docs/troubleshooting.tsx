@@ -48,7 +48,7 @@ function DocsTroubleshootingPage() {
         <CodeBlock
           language="bash"
           code={`bun add litzjs react react-dom
-bun add -d typescript vite @vitejs/plugin-rsc`}
+bun add -d typescript vite`}
         />
         <CodeBlock
           language="ts"
@@ -96,7 +96,7 @@ import { litz } from "litzjs/vite";`}
           </li>
           <li>
             Keep page routes inside the configured route globs. The default is{" "}
-            <code className="text-sky-400">{"src/routes/**/*.{ts,tsx}"}</code>, excluding the{" "}
+            <code className="text-sky-400">{"src/routes/**/*.{ts,tsx,js,jsx}"}</code>, excluding the{" "}
             <code className="text-sky-400">api</code> and{" "}
             <code className="text-sky-400">resources</code> subdirectories.
           </li>
@@ -230,9 +230,9 @@ function UsersPage() {
         <CodeBlock
           language="ts"
           code={`import path from "node:path";
-import app from "./dist/server/index.js";
+import app from "./dist/server/index.mjs";
 
-const clientDir = path.resolve("dist/client");
+const clientDir = path.resolve("dist/public");
 
 Bun.serve({
   async fetch(request) {

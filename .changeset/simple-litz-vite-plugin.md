@@ -7,3 +7,5 @@ Include the Nitro production adapter in the default `litz()` Vite plugin stack a
 Allow Nitro's dev runtime dependencies when Vite roots are nested inside a fixture or package, preventing module-runner load errors during `bun dev`.
 
 Use Vite's standard `dist` directory for the default Nitro production output, with browser assets in `dist/public` and the server runtime in `dist/server`.
+
+Forward the top-level `server` option into the default Nitro adapter so custom server entries only need to be configured once.

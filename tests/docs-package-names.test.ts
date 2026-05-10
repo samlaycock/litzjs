@@ -108,6 +108,41 @@ describe("docs package names", () => {
     expect(installationDoc).toContain("does not publish a single runtime engine floor");
   });
 
+  test("getting started and troubleshooting docs do not ask apps to install bundled adapters", () => {
+    const firstAppDoc = normalizeWhitespace(readDoc("www/src/routes/docs/first-app.tsx"));
+    const troubleshootingDoc = normalizeWhitespace(
+      readDoc("www/src/routes/docs/troubleshooting.tsx"),
+    );
+
+    expect(firstAppDoc).not.toContain("bun add -d nitro");
+    expect(firstAppDoc).not.toContain("Install nitro only");
+    expect(troubleshootingDoc).not.toContain("bun add -d typescript vite @vitejs/plugin-rsc");
+    expect(troubleshootingDoc).toContain("bun add -d typescript vite");
+  });
+
+  test("configuration and API docs match current Vite defaults", () => {
+    const readme = normalizeWhitespace(readDoc("README.md"));
+    const configurationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/configuration.tsx"));
+    const apiReferenceDoc = normalizeWhitespace(readDoc("www/src/routes/docs/api-reference.tsx"));
+    const troubleshootingDoc = normalizeWhitespace(
+      readDoc("www/src/routes/docs/troubleshooting.tsx"),
+    );
+
+    for (const doc of [readme, configurationDoc, apiReferenceDoc, troubleshootingDoc]) {
+      expect(doc).toContain("src/routes/**/*.{ts,tsx,js,jsx}");
+    }
+
+    expect(configurationDoc).toContain("clientEntry");
+    expect(apiReferenceDoc).toContain("clientEntry?: string;");
+    expect(apiReferenceDoc).toContain(
+      "output?: { dir?: string; publicDir?: string; serverDir?: string; };",
+    );
+    expect(troubleshootingDoc).toContain('import app from "./dist/server/index.mjs";');
+    expect(troubleshootingDoc).toContain('const clientDir = path.resolve("dist/public");');
+    expect(troubleshootingDoc).not.toContain("dist/client");
+    expect(troubleshootingDoc).not.toContain("dist/server/index.js");
+  });
+
   test("package metadata keeps implementation dependencies out of the peer surface", () => {
     const packageJson = JSON.parse(readDoc("package.json")) as {
       readonly dependencies?: Record<string, string>;

@@ -34,9 +34,9 @@ the default setup does not ask applications to install or compose those Vite plu
 
 Add the Litz Vite plugin. By default, Litz discovers:
 
-- routes from `src/routes/**/*.{ts,tsx}`
-- API routes from `src/routes/api/**/*.{ts,tsx}`
-- resources from `src/routes/resources/**/*.{ts,tsx}`
+- routes from `src/routes/**/*.{ts,tsx,js,jsx}`
+- API routes from `src/routes/api/**/*.{ts,tsx,js,jsx}`
+- resources from `src/routes/resources/**/*.{ts,tsx,js,jsx}`
 - the browser entry from `src/main.tsx`
 - a custom server entry from `src/server.ts`, falling back to `src/server/index.ts`
 
@@ -948,9 +948,6 @@ export default defineConfig({
   plugins: [
     litz({
       server: "app/server/entry.ts",
-      nitro: {
-        server: "app/server/entry.ts",
-      },
     }),
   ],
 });

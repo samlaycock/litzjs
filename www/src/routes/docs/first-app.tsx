@@ -52,8 +52,9 @@ bun init -y`}
 bun add -d typescript vite @types/react @types/react-dom`}
         />
         <p className="text-neutral-400 mt-4 mb-4">
-          Install <code className="text-sky-400">nitro</code> only when you opt into the optional
-          Nitro deployment adapter.
+          Litz includes the Nitro production adapter used by the default{" "}
+          <code className="text-sky-400">litz()</code> Vite plugin, so you do not install{" "}
+          <code className="text-sky-400">nitro</code> separately for the standard setup.
         </p>
       </section>
 
