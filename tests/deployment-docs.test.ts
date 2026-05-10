@@ -9,6 +9,14 @@ function readDoc(relativePath: string) {
 }
 
 describe("deployment docs", () => {
+  test("www build plugins target the Litz public output directory", () => {
+    const wwwViteConfig = readDoc("www/vite.config.ts");
+
+    expect(wwwViteConfig).toContain('outDir: "dist/public"');
+    expect(wwwViteConfig).toContain("chunkSizeWarningLimit: 2_000");
+    expect(wwwViteConfig).not.toContain('outDir: "dist/client"');
+  });
+
   test("document production-ready runtime recipes", () => {
     const nodeDoc = readDoc("www/src/routes/docs/node.tsx");
     const bunDoc = readDoc("www/src/routes/docs/bun.tsx");
