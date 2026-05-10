@@ -27,8 +27,8 @@ const compatibilityRows: readonly CompatibilityRow[] = [
   },
   {
     packageName: "nitro",
-    supportedVersion: "^3",
-    notes: "Optional peer dependency for the Nitro deployment adapter.",
+    supportedVersion: "Bundled",
+    notes: "Installed through litzjs and used by the default production build adapter.",
   },
 ];
 
@@ -85,13 +85,7 @@ yarn add -D vite typescript
 
 # With pnpm
 pnpm add react react-dom
-pnpm add -D vite typescript
-
-# Optional Nitro deployment adapter
-bun add -d nitro
-npm install -D nitro
-yarn add -D nitro
-pnpm add -D nitro`}
+pnpm add -D vite typescript`}
         />
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mt-4 mb-4">
           <li>
@@ -139,13 +133,12 @@ pnpm add -D nitro`}
           </table>
         </div>
 
-        <h3 className="text-xl font-medium text-neutral-100 mb-3">Optional capabilities</h3>
+        <h3 className="text-xl font-medium text-neutral-100 mb-3">Included capabilities</h3>
         <p className="text-neutral-400 mb-4">
           The default <code className="text-sky-400">litz()</code> plugin includes the React Server
-          Components integration used by <code className="text-sky-400">view(...)</code>. Add{" "}
-          <code className="text-sky-400">nitro</code> only when your Vite config imports and uses{" "}
-          <code className="text-sky-400">litzNitro()</code> from{" "}
-          <code className="text-sky-400">"litzjs/vite/nitro"</code>.
+          Components integration used by <code className="text-sky-400">view(...)</code> and the
+          Nitro adapter used for production builds. Most apps only need{" "}
+          <code className="text-sky-400">plugins: [litz()]</code>.
         </p>
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">Runtime compatibility notes</h3>

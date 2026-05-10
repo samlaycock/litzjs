@@ -17,6 +17,7 @@ import type {
   DiscoveredLayout,
   DiscoveredResource,
   DiscoveredRoute,
+  LitzNitroPluginOptions,
   LitzPluginOptions,
   LitzRouteRule,
 } from "./vite/types";
@@ -24,6 +25,7 @@ import type {
 import { normalizeBasePath } from "./base-path";
 import { createClientModuleProjection } from "./client-projection";
 import { sortByPathSpecificity } from "./path-matching";
+import { litzNitro } from "./vite-nitro";
 import {
   handleLitzApiRequest,
   handleLitzDocumentRequest,
@@ -70,7 +72,7 @@ import {
   normalizeViteModuleId,
 } from "./vite/virtual-modules";
 
-export type { LitzPluginOptions, LitzRouteRule };
+export type { LitzNitroPluginOptions, LitzPluginOptions, LitzRouteRule };
 export {
   discoverAllManifests,
   discoverApiRouteFromFile,
@@ -85,9 +87,10 @@ export {
 };
 
 /**
- * Creates the Litz Vite plugin array. Returns the `@vitejs/plugin-rsc` plugins
- * plus the core Litz plugin. Mutable state is populated during `configResolved`
- * and kept in sync during dev via file watching.
+ * Creates the Litz Vite plugin stack. Returns the `@vitejs/plugin-rsc` plugins,
+ * the core Litz plugin, and the Nitro production adapter by default. Mutable
+ * state is populated during `configResolved` and kept in sync during dev via
+ * file watching.
  */
 export function litz(options: LitzPluginOptions = {}): PluginOption {
   let root = process.cwd();
@@ -507,9 +510,11 @@ export async function renderView(node, metadata = {}) {
     },
   };
 
+  const nitroPlugins = options.nitro === false ? [] : (litzNitro(options.nitro) as Plugin[]);
+
   // The explicit cast prevents a "Plugin<any>[]" leak caused by Nitro's module
   // augmentation when consumers pass the result into defineConfig plugins.
-  return [...rscPlugins, litzPlugin] as Plugin[];
+  return [...rscPlugins, litzPlugin, ...nitroPlugins] as Plugin[];
 }
 
 export async function buildLitzApp(inlineConfig: InlineConfig = {}): Promise<void> {

@@ -4,42 +4,12 @@ import { nitro as nitroVitePlugin } from "nitro/vite";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import type { LitzRouteRule } from "./vite";
+import type { LitzNitroPluginOptions } from "./vite/types";
 
 import { normalizeBasePath, resolveBasePathname } from "./base-path";
-import { discoverServerEntry } from "./vite";
+import { discoverServerEntry } from "./vite/discovery";
 
-export interface LitzNitroPluginOptions {
-  /** Path to a custom server entry file. Defaults to `src/server.ts` or `src/server/index.ts`. */
-  readonly server?: string;
-  /**
-   * Deployment preset. Determines the server output format and runtime
-   * adapter (e.g. `"node-server"`, `"cloudflare-pages"`, `"vercel"`).
-   */
-  readonly preset?: string;
-  /**
-   * Per-route rules for caching, headers, redirects, pre-rendering, and
-   * proxying. Keys are path patterns (e.g. `"/api/**"`).
-   */
-  readonly routeRules?: Readonly<Record<string, LitzRouteRule>>;
-  /**
-   * Compress static assets with gzip, brotli, or zstd. Pass `true` to
-   * enable all supported algorithms, or an object to pick individually.
-   */
-  readonly compressPublicAssets?:
-    | boolean
-    | {
-        readonly gzip?: boolean;
-        readonly brotli?: boolean;
-        readonly zstd?: boolean;
-      };
-  /** Base URL path for the application (e.g. `"/app/"`). */
-  readonly baseURL?: string;
-  /** Generate source maps for the server build. */
-  readonly sourcemap?: boolean;
-  /** Minify the server build output. */
-  readonly minify?: boolean;
-}
+export type { LitzNitroPluginOptions };
 
 const LITZ_NITRO_RENDERER_FILENAME = "nitro-renderer.ts";
 

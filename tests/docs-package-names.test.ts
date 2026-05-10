@@ -69,7 +69,7 @@ describe("docs package names", () => {
     expect(installationDoc).not.toMatch(/pnpm add litz(?!js)/);
   });
 
-  test("installation docs list the minimal peer dependency surface and optional adapters", () => {
+  test("installation docs list the minimal peer dependency surface and bundled adapters", () => {
     const installationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/installation.tsx"));
 
     expect(installationDoc).toContain("bun add react react-dom");
@@ -78,13 +78,13 @@ describe("docs package names", () => {
     expect(installationDoc).toContain("pnpm add react react-dom");
 
     expect(installationDoc).toContain("bun add -d vite typescript");
-    expect(installationDoc).toContain("bun add -d nitro");
     expect(installationDoc).toContain("npm install -D vite typescript");
-    expect(installationDoc).toContain("npm install -D nitro");
     expect(installationDoc).toContain("yarn add -D vite typescript");
-    expect(installationDoc).toContain("yarn add -D nitro");
     expect(installationDoc).toContain("pnpm add -D vite typescript");
-    expect(installationDoc).toContain("pnpm add -D nitro");
+    expect(installationDoc).not.toContain("bun add -d nitro");
+    expect(installationDoc).not.toContain("npm install -D nitro");
+    expect(installationDoc).not.toContain("yarn add -D nitro");
+    expect(installationDoc).not.toContain("pnpm add -D nitro");
     expect(installationDoc).not.toContain("bun add -d typescript vite @vitejs/plugin-rsc");
     expect(installationDoc).not.toContain("npm install -D typescript vite @vitejs/plugin-rsc");
     expect(installationDoc).not.toContain("yarn add -D typescript vite @vitejs/plugin-rsc");
@@ -97,8 +97,8 @@ describe("docs package names", () => {
     expect(installationDoc).toContain('packageName: "nitro"');
     expect(installationDoc).toContain("^19");
     expect(installationDoc).toContain("^8");
-    expect(installationDoc).toContain("^3");
-    expect(installationDoc).toContain("Optional capabilities");
+    expect(installationDoc).toContain("Bundled");
+    expect(installationDoc).toContain("Included capabilities");
     expect(installationDoc).toContain("@vitejs/plugin-rsc");
     expect(installationDoc).toContain("is bundled with");
     expect(installationDoc).toContain("your app still needs its own TypeScript install");
@@ -108,7 +108,7 @@ describe("docs package names", () => {
     expect(installationDoc).toContain("does not publish a single runtime engine floor");
   });
 
-  test("package metadata keeps implementation dependencies out of the default peer surface", () => {
+  test("package metadata keeps implementation dependencies out of the peer surface", () => {
     const packageJson = JSON.parse(readDoc("package.json")) as {
       readonly dependencies?: Record<string, string>;
       readonly peerDependencies?: Record<string, string>;
@@ -116,12 +116,12 @@ describe("docs package names", () => {
     };
 
     expect(packageJson.peerDependencies).toEqual({
-      nitro: "^3",
       react: "^19",
       "react-dom": "^19",
       vite: "^8",
     });
-    expect(packageJson.peerDependenciesMeta?.nitro?.optional).toBe(true);
+    expect(packageJson.dependencies?.nitro).toBe("3.0.260311-beta");
+    expect(packageJson.peerDependenciesMeta).toBeUndefined();
     expect(packageJson.dependencies?.["@vitejs/plugin-rsc"]).toBe("^0.5.21");
     expect(packageJson.dependencies?.typescript).toBe("^6.0.2");
   });
