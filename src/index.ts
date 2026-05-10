@@ -2,6 +2,7 @@ import * as React from "react";
 
 import type { SubmitPayload } from "./form-data";
 
+import { resolveClientHref } from "./client/base-url";
 import { getClientBindings } from "./client/bindings";
 import { interpolatePath } from "./path-matching";
 import {
@@ -1733,7 +1734,7 @@ function buildApiHref(
   const href = searchString ? `${pathname}?${searchString}` : pathname;
 
   if (!baseUrl) {
-    return href;
+    return resolveClientHref(href);
   }
 
   const resolvedBaseUrl = new URL(baseUrl);
