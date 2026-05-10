@@ -9,12 +9,12 @@ function readDoc(relativePath: string) {
 }
 
 describe("deployment docs", () => {
-  test("www build plugins target the Litz public output directory", () => {
+  test("www build plugins target the Litz client output directory", () => {
     const wwwViteConfig = readDoc("www/vite.config.ts");
 
-    expect(wwwViteConfig).toContain('outDir: "dist/public"');
+    expect(wwwViteConfig).toContain('outDir: "dist/client"');
     expect(wwwViteConfig).toContain("chunkSizeWarningLimit: 2_000");
-    expect(wwwViteConfig).not.toContain('outDir: "dist/client"');
+    expect(wwwViteConfig).not.toContain('outDir: "dist/public"');
   });
 
   test("document production-ready runtime recipes", () => {
@@ -39,17 +39,17 @@ describe("deployment docs", () => {
     expect(bunDoc).toContain('headers.set("content-length", String(asset.size));');
     expect(bunDoc).toContain('headers.set("content-type", asset.type);');
     expect(bunDoc).toContain('url.pathname === "/" ? "/index.html" : url.pathname');
-    expect(bunDoc).toContain("dist/public");
+    expect(bunDoc).toContain("dist/client");
     expect(bunDoc).not.toContain("embedAssets");
 
     expect(cloudflareDoc).toContain("return app.fetch(request);");
     expect(cloudflareDoc).toContain('"run_worker_first": ["/_litzjs/*", "/api/*"]');
-    expect(cloudflareDoc).toContain('"directory": "./dist/public"');
+    expect(cloudflareDoc).toContain('"directory": "./dist/client"');
     expect(cloudflareDoc).toContain("env.ASSETS.fetch(request)");
 
     expect(denoDoc).toContain('import app from "./dist/server/index.mjs";');
     expect(denoDoc).toContain("satisfies Deno.ServeDefaultExport");
-    expect(denoDoc).toContain("--include=dist/public");
+    expect(denoDoc).toContain("--include=dist/client");
     expect(denoDoc).toContain("dist/server/index.mjs");
     expect(denoDoc).not.toContain("embedAssets");
     expect(denoDoc).toContain("# Local preview");

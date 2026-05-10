@@ -13,7 +13,7 @@ function DocsNodePage() {
       <title>Node.js | Litz</title>
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">Node.js</h1>
       <p className="text-xl text-neutral-300 mb-8">
-        Deploy Litz apps to Node.js by serving <code className="text-sky-400">dist/public</code> as
+        Deploy Litz apps to Node.js by serving <code className="text-sky-400">dist/client</code> as
         static files and forwarding everything else to the built Litz handler in{" "}
         <code className="text-sky-400">dist/server/index.mjs</code>.
       </p>
@@ -44,7 +44,7 @@ export default createServer({
         <p className="text-neutral-400 mb-4">A production build gives you two outputs:</p>
         <ul className="text-neutral-400 space-y-1 list-disc list-inside mb-4">
           <li>
-            <code className="text-sky-400">dist/public</code> for the document shell and browser
+            <code className="text-sky-400">dist/client</code> for the document shell and browser
             assets
           </li>
           <li>
@@ -54,7 +54,7 @@ export default createServer({
         </ul>
         <p className="text-neutral-400 mb-4">
           In Node, the production job is always the same: serve{" "}
-          <code className="text-sky-400">dist/public</code> directly, convert Node requests into web{" "}
+          <code className="text-sky-400">dist/client</code> directly, convert Node requests into web{" "}
           <code className="text-sky-400">Request</code> objects, then call{" "}
           <code className="text-sky-400">app.fetch(request)</code>.
         </p>
@@ -134,7 +134,7 @@ import app from "./dist/server/index.mjs";
 import { sendWebResponse, toWebRequest } from "./node-adapter.js";
 
 const port = Number(process.env.PORT ?? 3000);
-const clientDir = path.resolve("dist/public");
+const clientDir = path.resolve("dist/client");
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -222,7 +222,7 @@ import app from "./dist/server/index.mjs";
 import { sendWebResponse, toWebRequest } from "./node-adapter.js";
 
 const server = express();
-const clientDir = path.resolve("dist/public");
+const clientDir = path.resolve("dist/client");
 const port = Number(process.env.PORT ?? 3000);
 
 server.disable("x-powered-by");
@@ -267,7 +267,7 @@ import app from "./dist/server/index.mjs";
 import { sendWebResponse, toWebRequest } from "./node-adapter.js";
 
 const server = Fastify({ logger: true });
-const clientDir = path.resolve("dist/public");
+const clientDir = path.resolve("dist/client");
 
 await server.register(fastifyStatic, {
   root: path.join(clientDir, "assets"),
@@ -354,7 +354,7 @@ node ./server/fastify.js`}
           <li>The selected Node adapter starts without errors</li>
           <li>
             <code className="text-sky-400">/assets/*</code> is served directly from{" "}
-            <code className="text-sky-400">dist/public</code>
+            <code className="text-sky-400">dist/client</code>
           </li>
           <li>Document requests still hydrate correctly in the browser</li>
           <li>

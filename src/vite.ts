@@ -123,7 +123,7 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
         environments: {
           client: {
             build: {
-              outDir: path.join(baseOutDir, "public"),
+              outDir: path.join(baseOutDir, "client"),
               manifest: true,
             },
           },
@@ -630,7 +630,7 @@ function finalizeFrameworkBuild(root: string, outDir: string): void {
   const distDir = path.resolve(root, outDir);
   const ssrDir = path.join(distDir, "ssr");
   const serverEntryPath = path.join(distDir, "server", "index.mjs");
-  const clientManifestPath = path.join(distDir, "public", ".vite", "manifest.json");
+  const clientManifestPath = path.join(distDir, "client", ".vite", "manifest.json");
 
   if (existsSync(ssrDir)) {
     rmSync(ssrDir, { force: true, recursive: true });

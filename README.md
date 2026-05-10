@@ -928,12 +928,12 @@ The Vite plugin injects the discovered server manifest automatically into that e
 
 ### Production Output
 
-When you run `vite build`, Litz writes the browser assets to `dist/public`.
+When you run `vite build`, Litz writes the browser assets to `dist/client`.
 
 Server output is always `dist/server/index.mjs`. The Vite plugin injects the discovered server
 manifest into `createServer(...)` automatically.
 
-Your host server or platform is responsible for serving `dist/public` (for example through
+Your host server or platform is responsible for serving `dist/client` (for example through
 `express.static`, a CDN, or a platform asset binding) while forwarding dynamic requests to
 `dist/server/index.mjs`.
 
