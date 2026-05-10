@@ -20,7 +20,8 @@ export function litzNitro(options: LitzNitroPluginOptions = {}): PluginOption {
   let root = rendererRoot;
   let configuredBase = "/";
   let intermediateBuildOutDir = path.resolve(root, "dist");
-  let finalNitroOutDir = path.resolve(root, ".output");
+  let finalNitroOutDir = path.resolve(root, options.output?.dir ?? "dist");
+  let finalNitroPublicDir = path.resolve(finalNitroOutDir, "public");
 
   // Nitro resolves its renderer during its config hook, before Vite config is
   // fully resolved, so the file must exist before constructing Nitro plugins.
@@ -40,6 +41,11 @@ export function litzNitro(options: LitzNitroPluginOptions = {}): PluginOption {
     baseURL: options.baseURL,
     sourcemap: options.sourcemap,
     minify: options.minify,
+    output: {
+      dir: options.output?.dir ?? "dist",
+      publicDir: options.output?.publicDir,
+      serverDir: options.output?.serverDir,
+    },
   });
 
   // Prevent Nitro from hijacking the RSC-managed environments. Nitro's
@@ -80,7 +86,10 @@ export function litzNitro(options: LitzNitroPluginOptions = {}): PluginOption {
       root = config.root;
       configuredBase = normalizeBasePath(config.base);
       intermediateBuildOutDir = path.resolve(root, config.build.outDir || "dist");
-      finalNitroOutDir = path.resolve(root, ".output");
+      finalNitroOutDir = path.resolve(root, options.output?.dir ?? (config.build.outDir || "dist"));
+      finalNitroPublicDir = options.output?.publicDir
+        ? path.resolve(root, options.output.publicDir)
+        : path.resolve(finalNitroOutDir, "public");
 
       const serverEntryPath = await discoverServerEntry(root, options.server);
 
@@ -105,12 +114,7 @@ export function litzNitro(options: LitzNitroPluginOptions = {}): PluginOption {
         isBuild
           ? {
               base: configuredBase,
-              clientManifestPath: path.resolve(
-                finalNitroOutDir,
-                "public",
-                ".vite",
-                "manifest.json",
-              ),
+              clientManifestPath: path.resolve(finalNitroPublicDir, ".vite", "manifest.json"),
               template: readDocumentTemplate(root),
             }
           : null,
@@ -141,7 +145,12 @@ export function litzNitro(options: LitzNitroPluginOptions = {}): PluginOption {
     buildApp: {
       order: "post",
       async handler() {
-        cleanupIntermediateBuildArtifacts(root, intermediateBuildOutDir, finalNitroOutDir);
+        cleanupIntermediateBuildArtifacts(
+          root,
+          intermediateBuildOutDir,
+          finalNitroOutDir,
+          finalNitroPublicDir,
+        );
       },
     },
   };
@@ -185,8 +194,20 @@ function cleanupIntermediateBuildArtifacts(
   root: string,
   intermediateBuildOutDir: string,
   nitroOutDir: string,
+  nitroPublicDir: string,
 ): void {
   if (!hasCompletedNitroBuild(nitroOutDir)) {
+    return;
+  }
+
+  if (intermediateBuildOutDir === nitroOutDir) {
+    for (const environmentOutDir of ["client", "rsc", "ssr"]) {
+      const candidate = path.join(intermediateBuildOutDir, environmentOutDir);
+
+      if (candidate !== nitroPublicDir) {
+        rmSync(candidate, { force: true, recursive: true });
+      }
+    }
     return;
   }
 

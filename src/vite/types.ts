@@ -61,6 +61,18 @@ export interface LitzNitroPluginOptions {
   readonly sourcemap?: boolean;
   /** Minify the server build output. */
   readonly minify?: boolean;
+  /**
+   * Nitro build output directories. Defaults to Vite's standard `dist`
+   * directory with `public` and `server` subdirectories.
+   */
+  readonly output?: {
+    /** Final build output directory. */
+    readonly dir?: string;
+    /** Browser/static asset output directory. */
+    readonly publicDir?: string;
+    /** Server runtime output directory. */
+    readonly serverDir?: string;
+  };
 }
 
 export interface LitzPluginOptions {

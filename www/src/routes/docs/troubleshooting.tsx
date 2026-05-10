@@ -275,14 +275,14 @@ Bun.serve({
         </h2>
         <p className="text-neutral-400 mb-4">
           Production deployments commonly fail in one of two ways: only the server bundle is
-          deployed and <code className="text-sky-400">.output/public</code> never gets served, or
-          the runtime starts the wrong entry file instead of{" "}
-          <code className="text-sky-400">.output/server/index.mjs</code>.
+          deployed and <code className="text-sky-400">dist/public</code> never gets served, or the
+          runtime starts the wrong entry file instead of{" "}
+          <code className="text-sky-400">dist/server/index.mjs</code>.
         </p>
         <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
           <li>
-            Deploy both <code className="text-sky-400">.output/public</code> and{" "}
-            <code className="text-sky-400">.output/server/index.mjs</code>.
+            Deploy both <code className="text-sky-400">dist/public</code> and{" "}
+            <code className="text-sky-400">dist/server/index.mjs</code>.
           </li>
           <li>
             If your server entry is not <code className="text-sky-400">src/server.ts</code>, point
@@ -291,8 +291,8 @@ Bun.serve({
           </li>
           <li>
             On platforms with a separate asset pipeline, make sure{" "}
-            <code className="text-sky-400">.output/public</code> is uploaded or published through
-            that static asset mechanism.
+            <code className="text-sky-400">dist/public</code> is uploaded or published through that
+            static asset mechanism.
           </li>
         </ul>
         <CodeBlock
@@ -353,8 +353,8 @@ export default createServer({
           <li>The import statement or route file path involved in the failure</li>
           <li>
             Which runtime you are deploying to and whether you serve{" "}
-            <code className="text-sky-400">.output/public</code> alongside{" "}
-            <code className="text-sky-400">.output/server/index.mjs</code>
+            <code className="text-sky-400">dist/public</code> alongside{" "}
+            <code className="text-sky-400">dist/server/index.mjs</code>
           </li>
         </ul>
       </section>

@@ -443,7 +443,7 @@ describe("vite production server helpers", () => {
         );
       }
 
-      const publicAssets = readdirSync(path.join(root, ".output", "public", "assets")).sort();
+      const publicAssets = readdirSync(path.join(root, "dist", "public", "assets")).sort();
 
       expect(publicAssets.some((file) => /^routes-.*\.css$/.test(file))).toBe(true);
       expect(publicAssets.some((file) => /^loader-data-.*\.css$/.test(file))).toBe(true);
@@ -476,9 +476,10 @@ describe("vite production server helpers", () => {
         );
       }
 
-      expect(existsSync(path.join(root, ".output", "public"))).toBe(true);
-      expect(existsSync(path.join(root, ".output", "server"))).toBe(true);
-      expect(existsSync(path.join(root, "dist"))).toBe(false);
+      expect(existsSync(path.join(root, "dist", "public"))).toBe(true);
+      expect(existsSync(path.join(root, "dist", "server"))).toBe(true);
+      expect(existsSync(path.join(root, "dist", "rsc"))).toBe(false);
+      expect(existsSync(path.join(root, "dist", "ssr"))).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -497,9 +498,10 @@ describe("vite production server helpers", () => {
         root,
       });
 
-      expect(existsSync(path.join(root, ".output", "public"))).toBe(true);
-      expect(existsSync(path.join(root, ".output", "server"))).toBe(true);
-      expect(existsSync(path.join(root, "dist"))).toBe(false);
+      expect(existsSync(path.join(root, "dist", "public"))).toBe(true);
+      expect(existsSync(path.join(root, "dist", "server"))).toBe(true);
+      expect(existsSync(path.join(root, "dist", "rsc"))).toBe(false);
+      expect(existsSync(path.join(root, "dist", "ssr"))).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -532,7 +534,7 @@ describe("vite production server helpers", () => {
         );
       }
 
-      serverProcess = spawn(process.execPath, [path.join(root, ".output", "server", "index.mjs")], {
+      serverProcess = spawn(process.execPath, [path.join(root, "dist", "server", "index.mjs")], {
         cwd: repoRoot,
         env: {
           ...process.env,
