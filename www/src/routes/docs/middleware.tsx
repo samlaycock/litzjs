@@ -159,12 +159,7 @@ export const api = defineApiRoute("/api/data", {
           language="tsx"
           code={`// server.ts
 import { createServer } from "litzjs/server";
-import { base } from "virtual:litzjs:base";
-import { serverManifest } from "virtual:litzjs:server-manifest";
-
 export default createServer({
-  base,
-  manifest: serverManifest,
   async createContext(request) {
     const session = await getSession(request);
     return { userId: session?.userId ?? null };

@@ -1,6 +1,4 @@
 import { createServer } from "litzjs/server";
-import { base } from "virtual:litzjs:base";
-import { serverManifest } from "virtual:litzjs:server-manifest";
 
 export default createServer({
   assets(request) {
@@ -16,13 +14,11 @@ export default createServer({
 
     return null;
   },
-  base,
   createContext(request) {
     return {
       requestId: request.headers.get("x-fixture-request-id") ?? "fixture-request",
     };
   },
-  manifest: serverManifest,
   notFound: "<!doctype html><title>Fixture Not Found</title><h1>Fixture Not Found</h1>",
   onError: (error) => {
     console.error("An error occurred:", error);

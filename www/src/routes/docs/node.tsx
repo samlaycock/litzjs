@@ -21,17 +21,12 @@ function DocsNodePage() {
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Server entry</h2>
         <p className="text-neutral-400 mb-4">
-          Keep your Litz server entry small and wire the generated manifest explicitly:
+          Keep your Litz server entry small and focused on request-specific behavior:
         </p>
         <CodeBlock
           language="ts"
           code={`import { createServer } from "litzjs/server";
-import { base } from "virtual:litzjs:base";
-import { serverManifest } from "virtual:litzjs:server-manifest";
-
 export default createServer({
-  base,
-  manifest: serverManifest,
   async createContext(request) {
     return {
       requestId: request.headers.get("x-request-id"),
