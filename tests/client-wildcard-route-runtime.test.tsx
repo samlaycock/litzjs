@@ -217,6 +217,7 @@ describe("client wildcard route runtime", () => {
   });
 
   afterEach(() => {
+    clientModule?.configureClientRuntime({ baseUrl: undefined });
     globalThis.fetch = originalFetch;
     container?.remove();
     cleanupDom?.();
@@ -432,6 +433,84 @@ describe("client wildcard route runtime", () => {
     );
     expect(document.getElementById("status-state")?.getAttribute("data-value")).toBe("idle");
     expect(document.getElementById("pending-state")?.getAttribute("data-value")).toBe("false");
+  });
+
+  test("matches base-prefixed browser pathnames against route definitions", async () => {
+    window.history.replaceState(null, "", "/app/projects/42?tab=activity");
+
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const inputUrl =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+
+      expect(inputUrl).toBe("/app/_litzjs/route");
+
+      if (typeof init?.body !== "string") {
+        throw new Error("Expected route loader request body to be a JSON string.");
+      }
+
+      const request = JSON.parse(init.body) as {
+        path: string;
+        request: {
+          params: Record<string, string>;
+          search: Record<string, string>;
+        };
+      };
+
+      expect(request.path).toBe("/projects/:id");
+      expect(request.request.params).toEqual({
+        id: "42",
+      });
+      expect(request.request.search).toEqual({
+        tab: "activity",
+      });
+
+      return Promise.resolve(
+        Response.json({
+          kind: "data",
+          data: { id: "42", tab: "activity", source: "base" },
+        }),
+      );
+    }) as typeof globalThis.fetch;
+
+    clientModule = await import("../src/client/index");
+    clientModule.configureClientRuntime({ baseUrl: "/app/" });
+
+    await act(async () => {
+      clientModule?.mountApp(container!);
+      await flushApp();
+    });
+
+    expect(window.location.pathname).toBe("/app/projects/42");
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe(
+      "project-route",
+    );
+    expect(document.getElementById("loader-data")?.getAttribute("data-value")).toBe(
+      JSON.stringify({ id: "42", tab: "activity", source: "base" }),
+    );
+  });
+
+  test("generates base-prefixed browser URLs for client navigation", async () => {
+    clientModule = await import("../src/client/index");
+    clientModule.configureClientRuntime({ baseUrl: "/app/" });
+
+    await act(async () => {
+      clientModule?.mountApp(container!);
+      await flushApp();
+    });
+
+    const link = container?.getElementsByTagName("a")[0] ?? null;
+
+    expect(link?.getAttribute("href")).toBe("/app/docs/getting-started/install");
+
+    await act(async () => {
+      link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+      await flushApp();
+    });
+
+    expect(window.location.pathname).toBe("/app/docs/getting-started/install");
+    expect(document.getElementById("route-state")?.getAttribute("data-value")).toBe(
+      "wildcard-route",
+    );
   });
 
   test("keeps overlapping route submits latest-only and aborts the older request", async () => {

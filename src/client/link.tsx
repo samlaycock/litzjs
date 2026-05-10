@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import { resolveClientHref } from "./base-url";
 import { shouldInterceptLinkNavigation, toNavigationHref } from "./navigation";
 
 export type LinkPrefetchMode = "none" | "intent" | "render";
@@ -40,6 +41,7 @@ export function createLinkComponent(dependencies: {
       rel,
       ...rest
     } = props;
+    const browserHref = resolveClientHref(href);
 
     React.useEffect(() => {
       if (prefetch !== "render") {
@@ -48,7 +50,7 @@ export function createLinkComponent(dependencies: {
 
       const controller = new AbortController();
 
-      dependencies.prefetchRouteForHref(href, {
+      dependencies.prefetchRouteForHref(browserHref, {
         target,
         download,
         includeData: prefetchData,
@@ -58,11 +60,11 @@ export function createLinkComponent(dependencies: {
       return () => {
         controller.abort();
       };
-    }, [dependencies, download, href, prefetch, prefetchData, target]);
+    }, [browserHref, dependencies, download, prefetch, prefetchData, target]);
 
     return React.createElement("a", {
       ...rest,
-      href,
+      href: browserHref,
       target,
       download,
       rel,
@@ -77,7 +79,7 @@ export function createLinkComponent(dependencies: {
           return;
         }
 
-        dependencies.prefetchRouteForHref(href, {
+        dependencies.prefetchRouteForHref(browserHref, {
           target,
           download,
           includeData: prefetchData,
@@ -94,7 +96,7 @@ export function createLinkComponent(dependencies: {
           return;
         }
 
-        dependencies.prefetchRouteForHref(href, {
+        dependencies.prefetchRouteForHref(browserHref, {
           target,
           download,
           includeData: prefetchData,
@@ -111,7 +113,7 @@ export function createLinkComponent(dependencies: {
           return;
         }
 
-        dependencies.prefetchRouteForHref(href, {
+        dependencies.prefetchRouteForHref(browserHref, {
           target,
           download,
           includeData: prefetchData,
@@ -124,7 +126,7 @@ export function createLinkComponent(dependencies: {
           return;
         }
 
-        const nextUrl = new URL(href, window.location.href);
+        const nextUrl = new URL(browserHref, window.location.href);
         const currentUrl = new URL(window.location.href);
 
         if (
