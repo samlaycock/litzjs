@@ -510,7 +510,13 @@ export async function renderView(node, metadata = {}) {
     },
   };
 
-  const nitroPlugins = options.nitro === false ? [] : (litzNitro(options.nitro) as Plugin[]);
+  const nitroPlugins =
+    options.nitro === false
+      ? []
+      : (litzNitro({
+          ...options.nitro,
+          server: options.nitro?.server ?? options.server,
+        }) as Plugin[]);
 
   // The explicit cast prevents a "Plugin<any>[]" leak caused by Nitro's module
   // augmentation when consumers pass the result into defineConfig plugins.

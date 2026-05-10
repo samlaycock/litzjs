@@ -1025,6 +1025,7 @@ const viteGroups: readonly ReferenceGroupSpec[] = [
   routes?: string[];
   api?: string[];
   resources?: string[];
+  clientEntry?: string;
   server?: string;
   rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
   nitro?: false | LitzNitroPluginOptions;
@@ -1044,7 +1045,8 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
-      routes: ["src/routes/**/*.{ts,tsx}"],
+      routes: ["src/routes/**/*.{ts,tsx,js,jsx}"],
+      clientEntry: "src/main.tsx",
       server: "src/server.ts",
     }),
   ],
@@ -1110,6 +1112,11 @@ const viteNitroGroups: readonly ReferenceGroupSpec[] = [
   baseURL?: string;
   sourcemap?: boolean;
   minify?: boolean;
+  output?: {
+    dir?: string;
+    publicDir?: string;
+    serverDir?: string;
+  };
 };`,
         summary: "Options accepted by the Nitro Vite plugin factory.",
       },

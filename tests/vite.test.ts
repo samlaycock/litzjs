@@ -174,6 +174,49 @@ describe("vite production server helpers", () => {
     expect(plugins.some((plugin) => plugin.name === "litzjs/nitro")).toBe(true);
   });
 
+  test("passes the top-level custom server entry to default Nitro", async () => {
+    const previousCwd = process.cwd();
+    const root = mkdtempSync(path.join(tmpdir(), "litz-nitro-forward-server-"));
+    const rendererPath = path.join(root, ".litzjs", "nitro-renderer.ts");
+
+    try {
+      mkdirSync(path.join(root, "app"), { recursive: true });
+      writeFileSync(path.join(root, "app", "server.ts"), "export default null;\n", "utf8");
+      process.chdir(root);
+
+      const plugin = (litz({ server: "app/server.ts" }) as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/nitro",
+      );
+
+      if (!plugin?.configResolved) {
+        throw new Error("Expected litzjs/nitro configResolved hook to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+
+      await configResolved.call(
+        {} as never,
+        {
+          root,
+          base: "/",
+          command: "serve",
+          build: {
+            outDir: "dist",
+          },
+          environments: {},
+        } as never,
+      );
+
+      expect(readFileSync(rendererPath, "utf8")).toContain(path.resolve(root, "app", "server.ts"));
+    } finally {
+      process.chdir(previousCwd);
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("allows Nitro dev runtime dependencies outside the Vite root", () => {
     const plugin = (litzNitro() as Plugin[]).find((candidate) => candidate.name === "litzjs/nitro");
 

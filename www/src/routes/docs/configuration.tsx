@@ -45,9 +45,10 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
-      routes: ["src/routes/**/*.{ts,tsx}"],
-      api: ["src/routes/api/**/*.{ts,tsx}"],
-      resources: ["src/routes/resources/**/*.{ts,tsx}"],
+      routes: ["src/routes/**/*.{ts,tsx,js,jsx}"],
+      api: ["src/routes/api/**/*.{ts,tsx,js,jsx}"],
+      resources: ["src/routes/resources/**/*.{ts,tsx,js,jsx}"],
+      clientEntry: "src/main.tsx",
       server: "src/server.ts",
     }),
   ],
@@ -65,8 +66,8 @@ export default defineConfig({
           <code className="text-sky-400">defineRoute()</code>.
         </p>
         <p className="text-neutral-400 mb-4">
-          <strong>Default:</strong> All .ts and .tsx files in src/routes, excluding api and
-          resources subdirectories
+          <strong>Default:</strong> All .ts, .tsx, .js, and .jsx files in src/routes, excluding api
+          and resources subdirectories
         </p>
         <CodeBlock
           language="ts"
@@ -87,7 +88,7 @@ litz({
           <code className="text-sky-400">defineApiRoute()</code>.
         </p>
         <p className="text-neutral-400 mb-4">
-          <strong>Default:</strong> All .ts and .tsx files in src/routes/api
+          <strong>Default:</strong> All .ts, .tsx, .js, and .jsx files in src/routes/api
         </p>
         <CodeBlock
           language="ts"
@@ -108,13 +109,33 @@ litz({
           <code className="text-sky-400">defineResource()</code>.
         </p>
         <p className="text-neutral-400 mb-4">
-          <strong>Default:</strong> All .ts and .tsx files in src/routes/resources
+          <strong>Default:</strong> All .ts, .tsx, .js, and .jsx files in src/routes/resources
         </p>
         <CodeBlock
           language="ts"
           code={`// Example: custom resources directory
 litz({
   resources: ["app/components/**/*.{ts,tsx}"],
+})`}
+        />
+      </section>
+
+      <section className="mb-12">
+        <h3 className="text-xl font-medium text-neutral-100 mb-3">clientEntry</h3>
+        <p className="text-neutral-400 mb-4">
+          <strong>Type:</strong> <code className="text-sky-400">string</code>
+        </p>
+        <p className="text-neutral-400 mb-4">
+          Browser entry imported by Litz&apos;s generated client runtime module.
+        </p>
+        <p className="text-neutral-400 mb-4">
+          <strong>Default:</strong> <code className="text-sky-400">"src/main.tsx"</code>
+        </p>
+        <CodeBlock
+          language="ts"
+          code={`// Example: custom browser entry
+litz({
+  clientEntry: "app/browser.tsx",
 })`}
         />
       </section>
@@ -143,6 +164,35 @@ litz({
       </section>
 
       <section className="mb-12">
+        <h3 className="text-xl font-medium text-neutral-100 mb-3">nitro</h3>
+        <p className="text-neutral-400 mb-4">
+          <strong>Type:</strong>{" "}
+          <code className="text-sky-400">false | LitzNitroPluginOptions</code>
+        </p>
+        <p className="text-neutral-400 mb-4">
+          Configure the default Nitro production adapter, or pass{" "}
+          <code className="text-sky-400">false</code> for advanced manual plugin composition.
+        </p>
+        <p className="text-neutral-400 mb-4">
+          <strong>Default output:</strong> browser assets in{" "}
+          <code className="text-sky-400">dist/public</code> and the server runtime in{" "}
+          <code className="text-sky-400">dist/server/index.mjs</code>
+        </p>
+        <CodeBlock
+          language="ts"
+          code={`// Example: configure deployment output
+litz({
+  nitro: {
+    preset: "node-server",
+    output: {
+      dir: "build",
+    },
+  },
+})`}
+        />
+      </section>
+
+      <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Complete example</h2>
         <p className="text-neutral-400 mb-4">A full configuration with all options:</p>
         <CodeBlock
@@ -154,16 +204,28 @@ export default defineConfig({
   plugins: [
     litz({
       // Route files (pages)
-      routes: ["src/routes/**/*.{ts,tsx}", "!src/routes/api/**", "!src/routes/resources/**"],
+      routes: [
+        "src/routes/**/*.{ts,tsx,js,jsx}",
+        "!src/routes/api/**/*.{ts,tsx,js,jsx}",
+        "!src/routes/resources/**/*.{ts,tsx,js,jsx}",
+      ],
 
       // API route files
-      api: ["src/routes/api/**/*.{ts,tsx}"],
+      api: ["src/routes/api/**/*.{ts,tsx,js,jsx}"],
 
       // Resource files (reusable server-backed UI)
-      resources: ["src/routes/resources/**/*.{ts,tsx}"],
+      resources: ["src/routes/resources/**/*.{ts,tsx,js,jsx}"],
+
+      // Browser entry (optional)
+      clientEntry: "src/main.tsx",
 
       // Custom server entry (optional)
       server: "src/server.ts",
+
+      // Nitro production adapter options (optional)
+      nitro: {
+        preset: "node-server",
+      },
     }),
   ],
 });`}
