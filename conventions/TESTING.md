@@ -1,4 +1,5 @@
 Run the unit tests with `bun run test`
+Run the end-to-end tests with `bun run test:e2e`
 Always write unit tests for all new functionality.
 Make sure to mock timeouts and intervals in tests.
 Use descriptive test names.
