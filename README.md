@@ -956,7 +956,7 @@ export default defineConfig({
 });
 ```
 
-In the custom-server case, unmatched document and static asset requests fall through to the normal
+With a custom server entry, unmatched document and static asset requests fall through to the normal
 `createServer(...)` 404 behavior unless your host server handles them first.
 
 ## Security Model

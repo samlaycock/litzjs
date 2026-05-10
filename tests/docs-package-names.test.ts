@@ -116,14 +116,14 @@ describe("docs package names", () => {
     };
 
     expect(packageJson.peerDependencies).toEqual({
-      react: "^19",
-      "react-dom": "^19",
-      vite: "^8",
+      react: "^19.0.0",
+      "react-dom": "^19.0.0",
+      vite: "^8.0.0",
     });
-    expect(packageJson.dependencies?.nitro).toBe("3.0.260311-beta");
+    expect(packageJson.dependencies?.nitro).toBe("3.0.260429-beta");
     expect(packageJson.peerDependenciesMeta).toBeUndefined();
-    expect(packageJson.dependencies?.["@vitejs/plugin-rsc"]).toBe("^0.5.21");
-    expect(packageJson.dependencies?.typescript).toBe("^6.0.2");
+    expect(packageJson.dependencies?.["@vitejs/plugin-rsc"]).toBe("0.5.26");
+    expect(packageJson.dependencies?.typescript).toBe("6.0.3");
   });
 
   test("deployment and API reference docs use the published package name", () => {

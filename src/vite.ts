@@ -49,20 +49,16 @@ import {
   toProjectImportSpecifier,
 } from "./vite/paths";
 import {
-  BASE_ID,
   LITZ_BROWSER_ENTRY_ID,
   LITZ_RSC_ENTRY_ID,
   LITZ_RSC_RENDERER_ID,
-  RESOLVED_BASE_ID,
   RESOLVED_LITZ_BROWSER_ENTRY_ID,
   RESOLVED_LITZ_RSC_ENTRY_ID,
   RESOLVED_LITZ_RSC_RENDERER_ID,
   RESOLVED_RESOURCE_MANIFEST_ID,
   RESOLVED_ROUTE_MANIFEST_ID,
-  RESOLVED_SERVER_MANIFEST_ID,
   RESOURCE_MANIFEST_ID,
   ROUTE_MANIFEST_ID,
-  SERVER_MANIFEST_ID,
 } from "./vite/virtual-ids";
 import {
   createClientProjectedFileSet,
@@ -155,8 +151,6 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
     resolveId(id) {
       if (id === ROUTE_MANIFEST_ID) return RESOLVED_ROUTE_MANIFEST_ID;
       if (id === RESOURCE_MANIFEST_ID) return RESOLVED_RESOURCE_MANIFEST_ID;
-      if (id === SERVER_MANIFEST_ID) return RESOLVED_SERVER_MANIFEST_ID;
-      if (id === BASE_ID) return RESOLVED_BASE_ID;
       if (id === LITZ_RSC_ENTRY_ID) return RESOLVED_LITZ_RSC_ENTRY_ID;
       if (id === LITZ_BROWSER_ENTRY_ID) return RESOLVED_LITZ_BROWSER_ENTRY_ID;
       if (id === LITZ_RSC_RENDERER_ID) return RESOLVED_LITZ_RSC_RENDERER_ID;
@@ -177,27 +171,17 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
         return createResourceManifestModule(resourceManifest);
       }
 
-      if (id === RESOLVED_SERVER_MANIFEST_ID) {
-        return createServerManifestModule(routeManifest, resourceManifest, apiManifest);
-      }
-
-      if (id === RESOLVED_BASE_ID) {
-        return `export const base = ${JSON.stringify(configuredBase)};`;
-      }
-
       if (id === RESOLVED_LITZ_RSC_ENTRY_ID) {
         if (serverEntryPath) {
           return `export { default } from ${JSON.stringify(toProjectImportSpecifier(serverEntryPath))};`;
         }
 
-        return `
+        return `${createInlineServerRuntime(configuredBase, createServerManifestModule(routeManifest, resourceManifest, apiManifest))}
 import { createServer } from "litzjs/server";
-import { base } from ${JSON.stringify(BASE_ID)};
-import { serverManifest } from ${JSON.stringify(SERVER_MANIFEST_ID)};
 
 export default createServer({
-  base,
-  manifest: serverManifest,
+  base: __litzjsBase,
+  manifest: __litzjsServerManifest,
   createContext() {
     return undefined;
   },
@@ -500,6 +484,22 @@ export async function renderView(node, metadata = {}) {
     async transform(code, id) {
       const cleanId = normalizeViteModuleId(id);
 
+      if (serverEntryPath && this.environment.name !== "client") {
+        const relativeId = path.isAbsolute(cleanId)
+          ? normalizeRelativePath(root, cleanId)
+          : cleanId;
+
+        if (relativeId === serverEntryPath) {
+          const transformed = injectServerRuntimeOptions(
+            code,
+            configuredBase,
+            createServerManifestModule(routeManifest, resourceManifest, apiManifest),
+          );
+
+          return transformed === code ? null : { code: transformed, map: null };
+        }
+      }
+
       if (this.environment.name !== "client" || !clientProjectedFiles.has(cleanId)) {
         return null;
       }
@@ -515,6 +515,43 @@ export async function renderView(node, metadata = {}) {
   // The explicit cast prevents a "Plugin<any>[]" leak caused by Nitro's module
   // augmentation when consumers pass the result into defineConfig plugins.
   return [...rscPlugins, litzPlugin, ...nitroPlugins] as Plugin[];
+}
+
+function injectServerRuntimeOptions(
+  code: string,
+  base: string,
+  serverManifestModule: string,
+): string {
+  if (!code.includes("createServer")) {
+    return code;
+  }
+
+  const runtimeSource = createInlineServerRuntime(base, serverManifestModule);
+
+  const withObjectOptions = code.replaceAll(
+    /(?<!\.)\bcreateServer\s*\(\s*\{/g,
+    "createServer({ base: __litzjsBase, manifest: __litzjsServerManifest,",
+  );
+  const withEmptyOptions = withObjectOptions.replaceAll(
+    /(?<!\.)\bcreateServer\s*\(\s*\)/g,
+    "createServer({ base: __litzjsBase, manifest: __litzjsServerManifest })",
+  );
+
+  if (withEmptyOptions === code) {
+    return code;
+  }
+
+  return `${runtimeSource}${withEmptyOptions}`;
+}
+
+function createInlineServerRuntime(base: string, serverManifestModule: string): string {
+  return [
+    serverManifestModule
+      .replace("export const serverManifest =", "const __litzjsServerManifest =")
+      .trimStart(),
+    `const __litzjsBase = ${JSON.stringify(base)};`,
+    "",
+  ].join("\n");
 }
 
 export async function buildLitzApp(inlineConfig: InlineConfig = {}): Promise<void> {
