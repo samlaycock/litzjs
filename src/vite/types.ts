@@ -31,6 +31,38 @@ export interface LitzRouteRule {
       };
 }
 
+export interface LitzNitroPluginOptions {
+  /** Path to a custom server entry file. Defaults to `src/server.ts` or `src/server/index.ts`. */
+  readonly server?: string;
+  /**
+   * Deployment preset. Determines the server output format and runtime
+   * adapter (e.g. `"node-server"`, `"cloudflare-pages"`, `"vercel"`).
+   */
+  readonly preset?: string;
+  /**
+   * Per-route rules for caching, headers, redirects, pre-rendering, and
+   * proxying. Keys are path patterns (e.g. `"/api/**"`).
+   */
+  readonly routeRules?: Readonly<Record<string, LitzRouteRule>>;
+  /**
+   * Compress static assets with gzip, brotli, or zstd. Pass `true` to
+   * enable all supported algorithms, or an object to pick individually.
+   */
+  readonly compressPublicAssets?:
+    | boolean
+    | {
+        readonly gzip?: boolean;
+        readonly brotli?: boolean;
+        readonly zstd?: boolean;
+      };
+  /** Base URL path for the application (e.g. `"/app/"`). */
+  readonly baseURL?: string;
+  /** Generate source maps for the server build. */
+  readonly sourcemap?: boolean;
+  /** Minify the server build output. */
+  readonly minify?: boolean;
+}
+
 export interface LitzPluginOptions {
   /** Glob patterns for route files. */
   readonly routes?: string[];
@@ -44,6 +76,11 @@ export interface LitzPluginOptions {
   readonly server?: string;
   /** Options forwarded to `@vitejs/plugin-rsc`. */
   readonly rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
+  /**
+   * Nitro production adapter options. Pass `false` to disable Nitro when
+   * composing lower-level plugins manually.
+   */
+  readonly nitro?: false | LitzNitroPluginOptions;
 }
 
 export interface DiscoveredRoute {

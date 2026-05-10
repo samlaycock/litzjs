@@ -27,10 +27,8 @@ bun add litzjs react react-dom
 bun add -d vite typescript
 ```
 
-Litz bundles the React Server Components plugin it uses internally, so the default setup does not
-ask applications to install `@vitejs/plugin-rsc` directly. The core Vite plugin also does not
-require a deployment adapter. Install `nitro` only when you opt into the Nitro-backed production
-output shown below.
+Litz bundles the React Server Components plugin and Nitro production adapter it uses internally, so
+the default setup does not ask applications to install or compose those Vite plugins directly.
 
 ## Quick Start
 
@@ -930,8 +928,7 @@ The Vite plugin injects the discovered server manifest automatically into that e
 
 ### Production Output
 
-When you run `vite build` with the optional Nitro adapter, Litz writes the browser assets to
-`.output/public`.
+When you run `vite build`, Litz writes the browser assets to `.output/public`.
 
 Server output is always `.output/server/index.mjs`. The Vite plugin injects the discovered server
 manifest into `createServer(...)` automatically.
@@ -946,15 +943,14 @@ explicitly in `vite.config.ts`:
 ```ts
 import { defineConfig } from "vite";
 import { litz } from "litzjs/vite";
-import { litzNitro } from "litzjs/vite/nitro";
 
 export default defineConfig({
   plugins: [
     litz({
       server: "app/server/entry.ts",
-    }),
-    litzNitro({
-      server: "app/server/entry.ts",
+      nitro: {
+        server: "app/server/entry.ts",
+      },
     }),
   ],
 });

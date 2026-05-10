@@ -150,11 +150,28 @@ describe("vite production server helpers", () => {
     }
   });
 
-  test("keeps Nitro out of the core litz plugin path", () => {
+  test("includes Nitro in the default litz plugin path", () => {
     const plugins = litz() as Plugin[];
+
+    expect(plugins.some((plugin) => plugin.name.startsWith("nitro"))).toBe(true);
+    expect(plugins.some((plugin) => plugin.name === "litzjs/nitro")).toBe(true);
+  });
+
+  test("can disable Nitro for advanced manual plugin composition", () => {
+    const plugins = litz({ nitro: false }) as Plugin[];
 
     expect(plugins.some((plugin) => plugin.name.startsWith("nitro"))).toBe(false);
     expect(plugins.some((plugin) => plugin.name === "litzjs/nitro")).toBe(false);
+  });
+
+  test("passes Nitro options through the default litz plugin path", () => {
+    const plugins = litz({
+      nitro: {
+        preset: "node-server",
+      },
+    }) as Plugin[];
+
+    expect(plugins.some((plugin) => plugin.name === "litzjs/nitro")).toBe(true);
   });
 
   test("normalizes generated Nitro renderer import paths before embedding them", async () => {

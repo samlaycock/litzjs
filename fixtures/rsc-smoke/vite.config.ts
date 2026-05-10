@@ -2,7 +2,6 @@ import path from "node:path";
 import { defineConfig } from "vite";
 
 import { litz } from "../../src/vite";
-import { litzNitro } from "../../src/vite-nitro";
 
 const rootDir = __dirname;
 const packageRoot = path.resolve(__dirname, "../..");
@@ -23,24 +22,24 @@ export default defineConfig({
       rsc: {
         include: ["src/**/*.{ts,tsx}"],
       },
-    }),
-    litzNitro({
-      baseURL: "/",
-      compressPublicAssets: {
-        gzip: true,
-        brotli: false,
-      },
-      minify: false,
-      preset: "node-server",
-      routeRules: {
-        "/api/**": {
-          headers: {
-            "x-litz-route-rule": "api",
+      nitro: {
+        baseURL: "/",
+        compressPublicAssets: {
+          gzip: true,
+          brotli: false,
+        },
+        minify: false,
+        preset: "node-server",
+        routeRules: {
+          "/api/**": {
+            headers: {
+              "x-litz-route-rule": "api",
+            },
           },
         },
+        server: "src/custom-server.ts",
+        sourcemap: true,
       },
-      server: "src/custom-server.ts",
-      sourcemap: true,
     }),
   ],
   resolve: {
