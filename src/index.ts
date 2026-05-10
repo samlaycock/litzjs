@@ -5,11 +5,7 @@ import type { SubmitPayload } from "./form-data";
 import { resolveClientHref } from "./client/base-url";
 import { getClientBindings } from "./client/bindings";
 import { interpolatePath } from "./path-matching";
-import {
-  createSearchParams,
-  type SearchParamRecord,
-  type SearchParamsInput,
-} from "./search-params";
+import { createSearchParams, type SearchParamsInput } from "./search-params";
 
 export {
   formJson,
