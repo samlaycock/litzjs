@@ -25,6 +25,10 @@ export function resolveClientHref(href: string): string {
     return href;
   }
 
+  if (!href.startsWith("/")) {
+    return href;
+  }
+
   const baseUrl = resolveConfiguredBaseUrl();
   const pathnameEnd = href.search(/[?#]/);
   const pathname = pathnameEnd === -1 ? href : href.slice(0, pathnameEnd);
