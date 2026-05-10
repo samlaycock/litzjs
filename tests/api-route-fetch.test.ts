@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
+import { configureClientBaseUrl } from "../src/client/base-url";
 import { defineApiRoute } from "../src/index";
 
 describe("defineApiRoute().fetch", () => {
@@ -7,6 +8,7 @@ describe("defineApiRoute().fetch", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    configureClientBaseUrl(undefined);
   });
 
   test("preserves repeated query params from object search input", async () => {
@@ -31,6 +33,26 @@ describe("defineApiRoute().fetch", () => {
     });
 
     expect(capturedInput).toBe("/api/projects?tag=framework&tag=bun&term=litz");
+  });
+
+  test("uses the configured client base path by default", async () => {
+    let capturedInput: RequestInfo | URL | undefined;
+
+    configureClientBaseUrl("/app/");
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      capturedInput = input;
+      return new Response(null, { status: 204 });
+    }) as typeof fetch;
+
+    const api = defineApiRoute("/api/projects", {
+      GET() {
+        return new Response(null, { status: 204 });
+      },
+    });
+
+    await api.fetch();
+
+    expect(capturedInput).toBe("/app/api/projects");
   });
 
   test("supports an explicit baseUrl for server-side and test callers", async () => {
