@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import * as React from "react";
 import { act } from "react";
+import { renderToString } from "react-dom/server";
 
 import { data, defineRoute, server } from "../src/index";
 import { flushDom, installTestDom } from "./test-dom";
@@ -224,6 +225,20 @@ describe("client wildcard route runtime", () => {
     cleanupDom = null;
     container = null;
     clientModule = null;
+  });
+
+  test("useMatches() throws when rendered outside the Litz client runtime", async () => {
+    clientModule = await import("../src/client/index");
+
+    function MatchesReader(): React.ReactElement {
+      clientModule?.useMatches();
+
+      return <div />;
+    }
+
+    expect(() => {
+      renderToString(<MatchesReader />);
+    }).toThrow("useMatches() must be used inside the Litz client runtime.");
   });
 
   test("prefetches and navigates to wildcard routes through the client manifest", async () => {
