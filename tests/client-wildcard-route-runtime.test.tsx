@@ -231,7 +231,7 @@ describe("client wildcard route runtime", () => {
     clientModule = await import("../src/client/index");
 
     function MatchesReader(): React.ReactElement {
-      clientModule?.useMatches();
+      clientModule!.useMatches();
 
       return <div />;
     }
