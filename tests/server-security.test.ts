@@ -263,6 +263,92 @@ describe("server security", () => {
     expect(loaderCalls).toBe(1);
   });
 
+  test("passes createContext values to internal request validators", async () => {
+    const observedContexts: unknown[] = [];
+
+    const server = createServer({
+      createContext() {
+        return {
+          sessionId: "session-123",
+        };
+      },
+      validateInternalRequest({ context }) {
+        observedContexts.push(context);
+      },
+      manifest: {
+        routes: [
+          {
+            id: "projects.show",
+            path: "/projects/:id",
+            route: {
+              loader() {
+                return { kind: "data", data: { ok: true } };
+              },
+            },
+          },
+        ],
+        resources: [
+          {
+            path: "/resources/projects/:id",
+            resource: {
+              loader() {
+                return { kind: "data", data: { ok: true } };
+              },
+            },
+          },
+        ],
+      },
+    });
+    const routeRequest = createInternalActionRequestInit(
+      {
+        path: "/projects/:id",
+        target: "projects.show",
+        operation: "loader",
+        request: {
+          params: {
+            id: "42",
+          },
+        },
+      },
+      {
+        reload: true,
+      },
+    );
+    const resourceRequest = createInternalActionRequestInit(
+      {
+        path: "/resources/projects/:id",
+        operation: "loader",
+        request: {
+          params: {
+            id: "42",
+          },
+        },
+      },
+      {
+        reload: true,
+      },
+    );
+
+    const routeResponse = await server.fetch(
+      new Request("https://app.example.com/_litzjs/route", {
+        method: "POST",
+        headers: routeRequest.headers,
+        body: routeRequest.body,
+      }),
+    );
+    const resourceResponse = await server.fetch(
+      new Request("https://app.example.com/_litzjs/resource", {
+        method: "POST",
+        headers: resourceRequest.headers,
+        body: resourceRequest.body,
+      }),
+    );
+
+    expect(routeResponse.status).toBe(200);
+    expect(resourceResponse.status).toBe(200);
+    expect(observedContexts).toEqual([{ sessionId: "session-123" }, { sessionId: "session-123" }]);
+  });
+
   test("forwards cookies and origin to internal route actions without leaking transport headers", async () => {
     const server = createServer({
       manifest: {

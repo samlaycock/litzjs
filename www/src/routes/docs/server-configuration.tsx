@@ -69,7 +69,8 @@ export default createServer();`}
         <p className="text-neutral-400 mb-4">
           Return nothing to continue, or return a <code className="text-sky-400">Response</code> to
           reject the request. This is the right place for origin or CSRF validation when actions use
-          cookie-backed authentication.
+          cookie-backed authentication. If <code className="text-sky-400">createContext</code> is
+          configured, its value is available as <code className="text-sky-400">context</code>.
         </p>
         <CodeBlock
           language="tsx"
