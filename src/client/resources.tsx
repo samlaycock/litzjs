@@ -78,6 +78,7 @@ type ResourceStoreEntry = {
   listeners: Set<() => void>;
   loaderInFlight?: Promise<LoaderHookResult | void>;
   loaderMode?: "loading" | "revalidating";
+  loaderController?: AbortController;
   loaderSequence: number;
   actionController?: AbortController;
   actionSequence: number;
@@ -338,6 +339,8 @@ export function invalidateResourceHotUpdateCaches(): void {
     entry.loaderSequence += 1;
     entry.actionController?.abort();
     entry.actionController = undefined;
+    entry.loaderController?.abort();
+    entry.loaderController = undefined;
     entry.loaderInFlight = undefined;
     entry.loaderMode = undefined;
     entry.snapshot = getInitialSnapshot();
@@ -492,6 +495,7 @@ async function performPreparedResourceRequest(
   const entry = getEntry(key);
   const loaderSequence = operation === "loader" ? entry.loaderSequence + 1 : undefined;
   const actionSequence = operation === "action" ? entry.actionSequence + 1 : undefined;
+  const loaderController = operation === "loader" ? new AbortController() : undefined;
   const actionController = operation === "action" ? new AbortController() : undefined;
 
   if (operation === "loader" && entry.loaderInFlight) {
@@ -500,6 +504,7 @@ async function performPreparedResourceRequest(
 
   if (operation === "loader") {
     entry.loaderSequence = loaderSequence!;
+    entry.loaderController = loaderController;
     entry.loaderMode = mode === "revalidating" ? "revalidating" : "loading";
   } else {
     entry.actionController?.abort();
@@ -542,6 +547,7 @@ async function performPreparedResourceRequest(
                   search: normalizedRequest.search,
                 },
               }),
+              signal: loaderController?.signal,
             });
 
       if (operation === "loader") {
@@ -609,6 +615,13 @@ async function performPreparedResourceRequest(
         return;
       }
 
+      if (
+        operation === "loader" &&
+        shouldIgnoreResourceLoader(entry, loaderController, loaderSequence, error)
+      ) {
+        return;
+      }
+
       if (isRedirectSignal(error)) {
         performClientRedirect(error.location, error.replace);
         entry.snapshot = {
@@ -630,6 +643,9 @@ async function performPreparedResourceRequest(
         if (entry.loaderInFlight === request) {
           entry.loaderInFlight = undefined;
           entry.loaderMode = undefined;
+        }
+        if (entry.loaderController === loaderController) {
+          entry.loaderController = undefined;
         }
       } else {
         if (entry.actionController === actionController) {
@@ -701,6 +717,7 @@ function subscribe(key: string, listener: () => void): () => void {
       entry.actionSequence += 1;
       entry.actionController?.abort();
       entry.actionController = undefined;
+      abortResourceLoader(entry);
     }
 
     deferredCleanupResourceEntry(key, entry);
@@ -749,7 +766,7 @@ function getActiveEntryStatus(entry: ResourceStoreEntry): RouteStatus | null {
     return "submitting";
   }
 
-  if (entry.loaderInFlight) {
+  if (entry.loaderController) {
     return entry.loaderMode ?? "loading";
   }
 
@@ -830,6 +847,36 @@ function shouldIgnoreResourceAction(
   }
 
   return isAbortError(error);
+}
+
+function shouldIgnoreResourceLoader(
+  entry: ResourceStoreEntry,
+  controller?: AbortController,
+  sequence?: number,
+  error?: unknown,
+): boolean {
+  if (!controller || sequence === undefined) {
+    return false;
+  }
+
+  if (controller.signal.aborted || entry.loaderSequence !== sequence) {
+    return true;
+  }
+
+  return isAbortError(error);
+}
+
+function abortResourceLoader(entry: ResourceStoreEntry): void {
+  if (!entry.loaderController) {
+    return;
+  }
+
+  entry.loaderSequence += 1;
+  entry.loaderController.abort();
+  entry.loaderController = undefined;
+  entry.loaderInFlight = undefined;
+  entry.loaderMode = undefined;
+  syncEntryPendingState(entry);
 }
 
 function pruneResourceStore(): void {

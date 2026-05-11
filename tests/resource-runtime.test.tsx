@@ -1118,4 +1118,51 @@ describe("resource runtime", () => {
     expect(document.querySelector(".unmounted-resource")).not.toBeNull();
     expect(raceResourceEvents).toEqual([]);
   });
+
+  test("aborts an in-flight resource loader when the resource unmounts", async () => {
+    let loaderAborted = false;
+    let resolveLoaderFetch: ((response: Response) => void) | null = null;
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal;
+      expect(signal).toBeInstanceOf(AbortSignal);
+      (signal as AbortSignal).addEventListener(
+        "abort",
+        () => {
+          loaderAborted = true;
+        },
+        { once: true },
+      );
+
+      return await new Promise<Response>((resolve) => {
+        resolveLoaderFetch = resolve;
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<raceResource.Component params={{ id: "user-009" }} />);
+      await flushDom();
+    });
+
+    expect(document.querySelector(".race-pending")?.getAttribute("data-value")).toBe("yes");
+
+    await act(async () => {
+      root?.render(<div className="unmounted-resource" />);
+      await flushDom();
+    });
+
+    expect(loaderAborted).toBe(true);
+
+    await act(async () => {
+      resolveLoaderFetch?.(
+        Response.json({
+          kind: "data",
+          data: { value: "stale" },
+        }),
+      );
+      await flushDom();
+    });
+
+    expect(document.querySelector(".unmounted-resource")).not.toBeNull();
+  });
 });
