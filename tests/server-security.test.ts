@@ -27,6 +27,8 @@ async function waitForCondition(condition: () => boolean): Promise<void> {
 
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
+
+  throw new Error("waitForCondition: condition was not met within the allotted attempts");
 }
 
 describe("server security", () => {
