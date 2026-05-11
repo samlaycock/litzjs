@@ -1000,8 +1000,9 @@ export default createServer({
 ```
 
 The hook receives the internal request `kind`, `operation`, declared `path`, parsed transport
-`body`, and original `request`. Return nothing to continue, or return a `Response` to reject before
-route/resource middleware, input validation, or handlers run.
+`body`, original `request`, and `createContext` value when configured. Return nothing to continue,
+or return a `Response` to reject before route/resource middleware, input validation, or handlers
+run.
 
 Litz may serve `index.html` itself, but it also supports deployments where the document is served
 statically or by a custom server. Security decisions must not depend on the document coming from

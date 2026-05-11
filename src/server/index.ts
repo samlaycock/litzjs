@@ -335,13 +335,14 @@ async function handleResourceRequest<TContext>(
     const body = await parseInternalRequestBody(request);
     const resourcePath = body.path;
     const operation = body.operation ?? "loader";
+    const context = await getContext();
     const validationResponse = await validateInternalRequest?.({
       request,
       kind: "resource",
       operation,
       path: resourcePath,
       body,
-      context: getLoadedContext?.(),
+      context,
     });
 
     if (validationResponse) {
@@ -373,7 +374,6 @@ async function handleResourceRequest<TContext>(
       body.payload,
     );
     const signal = request.signal;
-    const context = await getContext();
     const result = await runMiddlewareChain({
       middleware,
       request: normalizedRequest.request,
@@ -433,13 +433,14 @@ async function handleRouteRequest<TContext>(
     const requestPathname = resolveBasePathname(new URL(request.url).pathname, base);
     const operation =
       body.operation ?? (requestPathname === "/_litzjs/action" ? "action" : "loader");
+    const context = await getContext();
     const validationResponse = await validateInternalRequest?.({
       request,
       kind: "route",
       operation,
       path: routePath,
       body,
-      context: getLoadedContext?.(),
+      context,
     });
 
     if (validationResponse) {
@@ -461,7 +462,6 @@ async function handleRouteRequest<TContext>(
       body.payload,
     );
     const signal = request.signal;
-    const context = await getContext();
 
     if (operation === "loader" && targetIds && targetIds.length > 0) {
       const batchTargets: RouteMatchEntry[] = [];
