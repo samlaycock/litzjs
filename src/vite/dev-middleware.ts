@@ -324,7 +324,7 @@ export async function handleLitzRouteRequest(
     const signal = controller.signal;
 
     if (operation === "loader" && targetIds && targetIds.length > 0) {
-      const results: BatchedLoaderResponseEntry[] = [];
+      const batchTargets: DevRouteMatchEntry[] = [];
 
       for (const batchTargetId of targetIds) {
         const batchTarget = findDevTargetRouteMatch(chain, batchTargetId);
@@ -334,14 +334,24 @@ export async function handleLitzRouteRequest(
           return;
         }
 
-        const batchResult = await executeDevRouteTarget({
-          route,
-          operation,
-          chain,
-          target: batchTarget,
-          normalizedRequest,
-          signal,
-        });
+        batchTargets.push(batchTarget);
+      }
+
+      const batchResults = await Promise.all(
+        batchTargets.map((batchTarget) =>
+          executeDevRouteTarget({
+            route,
+            operation,
+            chain,
+            target: batchTarget,
+            normalizedRequest,
+            signal,
+          }),
+        ),
+      );
+      const results: BatchedLoaderResponseEntry[] = [];
+
+      for (const batchResult of batchResults) {
         const serializedResult = createDevBatchedLoaderResponseEntry(batchResult);
 
         if (!serializedResult) {

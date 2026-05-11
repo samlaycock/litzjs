@@ -405,6 +405,7 @@ async function handleRouteRequest<TContext>(
       return createLitzJsonResponse(404, { kind: "fault", message: "Route not found." });
     }
 
+    const route = entry.route;
     const chain = getRouteMatchChain(entry);
     const normalizedRequest = normalizeInternalRequest(
       request,
@@ -416,7 +417,7 @@ async function handleRouteRequest<TContext>(
     const context = await getContext();
 
     if (operation === "loader" && targetIds && targetIds.length > 0) {
-      const results: BatchedLoaderResponseEntry[] = [];
+      const batchTargets: RouteMatchEntry[] = [];
 
       for (const batchTargetId of targetIds) {
         const batchTarget = findTargetRouteMatch(chain, batchTargetId);
@@ -425,15 +426,25 @@ async function handleRouteRequest<TContext>(
           return createLitzJsonResponse(404, { kind: "fault", message: "Route target not found." });
         }
 
-        const batchResult = await executeRouteTarget({
-          route: entry.route,
-          operation,
-          chain,
-          target: batchTarget,
-          normalizedRequest,
-          signal,
-          context,
-        });
+        batchTargets.push(batchTarget);
+      }
+
+      const batchResults = await Promise.all(
+        batchTargets.map((batchTarget) =>
+          executeRouteTarget({
+            route,
+            operation,
+            chain,
+            target: batchTarget,
+            normalizedRequest,
+            signal,
+            context,
+          }),
+        ),
+      );
+      const results: BatchedLoaderResponseEntry[] = [];
+
+      for (const batchResult of batchResults) {
         const serializedResult = createBatchedLoaderResponseEntry(batchResult);
 
         if (!serializedResult) {
@@ -463,7 +474,7 @@ async function handleRouteRequest<TContext>(
 
     viewId = `${target.id}#${operation}`;
     const result = await executeRouteTarget({
-      route: entry.route,
+      route,
       operation,
       chain,
       target,
