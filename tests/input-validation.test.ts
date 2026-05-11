@@ -225,6 +225,57 @@ describe("input validation hooks", () => {
     });
   });
 
+  test.each([204, 205, 304])(
+    "route result helpers with status %p return bodyless responses",
+    async (status) => {
+      const route = defineRoute("/projects/:id", {
+        component() {
+          return null;
+        },
+        action() {
+          return data(null, {
+            status,
+            headers: {
+              "x-result": "saved",
+            },
+          });
+        },
+      });
+      const app = createServer({
+        manifest: {
+          routes: [{ id: route.id, path: route.path, route: route as any }],
+        },
+      });
+      const actionRequest = createInternalActionRequestInit(
+        {
+          path: route.path,
+          operation: "action",
+          request: {
+            params: {
+              id: "42",
+            },
+          },
+        },
+        {
+          name: "Litz",
+        },
+      );
+
+      const response = await app.fetch(
+        new Request("https://app.example.com/_litzjs/action", {
+          method: "POST",
+          headers: actionRequest.headers,
+          body: actionRequest.body,
+        }),
+      );
+
+      expect(response.status).toBe(status);
+      expect(response.headers.get("content-type")).toBeNull();
+      expect(response.headers.get("x-result")).toBe("saved");
+      expect(await response.text()).toBe("");
+    },
+  );
+
   test("resource actions can short-circuit with invalid results from input body parsing", async () => {
     let actionCalls = 0;
 
@@ -387,6 +438,49 @@ describe("input validation hooks", () => {
       data: undefined,
     });
   });
+
+  test.each([204, 205, 304])(
+    "api result helpers with status %p return bodyless responses",
+    async (status) => {
+      const api = defineApiRoute("/api/projects/:id", {
+        input: {
+          body() {
+            throw data(null, {
+              status,
+              headers: {
+                "x-result": "created",
+              },
+            });
+          },
+        } as any,
+        POST() {
+          return Response.json({ ok: true });
+        },
+      });
+      const app = createServer({
+        manifest: {
+          apiRoutes: [{ path: api.path, api: api as any }],
+        },
+      });
+
+      const response = await app.fetch(
+        new Request("https://app.example.com/api/projects/7", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            name: "Litz",
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(status);
+      expect(response.headers.get("content-type")).toBeNull();
+      expect(response.headers.get("x-result")).toBe("created");
+      expect(await response.text()).toBe("");
+    },
+  );
 
   test("api validation fallback preserves explicit status for unsupported view results", async () => {
     const api = defineApiRoute("/api/projects/:id", {

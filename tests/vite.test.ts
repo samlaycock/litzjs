@@ -2132,7 +2132,10 @@ function createMockRequest(options: {
   return stream as unknown as IncomingMessage;
 }
 
-function createMockResponse(): ServerResponse & { getBody(): string } {
+function createMockResponse(): ServerResponse & {
+  getBody(): string;
+  getHeaderValue(key: string): string | undefined;
+} {
   let body = "";
   let statusCode = 200;
   const headers: Record<string, string> = {};
@@ -2145,7 +2148,10 @@ function createMockResponse(): ServerResponse & { getBody(): string } {
       statusCode = code;
     },
     setHeader(key: string, value: string) {
-      headers[key] = value;
+      headers[key.toLowerCase()] = value;
+    },
+    removeHeader(key: string) {
+      delete headers[key.toLowerCase()];
     },
     write(data?: string | Buffer) {
       if (data) {
@@ -2160,7 +2166,13 @@ function createMockResponse(): ServerResponse & { getBody(): string } {
     getBody() {
       return body;
     },
-  } as unknown as ServerResponse & { getBody(): string };
+    getHeaderValue(key: string) {
+      return headers[key.toLowerCase()];
+    },
+  } as unknown as ServerResponse & {
+    getBody(): string;
+    getHeaderValue(key: string): string | undefined;
+  };
 }
 
 describe("document entry resolution", () => {
@@ -2756,6 +2768,57 @@ describe("dev server error masking", () => {
         },
       ],
     });
+  });
+
+  test.each([204, 205, 304])("returns bodyless dev route results for status %p", async (status) => {
+    const server = createMockViteDevServer(async () => ({
+      route: {
+        action() {
+          return {
+            kind: "data",
+            status,
+            headers: {
+              "content-type": "application/json",
+              "x-result": "saved",
+            },
+            data: null,
+          };
+        },
+      },
+    }));
+    const internalMetadata = JSON.stringify({
+      path: "/projects/:id",
+      target: "projects.show",
+      operation: "action",
+      request: {
+        params: {
+          id: "42",
+        },
+      },
+    });
+    const request = createMockRequest({
+      url: "/_litzjs/action",
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: internalMetadata,
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzRouteRequest(
+      server,
+      [{ id: "projects.show", path: "/projects/:id", modulePath: "src/routes/projects.ts" }],
+      request,
+      response,
+      next,
+    );
+
+    expect(response.statusCode).toBe(status);
+    expect(response.getHeaderValue("content-type")).toBeUndefined();
+    expect(response.getHeaderValue("x-result")).toBe("saved");
+    expect(response.getBody()).toBe("");
   });
 
   test("treats missing internal route targets as faults", async () => {
