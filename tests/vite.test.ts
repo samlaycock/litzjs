@@ -102,6 +102,26 @@ async function waitForProcessExit(serverProcess: ChildProcessWithoutNullStreams)
   });
 }
 
+async function captureExpectedConsoleErrors<T>(
+  callback: () => Promise<T>,
+): Promise<{ result: T; errorLogCount: number }> {
+  const originalConsoleError = console.error;
+  let errorLogCount = 0;
+
+  console.error = (..._args: unknown[]) => {
+    errorLogCount += 1;
+  };
+
+  try {
+    return {
+      result: await callback(),
+      errorLogCount,
+    };
+  } finally {
+    console.error = originalConsoleError;
+  }
+}
+
 describe("vite production server helpers", () => {
   test("build completes without warnings", () => {
     const repoRoot = process.cwd();
@@ -2913,22 +2933,25 @@ describe("dev server error masking", () => {
     const response = createMockResponse();
     const next = mock(() => {});
 
-    await handleLitzResourceRequest(
-      server,
-      [
-        {
-          path: "/resources/config",
-          modulePath: "src/resources/config.ts",
-          hasLoader: true,
-          hasAction: false,
-          hasComponent: false,
-        },
-      ],
-      request,
-      response,
-      next,
+    const { errorLogCount } = await captureExpectedConsoleErrors(() =>
+      handleLitzResourceRequest(
+        server,
+        [
+          {
+            path: "/resources/config",
+            modulePath: "src/resources/config.ts",
+            hasLoader: true,
+            hasAction: false,
+            hasComponent: false,
+          },
+        ],
+        request,
+        response,
+        next,
+      ),
     );
 
+    expect(errorLogCount).toBe(1);
     expect(response.statusCode).toBe(500);
     expect(response.getBody()).not.toContain(sensitiveMessage);
     expect(response.getBody()).not.toContain("hunter2");
@@ -2957,14 +2980,17 @@ describe("dev server error masking", () => {
     const response = createMockResponse();
     const next = mock(() => {});
 
-    await handleLitzRouteRequest(
-      server,
-      [{ id: "secrets.show", path: "/secrets/:id", modulePath: "src/routes/secrets.ts" }],
-      request,
-      response,
-      next,
+    const { errorLogCount } = await captureExpectedConsoleErrors(() =>
+      handleLitzRouteRequest(
+        server,
+        [{ id: "secrets.show", path: "/secrets/:id", modulePath: "src/routes/secrets.ts" }],
+        request,
+        response,
+        next,
+      ),
     );
 
+    expect(errorLogCount).toBe(1);
     expect(response.statusCode).toBe(500);
     expect(response.getBody()).not.toContain(sensitiveMessage);
     expect(response.getBody()).not.toContain("xyz789");
@@ -2983,14 +3009,17 @@ describe("dev server error masking", () => {
     const response = createMockResponse();
     const next = mock(() => {});
 
-    await handleLitzApiRequest(
-      server,
-      [{ path: "/api/private", modulePath: "src/api/private.ts" }],
-      request,
-      response,
-      next,
+    const { errorLogCount } = await captureExpectedConsoleErrors(() =>
+      handleLitzApiRequest(
+        server,
+        [{ path: "/api/private", modulePath: "src/api/private.ts" }],
+        request,
+        response,
+        next,
+      ),
     );
 
+    expect(errorLogCount).toBe(1);
     expect(response.statusCode).toBe(500);
     expect(response.getBody()).not.toContain(sensitiveMessage);
     expect(response.getBody()).not.toContain("s3cret");
