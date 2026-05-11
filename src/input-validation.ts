@@ -167,6 +167,10 @@ function createJsonResponse(
   body: Record<string, unknown>,
   headers: Headers,
 ): Response {
+  if (isBodyForbiddenStatus(status)) {
+    return createBodylessResponse(status, headers);
+  }
+
   if (!headers.has("content-type")) {
     headers.set("content-type", "application/json; charset=utf-8");
   }
@@ -175,6 +179,20 @@ function createJsonResponse(
     status,
     headers,
   });
+}
+
+export function createBodylessResponse(status: number, headers?: Headers): Response {
+  const responseHeaders = new Headers(headers);
+  responseHeaders.delete("content-type");
+
+  return new Response(null, {
+    status,
+    headers: responseHeaders,
+  });
+}
+
+export function isBodyForbiddenStatus(status: number): boolean {
+  return status === 204 || status === 205 || status === 304;
 }
 
 async function resolveValidatedBody<TContext>(

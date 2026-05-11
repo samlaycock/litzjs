@@ -2,7 +2,9 @@ import type { ApiRouteMethod } from "../index";
 
 import { normalizeBasePath, resolveBasePathname } from "../base-path";
 import {
+  createBodylessResponse,
   createApiResponseFromResult,
+  isBodyForbiddenStatus,
   isServerResultLike,
   resolveValidatedInput,
   type RuntimeInputValidation,
@@ -912,6 +914,11 @@ function createLitzJsonResponse(
   headers?: Headers,
 ): Response {
   const responseHeaders = new Headers(headers);
+
+  if (isBodyForbiddenStatus(status)) {
+    return createBodylessResponse(status, responseHeaders);
+  }
+
   responseHeaders.set("content-type", "application/vnd.litzjs.result+json");
   return new Response(JSON.stringify(body), {
     status,

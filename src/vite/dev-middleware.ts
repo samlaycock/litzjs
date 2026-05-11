@@ -11,6 +11,7 @@ import type { DiscoveredApiRoute, DiscoveredResource, DiscoveredRoute } from "./
 import { resolveBasePathname } from "../base-path";
 import {
   createApiResponseFromResult,
+  isBodyForbiddenStatus,
   isServerResultLike,
   resolveValidatedInput,
   type RuntimeInputValidation,
@@ -840,6 +841,13 @@ function sendLitzJson(
   body: Record<string, unknown>,
 ): void {
   response.statusCode = status;
+
+  if (isBodyForbiddenStatus(status)) {
+    response.removeHeader("content-type");
+    response.end();
+    return;
+  }
+
   response.setHeader("content-type", "application/vnd.litzjs.result+json");
   response.end(JSON.stringify(body));
 }
