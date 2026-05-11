@@ -3,6 +3,32 @@ import { describe, expect, test } from "bun:test";
 import { createServer } from "../src/server";
 import { createInternalActionRequestInit } from "../src/server/internal-requests";
 
+interface Deferred<T> {
+  readonly promise: Promise<T>;
+  resolve(value: T): void;
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+
+  return {
+    promise: new Promise<T>((nextResolve) => {
+      resolve = nextResolve;
+    }),
+    resolve,
+  };
+}
+
+async function waitForCondition(condition: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (condition()) {
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
+
 describe("server security", () => {
   test("forwards cookies and origin to internal route actions without leaking transport headers", async () => {
     const server = createServer({
@@ -394,6 +420,93 @@ describe("server security", () => {
         revalidate: [],
       },
     });
+  });
+
+  test("executes batched internal route loader requests concurrently", async () => {
+    const startedTargets: string[] = [];
+    const routeDeferred = createDeferred<string>();
+    const layoutDeferred = createDeferred<string>();
+
+    const server = createServer({
+      manifest: {
+        routes: [
+          {
+            id: "projects.show",
+            path: "/projects/:id",
+            route: {
+              async loader() {
+                startedTargets.push("route");
+
+                return {
+                  kind: "data",
+                  data: {
+                    source: await routeDeferred.promise,
+                  },
+                };
+              },
+              options: {
+                layout: {
+                  id: "projects.layout",
+                  path: "/projects",
+                  options: {
+                    async loader() {
+                      startedTargets.push("layout");
+
+                      return {
+                        kind: "data",
+                        data: {
+                          source: await layoutDeferred.promise,
+                        },
+                      };
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const responsePromise = server.fetch(
+      new Request("https://app.example.com/_litzjs/route", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          path: "/projects/:id",
+          targets: ["projects.show", "projects.layout"],
+          operation: "loader",
+          request: {
+            params: { id: "42" },
+          },
+        }),
+      }),
+    );
+
+    await waitForCondition(() => startedTargets.length === 2);
+
+    expect(startedTargets).toEqual(["route", "layout"]);
+
+    layoutDeferred.resolve("layout");
+    routeDeferred.resolve("route");
+
+    const response = await responsePromise;
+    const body = (await response.json()) as {
+      kind: "batch";
+      results: Array<{
+        body: {
+          kind: "data";
+          data: {
+            source: string;
+          };
+        };
+      }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.results.map((result) => result.body.data.source)).toEqual(["route", "layout"]);
   });
 
   test("does not expose unhandled server error messages from api routes", async () => {
