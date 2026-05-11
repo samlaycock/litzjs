@@ -14,6 +14,7 @@ import {
   hasMalformedPathnameEncoding,
   interpolatePath,
   matchPathname,
+  sortByPathSpecificity,
   trimPathSegments,
 } from "../path-matching";
 import { createSearchParams, type SearchParamRecord } from "../search-params";
@@ -163,7 +164,7 @@ export type CreateServerOptions<TContext = unknown> = {
 export function createServer<TContext = unknown>(
   options: CreateServerOptions<TContext> = {},
 ): { fetch(request: Request): Promise<Response> } {
-  const manifest = options.manifest ?? {};
+  const manifest = normalizeServerManifest(options.manifest);
   const basePath = normalizeBasePath(options.base);
 
   async function handle(request: Request): Promise<Response> {
@@ -263,6 +264,18 @@ export function createServer<TContext = unknown>(
   }
 
   return { fetch: handle };
+}
+
+function normalizeServerManifest(manifest: ServerManifest | undefined): ServerManifest {
+  if (!manifest) {
+    return {};
+  }
+
+  return {
+    ...manifest,
+    routes: manifest.routes ? sortByPathSpecificity(manifest.routes) : undefined,
+    apiRoutes: manifest.apiRoutes ? sortByPathSpecificity(manifest.apiRoutes) : undefined,
+  };
 }
 
 async function createDocumentResponse(
