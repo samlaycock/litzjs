@@ -1697,7 +1697,11 @@ describe("dev server hot updates", () => {
       );
       const code = typeof result === "string" ? result : result?.code?.toString();
 
-      expect(result).toMatchObject({ map: null });
+      expect(result).toMatchObject({
+        map: {
+          sources: [path.join(root, "src", "server.ts")],
+        },
+      });
       expect(code).toContain('const __litzjsBase = "/app";');
       expect(code).toContain("function __litzjsCreateDocumentResponse(request)");
       expect(code).toContain('import { createServer } from "litzjs/server";');
@@ -1775,7 +1779,11 @@ describe("dev server hot updates", () => {
       );
       const code = typeof result === "string" ? result : result?.code?.toString();
 
-      expect(result).toMatchObject({ map: null });
+      expect(result).toMatchObject({
+        map: {
+          sources: [path.join(root, "src", "server.ts")],
+        },
+      });
       expect(code).toContain('const __litzjsBase = "/app";');
       expect(code).toContain("function __litzjsCreateDocumentResponse(request)");
       expect(code).toContain('import { createServer } from "litzjs/server";');
@@ -1787,7 +1795,78 @@ describe("dev server hot updates", () => {
     }
   });
 
-  test("leaves namespace createServer calls unchanged", async () => {
+  test("rejects non-literal createServer options in custom server entries", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-variable-options-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      writeFileSync(
+        path.join(root, "src", "server.ts"),
+        'import { createServer } from "litzjs/server";\nconst options = {};\nexport default createServer(options);\n',
+        "utf8",
+      );
+
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.transform) {
+        throw new Error("Expected litzjs/vite transform hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const transform =
+        typeof plugin.transform === "function" ? plugin.transform : plugin.transform.handler;
+      const pluginContext = {
+        environment: {
+          name: "nitro",
+        },
+      } as never;
+
+      await configResolved.call(
+        {} as never,
+        {
+          root,
+          base: "/",
+          command: "serve",
+          build: {
+            outDir: "dist",
+          },
+          environments: {
+            client: {
+              build: {
+                outDir: path.join("dist", "client"),
+              },
+            },
+            rsc: {
+              build: {
+                outDir: path.join("dist", "server"),
+                rollupOptions: {
+                  output: {
+                    codeSplitting: false,
+                  },
+                },
+              },
+            },
+          },
+        } as never,
+      );
+
+      expect(() =>
+        transform.call(
+          pluginContext,
+          'import { createServer } from "litzjs/server";\nconst options = {};\nexport default createServer(options);\n',
+          path.join(root, "src", "server.ts"),
+        ),
+      ).toThrow("Call createServer() with no arguments or with an inline object literal");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  test("injects runtime options into namespace createServer calls", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-ns-"));
 
     try {
@@ -1851,14 +1930,17 @@ describe("dev server hot updates", () => {
         'import * as litzServer from "litzjs/server";\n\nexport default litzServer.createServer();\n',
         path.join(root, "src", "server.ts"),
       );
+      const code = typeof result === "string" ? result : result?.code?.toString();
 
-      expect(result).toBeNull();
+      expect(code).toContain(
+        "export default litzServer.createServer({ base: __litzjsBase, document: __litzjsCreateDocumentResponse, manifest: __litzjsServerManifest });",
+      );
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
   });
 
-  test("allows indirect createServer wrappers in custom server entries", async () => {
+  test("rejects indirect createServer wrappers in custom server entries", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-indirect-"));
 
     try {
@@ -1917,13 +1999,13 @@ describe("dev server hot updates", () => {
         } as never,
       );
 
-      const result = await transform.call(
-        pluginContext,
-        'import { createServer } from "litzjs/server";\nconst factory = createServer;\nexport default factory();\n',
-        path.join(root, "src", "server.ts"),
-      );
-
-      expect(result).toBeNull();
+      expect(() =>
+        transform.call(
+          pluginContext,
+          'import { createServer } from "litzjs/server";\nconst factory = createServer;\nexport default factory();\n',
+          path.join(root, "src", "server.ts"),
+        ),
+      ).toThrow("Could not find a direct createServer(...) call");
     } finally {
       rmSync(root, { force: true, recursive: true });
     }

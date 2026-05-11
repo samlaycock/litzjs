@@ -11,6 +11,7 @@ import vitePluginRsc from "@vitejs/plugin-rsc";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import picomatch from "picomatch";
+import ts from "typescript";
 import { createBuilder } from "vite";
 
 import type {
@@ -79,6 +80,19 @@ export {
   handleLitzDocumentRequest,
   handleLitzResourceRequest,
   handleLitzRouteRequest,
+};
+
+type LitzSourceMap = {
+  readonly version: 3;
+  readonly sources: string[];
+  readonly sourcesContent: string[];
+  readonly names: string[];
+  readonly mappings: string;
+};
+
+type ServerRuntimeTransformResult = {
+  readonly code: string;
+  readonly map: LitzSourceMap;
 };
 
 /**
@@ -502,12 +516,13 @@ export async function renderView(node, metadata = {}) {
         if (relativeId === serverEntryPath) {
           const transformed = injectServerRuntimeOptions(
             code,
+            id,
             root,
             configuredBase,
             createServerManifestModule(routeManifest, resourceManifest, apiManifest),
           );
 
-          return transformed === code ? null : { code: transformed, map: null };
+          return transformed;
         }
       }
 
@@ -552,30 +567,183 @@ export default createServer({
 
 function injectServerRuntimeOptions(
   code: string,
+  id: string,
   root: string,
   base: string,
   serverManifestModule: string,
-): string {
-  if (!code.includes("createServer")) {
-    return code;
-  }
+): ServerRuntimeTransformResult | null {
+  const sourceFile = ts.createSourceFile(id, code, ts.ScriptTarget.Latest, true, getScriptKind(id));
+  const createServerIdentifiers = new Set<string>();
+  const createServerNamespaces = new Set<string>();
+  let referencesCreateServer = false;
+  const replacements: Array<{ start: number; end: number; text: string }> = [];
 
   const runtimeSource = createInlineServerRuntime(root, base, serverManifestModule);
 
-  const withObjectOptions = code.replaceAll(
-    /(?<!\.)\bcreateServer\s*\(\s*\{/g,
-    "createServer({ base: __litzjsBase, document: __litzjsCreateDocumentResponse, manifest: __litzjsServerManifest,",
-  );
-  const withEmptyOptions = withObjectOptions.replaceAll(
-    /(?<!\.)\bcreateServer\s*\(\s*\)/g,
-    "createServer({ base: __litzjsBase, document: __litzjsCreateDocumentResponse, manifest: __litzjsServerManifest })",
-  );
+  const visitImports = (node: ts.Node) => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      node.moduleSpecifier.text === "litzjs/server"
+    ) {
+      const importClause = node.importClause;
 
-  if (withEmptyOptions === code) {
-    return code;
+      if (importClause?.namedBindings) {
+        if (ts.isNamespaceImport(importClause.namedBindings)) {
+          createServerNamespaces.add(importClause.namedBindings.name.text);
+        } else {
+          for (const element of importClause.namedBindings.elements) {
+            const importedName = element.propertyName?.text ?? element.name.text;
+
+            if (importedName === "createServer") {
+              createServerIdentifiers.add(element.name.text);
+            }
+          }
+        }
+      }
+    }
+
+    ts.forEachChild(node, visitImports);
+  };
+
+  visitImports(sourceFile);
+
+  const isCreateServerExpression = (expression: ts.Expression): boolean => {
+    if (ts.isIdentifier(expression) && createServerIdentifiers.has(expression.text)) {
+      return true;
+    }
+
+    return (
+      ts.isPropertyAccessExpression(expression) &&
+      expression.name.text === "createServer" &&
+      ts.isIdentifier(expression.expression) &&
+      createServerNamespaces.has(expression.expression.text)
+    );
+  };
+
+  const visitCalls = (node: ts.Node) => {
+    if (ts.isIdentifier(node) && createServerIdentifiers.has(node.text)) {
+      referencesCreateServer = true;
+    }
+
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      node.name.text === "createServer" &&
+      ts.isIdentifier(node.expression) &&
+      createServerNamespaces.has(node.expression.text)
+    ) {
+      referencesCreateServer = true;
+    }
+
+    if (ts.isCallExpression(node) && isCreateServerExpression(node.expression)) {
+      referencesCreateServer = true;
+
+      if (node.arguments.length === 0) {
+        replacements.push({
+          start: node.getEnd() - 1,
+          end: node.getEnd() - 1,
+          text: "{ base: __litzjsBase, document: __litzjsCreateDocumentResponse, manifest: __litzjsServerManifest }",
+        });
+      } else if (node.arguments.length === 1 && ts.isObjectLiteralExpression(node.arguments[0]!)) {
+        const optionsArgument = node.arguments[0]!;
+        replacements.push({
+          start: optionsArgument.getStart() + 1,
+          end: optionsArgument.getStart() + 1,
+          text: " base: __litzjsBase, document: __litzjsCreateDocumentResponse, manifest: __litzjsServerManifest,",
+        });
+      } else {
+        throw new Error(
+          [
+            "[litzjs] Could not inject route manifest options into this custom server entry.",
+            "Call createServer() with no arguments or with an inline object literal so Litz can add base, document, and manifest options.",
+          ].join(" "),
+        );
+      }
+    }
+
+    ts.forEachChild(node, visitCalls);
+  };
+
+  visitCalls(sourceFile);
+
+  if (replacements.length === 0) {
+    if (referencesCreateServer) {
+      throw new Error(
+        [
+          "[litzjs] Could not find a direct createServer(...) call to inject in this custom server entry.",
+          "Export createServer() or createServer({ ... }) directly from the configured server entry.",
+        ].join(" "),
+      );
+    }
+
+    return null;
   }
 
-  return `${runtimeSource}${withEmptyOptions}`;
+  let transformed = code;
+
+  for (const replacement of replacements.sort((a, b) => b.start - a.start)) {
+    transformed =
+      transformed.slice(0, replacement.start) +
+      replacement.text +
+      transformed.slice(replacement.end);
+  }
+
+  return {
+    code: `${runtimeSource}${transformed}`,
+    map: createLineOffsetSourceMap(id, code, countLines(runtimeSource)),
+  };
+}
+
+function getScriptKind(id: string): ts.ScriptKind {
+  if (/\.tsx$/i.test(id)) return ts.ScriptKind.TSX;
+  if (/\.jsx$/i.test(id)) return ts.ScriptKind.JSX;
+  if (/\.ts$/i.test(id)) return ts.ScriptKind.TS;
+  return ts.ScriptKind.JS;
+}
+
+function countLines(source: string): number {
+  return source === "" ? 0 : source.split("\n").length - 1;
+}
+
+function createLineOffsetSourceMap(id: string, source: string, lineOffset: number): LitzSourceMap {
+  const lineCount = source.split("\n").length;
+  const mappings = [
+    ...Array.from({ length: lineOffset }, () => ""),
+    ...Array.from({ length: lineCount }, (_, index) =>
+      encodeVlqSegments(index === 0 ? [0, 0, 0, 0] : [0, 0, 1, 0]),
+    ),
+  ].join(";");
+
+  return {
+    version: 3,
+    sources: [id],
+    sourcesContent: [source],
+    names: [],
+    mappings,
+  };
+}
+
+function encodeVlqSegments(values: number[]): string {
+  return values.map(encodeVlqValue).join("");
+}
+
+function encodeVlqValue(value: number): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let vlq = value < 0 ? (-value << 1) | 1 : value << 1;
+  let encoded = "";
+
+  do {
+    let digit = vlq & 31;
+    vlq >>>= 5;
+
+    if (vlq > 0) {
+      digit |= 32;
+    }
+
+    encoded += chars[digit];
+  } while (vlq > 0);
+
+  return encoded;
 }
 
 function createInlineServerRuntime(
@@ -628,9 +796,10 @@ function readDocumentTemplate(root: string): string {
 
 function finalizeFrameworkBuild(root: string, outDir: string): void {
   const distDir = path.resolve(root, outDir);
+  const clientDir = path.join(distDir, "client");
   const ssrDir = path.join(distDir, "ssr");
   const serverEntryPath = path.join(distDir, "server", "index.mjs");
-  const clientManifestPath = path.join(distDir, "client", ".vite", "manifest.json");
+  const clientManifestPath = path.join(clientDir, ".vite", "manifest.json");
 
   if (existsSync(ssrDir)) {
     rmSync(ssrDir, { force: true, recursive: true });
@@ -644,8 +813,15 @@ function finalizeFrameworkBuild(root: string, outDir: string): void {
     string,
     { file?: string; isEntry?: boolean }
   >;
+  const relativePrefix = path
+    .relative(path.dirname(clientManifestPath), distDir)
+    .replaceAll("\\", "/");
+  const browserEntryManifestKey = `${relativePrefix}/virtual:litzjs:browser-entry`;
   const entry =
-    clientManifest["../../virtual:litzjs:browser-entry"] ??
+    clientManifest[browserEntryManifestKey] ??
+    Object.entries(clientManifest).find(([key]) =>
+      key.endsWith("virtual:litzjs:browser-entry"),
+    )?.[1] ??
     Object.values(clientManifest).find((candidate) => candidate?.isEntry);
 
   if (!entry?.file) {
