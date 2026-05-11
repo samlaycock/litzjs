@@ -14,14 +14,12 @@ let locationContext:
     } | null>
   | undefined;
 let matchesContext:
-  | React.Context<
-      Array<{
-        id: string;
-        path: string;
-        params: Record<string, string>;
-        search: URLSearchParams;
-      }>
-    >
+  | React.Context<Array<{
+      id: string;
+      path: string;
+      params: Record<string, string>;
+      search: URLSearchParams;
+    }> | null>
   | undefined;
 
 export function getNavigationContext(): React.Context<{
@@ -74,14 +72,12 @@ export function getLocationContext(): React.Context<{
   return locationContext;
 }
 
-export function getMatchesContext(): React.Context<
-  Array<{
-    id: string;
-    path: string;
-    params: Record<string, string>;
-    search: URLSearchParams;
-  }>
-> {
+export function getMatchesContext(): React.Context<Array<{
+  id: string;
+  path: string;
+  params: Record<string, string>;
+  search: URLSearchParams;
+}> | null> {
   if (!matchesContext) {
     const createContext = (
       React as typeof React & {
@@ -93,14 +89,12 @@ export function getMatchesContext(): React.Context<
       throw new Error("Litz client matches are not available in this environment.");
     }
 
-    matchesContext = createContext<
-      Array<{
-        id: string;
-        path: string;
-        params: Record<string, string>;
-        search: URLSearchParams;
-      }>
-    >([]);
+    matchesContext = createContext<Array<{
+      id: string;
+      path: string;
+      params: Record<string, string>;
+      search: URLSearchParams;
+    }> | null>(null);
   }
 
   return matchesContext;

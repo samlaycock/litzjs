@@ -314,7 +314,13 @@ export function useMatches(): Array<{
   params: Record<string, string>;
   search: URLSearchParams;
 }> {
-  return React.useContext(getMatchesContext());
+  const matches = React.useContext(getMatchesContext());
+
+  if (!matches) {
+    throw new Error("useMatches() must be used inside the Litz client runtime.");
+  }
+
+  return matches;
 }
 
 export function usePathname(): string {
