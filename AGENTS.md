@@ -1,4 +1,4 @@
-This is JavaScript library that exposes a simple, database agnostic Object Document Mapper (ODM) for NoSQL databases. The library is designed to be flexible and extensible, allowing developers to easily integrate it with various NoSQL (and SQL) databases.
+This is a JavaScript library that exposes Litz, a client-first React framework for Vite. The library provides explicit server boundaries, route loaders and actions, reusable server-backed resources, raw API routes, and React Server Components / Flight powered `view(...)` responses.
 This project uses Bun as the package manager. NEVER use `npm` or `yarn` to install dependencies or run scripts.
 
 For rules to follow when making Git operations, see [GIT.md](conventions/GIT.md)

@@ -92,7 +92,8 @@ surfaces by app authors.
 # Installation
 
 ```bash
-npm install litz
+bun add litzjs react react-dom
+bun add -d vite typescript
 ```
 
 ```ts
