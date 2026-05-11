@@ -553,7 +553,7 @@ async function performPreparedResourceRequest(
       if (operation === "loader") {
         const loaderResult = await parseLoaderResponse(response);
 
-        if (entry.loaderSequence !== loaderSequence) {
+        if (shouldIgnoreResourceLoader(entry, loaderController, loaderSequence)) {
           return;
         }
 
@@ -877,6 +877,7 @@ function abortResourceLoader(entry: ResourceStoreEntry): void {
   entry.loaderInFlight = undefined;
   entry.loaderMode = undefined;
   syncEntryPendingState(entry);
+  notify(entry);
 }
 
 function pruneResourceStore(): void {
