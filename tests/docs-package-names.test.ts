@@ -55,6 +55,22 @@ describe("getting started docs flow", () => {
 });
 
 describe("docs package names", () => {
+  test("repo guidance matches the current framework and Bun package guidance", () => {
+    const agentsDoc = normalizeWhitespace(readDoc("AGENTS.md"));
+    const projectDoc = normalizeWhitespace(readDoc("PROJECT.md"));
+
+    expect(agentsDoc).toContain("client-first React framework for Vite");
+    expect(agentsDoc).toContain("route loaders and actions");
+    expect(agentsDoc).toContain("React Server Components / Flight");
+    expect(agentsDoc).toContain("This project uses Bun as the package manager.");
+    expect(agentsDoc).not.toContain("Object Document Mapper");
+    expect(agentsDoc).not.toContain("NoSQL");
+
+    expect(projectDoc).toContain("bun add litzjs react react-dom");
+    expect(projectDoc).toContain("bun add -d vite typescript");
+    expect(projectDoc).not.toMatch(/npm install litz(?!js)/);
+  });
+
   test("installation docs use the published package name in every install command", () => {
     const installationDoc = readDoc("www/src/routes/docs/installation.tsx");
 
