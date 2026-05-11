@@ -24,6 +24,20 @@ type Awaitable<T> = T | Promise<T>;
 type DocumentResponseValue = Response | string | null | undefined;
 type DocumentResponseFactory = (request: Request) => Awaitable<DocumentResponseValue>;
 type DocumentResponseOption = Response | string | DocumentResponseFactory;
+export type InternalRequestKind = "route" | "resource";
+export type InternalRequestOperation = "loader" | "action";
+export type InternalRequestValidationContext<TContext = unknown> = {
+  request: Request;
+  kind: InternalRequestKind;
+  operation: InternalRequestOperation;
+  path: string | undefined;
+  body: InternalRequestBody;
+  context?: TContext | undefined;
+};
+export type InternalRequestValidationResult = Response | null | undefined | void;
+export type InternalRequestValidator<TContext = unknown> = (
+  context: InternalRequestValidationContext<TContext>,
+) => Awaitable<InternalRequestValidationResult>;
 type MiddlewareContextValue<TContext = unknown> = {
   request: Request;
   params: Record<string, string>;
@@ -137,6 +151,7 @@ let rscRendererPromise:
 
 export type CreateServerOptions<TContext = unknown> = {
   createContext?(request: Request): Promise<TContext> | TContext;
+  validateInternalRequest?: InternalRequestValidator<TContext>;
   onError?(error: unknown, context: TContext | undefined): void;
   manifest?: ServerManifest;
   base?: string;
@@ -177,6 +192,7 @@ export function createServer<TContext = unknown>(
           request,
           manifest.resources ?? [],
           getContext,
+          options.validateInternalRequest,
           (error, context) => options.onError?.(error, context),
           () => (contextLoaded ? contextValue : undefined),
         );
@@ -187,6 +203,7 @@ export function createServer<TContext = unknown>(
           request,
           manifest.routes ?? [],
           getContext,
+          options.validateInternalRequest,
           (error, context) => options.onError?.(error, context),
           () => (contextLoaded ? contextValue : undefined),
           basePath,
@@ -304,6 +321,7 @@ async function handleResourceRequest<TContext>(
   request: Request,
   resources: ResourceModule[],
   getContext: () => Promise<TContext | undefined>,
+  validateInternalRequest?: InternalRequestValidator<TContext>,
   reportError?: (error: unknown, context: TContext | undefined) => void,
   getLoadedContext?: () => TContext | undefined,
 ): Promise<Response> {
@@ -317,6 +335,19 @@ async function handleResourceRequest<TContext>(
     const body = await parseInternalRequestBody(request);
     const resourcePath = body.path;
     const operation = body.operation ?? "loader";
+    const validationResponse = await validateInternalRequest?.({
+      request,
+      kind: "resource",
+      operation,
+      path: resourcePath,
+      body,
+      context: getLoadedContext?.(),
+    });
+
+    if (validationResponse) {
+      return validationResponse;
+    }
+
     const entry = resources.find((resource) => resource.path === resourcePath);
 
     if (!resourcePath || !entry?.resource) {
@@ -383,6 +414,7 @@ async function handleRouteRequest<TContext>(
   request: Request,
   routes: RouteModule[],
   getContext: () => Promise<TContext | undefined>,
+  validateInternalRequest?: InternalRequestValidator<TContext>,
   reportError?: (error: unknown, context: TContext | undefined) => void,
   getLoadedContext?: () => TContext | undefined,
   base?: string,
@@ -401,6 +433,19 @@ async function handleRouteRequest<TContext>(
     const requestPathname = resolveBasePathname(new URL(request.url).pathname, base);
     const operation =
       body.operation ?? (requestPathname === "/_litzjs/action" ? "action" : "loader");
+    const validationResponse = await validateInternalRequest?.({
+      request,
+      kind: "route",
+      operation,
+      path: routePath,
+      body,
+      context: getLoadedContext?.(),
+    });
+
+    if (validationResponse) {
+      return validationResponse;
+    }
+
     const entry = routes.find((route) => route.path === routePath);
 
     if (!routePath || !entry?.route) {

@@ -909,6 +909,11 @@ export default createServer({
       requestId: request.headers.get("x-request-id"),
     };
   },
+  validateInternalRequest({ operation, request }) {
+    if (operation === "action" && request.headers.get("origin") !== "https://app.example.com") {
+      return new Response("Forbidden", { status: 403 });
+    }
+  },
   notFound: "<!doctype html><html><body><h1>Not found</h1></body></html>",
   onError(error, context) {
     console.error("Litz server error", { error, context });
@@ -972,6 +977,31 @@ server endpoint:
 - validate params, search params, headers, and form/body input with `input` hooks or in middleware/handlers
 - apply CSRF protections when using cookie-backed auth for writes
 - do not assume a request came from Litz just because it arrived through `/_litzjs/*`
+
+For cookie-backed writes, use `validateInternalRequest` to apply a server-level CSRF or origin
+check before route and resource actions dispatch:
+
+```ts
+import { createServer } from "litzjs/server";
+
+export default createServer({
+  validateInternalRequest({ operation, request }) {
+    if (operation !== "action") {
+      return;
+    }
+
+    const origin = request.headers.get("origin");
+
+    if (origin !== "https://app.example.com") {
+      return new Response("Forbidden", { status: 403 });
+    }
+  },
+});
+```
+
+The hook receives the internal request `kind`, `operation`, declared `path`, parsed transport
+`body`, and original `request`. Return nothing to continue, or return a `Response` to reject before
+route/resource middleware, input validation, or handlers run.
 
 Litz may serve `index.html` itself, but it also supports deployments where the document is served
 statically or by a custom server. Security decisions must not depend on the document coming from

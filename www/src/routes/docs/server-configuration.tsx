@@ -60,6 +60,36 @@ export default createServer();`}
       </section>
 
       <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">validateInternalRequest</h2>
+        <p className="text-neutral-400 mb-4">
+          Use <code className="text-sky-400">validateInternalRequest</code> for server-level checks
+          on the internal <code className="text-sky-400">/_litzjs/*</code> transport before route
+          and resource middleware, input validation, or handlers run.
+        </p>
+        <p className="text-neutral-400 mb-4">
+          Return nothing to continue, or return a <code className="text-sky-400">Response</code> to
+          reject the request. This is the right place for origin or CSRF validation when actions use
+          cookie-backed authentication.
+        </p>
+        <CodeBlock
+          language="tsx"
+          code={`export default createServer({
+  validateInternalRequest({ operation, request }) {
+    if (operation !== "action") {
+      return;
+    }
+
+    const origin = request.headers.get("origin");
+
+    if (origin !== "https://app.example.com") {
+      return new Response("Forbidden", { status: 403 });
+    }
+  },
+});`}
+        />
+      </section>
+
+      <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">onError</h2>
         <p className="text-neutral-400 mb-4">
           <code className="text-sky-400">onError(error, context)</code> is called when an unhandled

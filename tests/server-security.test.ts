@@ -32,6 +32,237 @@ async function waitForCondition(condition: () => boolean): Promise<void> {
 }
 
 describe("server security", () => {
+  test("can reject internal route actions before the handler dispatches", async () => {
+    let actionCalls = 0;
+
+    const server = createServer({
+      validateInternalRequest({ kind, operation, request }) {
+        if (
+          kind === "route" &&
+          operation === "action" &&
+          request.headers.get("origin") !== "https://app.example.com"
+        ) {
+          return Response.json({ error: "Forbidden" }, { status: 403 });
+        }
+      },
+      manifest: {
+        routes: [
+          {
+            id: "projects.update",
+            path: "/projects/:id",
+            route: {
+              action() {
+                actionCalls += 1;
+
+                return { kind: "data", data: { ok: true } };
+              },
+            },
+          },
+        ],
+      },
+    });
+    const actionRequest = createInternalActionRequestInit(
+      {
+        path: "/projects/:id",
+        operation: "action",
+        request: {
+          params: {
+            id: "42",
+          },
+        },
+      },
+      {
+        name: "Litz",
+      },
+    );
+    const headers = new Headers(actionRequest.headers);
+
+    headers.set("origin", "https://attacker.example.com");
+
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/action", {
+        method: "POST",
+        headers,
+        body: actionRequest.body,
+      }),
+    );
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(403);
+    expect(body.error).toBe("Forbidden");
+    expect(actionCalls).toBe(0);
+  });
+
+  test("can reject internal resource actions before the handler dispatches", async () => {
+    let actionCalls = 0;
+
+    const server = createServer({
+      validateInternalRequest({ kind, operation, request }) {
+        if (
+          kind === "resource" &&
+          operation === "action" &&
+          request.headers.get("x-csrf-token") !== "trusted"
+        ) {
+          return new Response("Forbidden", { status: 403 });
+        }
+      },
+      manifest: {
+        resources: [
+          {
+            path: "/resources/projects/:id",
+            resource: {
+              action() {
+                actionCalls += 1;
+
+                return { kind: "data", data: { ok: true } };
+              },
+            },
+          },
+        ],
+      },
+    });
+    const actionRequest = createInternalActionRequestInit(
+      {
+        path: "/resources/projects/:id",
+        operation: "action",
+        request: {
+          params: {
+            id: "42",
+          },
+        },
+      },
+      {
+        name: "Litz",
+      },
+    );
+
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/resource", {
+        method: "POST",
+        headers: actionRequest.headers,
+        body: actionRequest.body,
+      }),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(403);
+    expect(body).toBe("Forbidden");
+    expect(actionCalls).toBe(0);
+  });
+
+  test("allows internal writes when validateInternalRequest does not return a response", async () => {
+    let validatedPath: string | undefined;
+
+    const server = createServer({
+      validateInternalRequest({ kind, operation, path, request }) {
+        if (kind === "route" && operation === "action") {
+          validatedPath = path;
+          expect(request.headers.get("x-csrf-token")).toBe("trusted");
+        }
+      },
+      manifest: {
+        routes: [
+          {
+            id: "projects.update",
+            path: "/projects/:id",
+            route: {
+              action() {
+                return { kind: "data", data: { ok: true } };
+              },
+            },
+          },
+        ],
+      },
+    });
+    const actionRequest = createInternalActionRequestInit(
+      {
+        path: "/projects/:id",
+        operation: "action",
+        request: {
+          params: {
+            id: "42",
+          },
+        },
+      },
+      {
+        name: "Litz",
+      },
+    );
+    const headers = new Headers(actionRequest.headers);
+
+    headers.set("x-csrf-token", "trusted");
+
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/action", {
+        method: "POST",
+        headers,
+        body: actionRequest.body,
+      }),
+    );
+    const body = (await response.json()) as {
+      kind: "data";
+      data: { ok: boolean };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.kind).toBe("data");
+    expect(body.data.ok).toBe(true);
+    expect(validatedPath).toBe("/projects/:id");
+  });
+
+  test("can allow loader-only internal requests while rejecting writes", async () => {
+    let loaderCalls = 0;
+
+    const server = createServer({
+      validateInternalRequest({ operation, request }) {
+        if (operation === "action" && request.headers.get("origin") !== "https://app.example.com") {
+          return new Response("Forbidden", { status: 403 });
+        }
+      },
+      manifest: {
+        routes: [
+          {
+            id: "projects.show",
+            path: "/projects/:id",
+            route: {
+              loader() {
+                loaderCalls += 1;
+
+                return { kind: "data", data: { ok: true } };
+              },
+            },
+          },
+        ],
+      },
+    });
+    const loaderRequest = createInternalActionRequestInit(
+      {
+        path: "/projects/:id",
+        target: "projects.show",
+        operation: "loader",
+        request: {
+          params: {
+            id: "42",
+          },
+        },
+      },
+      {
+        reload: true,
+      },
+    );
+
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/route", {
+        method: "POST",
+        headers: loaderRequest.headers,
+        body: loaderRequest.body,
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(loaderCalls).toBe(1);
+  });
+
   test("forwards cookies and origin to internal route actions without leaking transport headers", async () => {
     const server = createServer({
       manifest: {
