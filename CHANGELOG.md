@@ -1,5 +1,27 @@
 # litzjs
 
+## 0.5.0
+
+### Minor Changes
+
+- 96972f1: Add a `validateInternalRequest` server option for rejecting internal route and resource transport requests before middleware, input validation, or handlers run.
+- 080e1e4: Make the default `litz()` Vite plugin own the framework production build directly, so standard apps only need `plugins: [litz()]` for development and production builds.
+
+  Emit a platform-neutral fetch-handler server bundle at `dist/server/index.mjs`, with browser assets in `dist/client`, and remove Nitro options from the public `litz()` configuration surface.
+
+  Forward the top-level `server` option into the framework server build so custom server entries only need to be configured once.
+
+### Patch Changes
+
+- 2e764bf: Abort in-flight resource loader requests when the final active subscriber unsubscribes.
+- 33dda32: Return bodyless responses for result helpers that use HTTP statuses which forbid response bodies.
+- e11d5a2: Fix client route matching, navigation, and API fetch helpers when the app is served under a configured base path.
+- 52275d7: Execute batched route loader targets concurrently on the server while preserving response ordering.
+- 3796a5d: Make `useMatches()` throw a clear runtime error when it is used outside the Litz client runtime.
+- 0a02082: Refresh stale repository guidance to describe Litz as a client-first React framework and use Bun-first `litzjs` installation commands.
+- de719c3: Sort direct server manifests by path specificity so static API routes are not shadowed by earlier dynamic routes.
+- 4d6b0ad: Suppress expected sensitive dev middleware errors during regression tests.
+
 ## 0.4.0
 
 ### Minor Changes
