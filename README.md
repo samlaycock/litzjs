@@ -1133,4 +1133,4 @@ MIT
 
 ---
 
-<img src="branding/poster.webp" alt="Nativite" style="width:400px; height:auto;">
+<img src="branding/poster.webp" alt="litz" style="width:400px; height:auto;">
