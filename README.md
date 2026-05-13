@@ -1126,3 +1126,11 @@ bun run fixture:dev
 ```
 
 Then open [http://127.0.0.1:4173/](http://127.0.0.1:4173/).
+
+## License
+
+MIT
+
+---
+
+<img src="branding/poster.webp" alt="Nativite" style="width:400px; height:auto;">
