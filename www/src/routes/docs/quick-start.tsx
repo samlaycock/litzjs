@@ -72,7 +72,9 @@ mountApp(root, { app });`}
           code={`import { StrictMode } from "react";
 import { mountApp } from "litzjs/client";
 
-mountApp(root, { component: StrictMode });`}
+import { app } from "./app";
+
+mountApp(root, { app, component: StrictMode });`}
         />
         <p className="text-neutral-400 mt-4 mb-4">
           For wrappers that need props, define your own component:
@@ -81,11 +83,13 @@ mountApp(root, { component: StrictMode });`}
           language="tsx"
           code={`import { mountApp } from "litzjs/client";
 
+import { app } from "./app";
+
 function AppProviders({ children }: React.PropsWithChildren) {
   return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
 }
 
-mountApp(root, { component: AppProviders });`}
+mountApp(root, { app, component: AppProviders });`}
         />
       </section>
 
