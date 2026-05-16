@@ -467,6 +467,7 @@ describe("vite production server helpers", () => {
 
       expect(rendererSource).toContain(path.resolve(root, "dist", "rsc", "index.js"));
       expect(rendererSource).toContain("stripDevModuleScripts");
+      expect(rendererSource).toContain('rel="stylesheet" crossorigin');
       expect(rendererSource).not.toContain("Not ready");
       expect(rendererSource).not.toContain(path.resolve(root, "src", "server.ts"));
       expect(rendererSource).not.toContain("/src/main.tsx");
@@ -1776,6 +1777,8 @@ describe("dev server hot updates", () => {
       });
       expect(code).toContain('const __litzjsBase = "/app";');
       expect(code).toContain("function __litzjsCreateDocumentResponse(request)");
+      expect(code).toContain("const __litzjsClientStyles");
+      expect(code).toContain('rel="stylesheet" crossorigin');
       expect(code).toContain('import { createServer } from "litzjs/server";');
       expect(code).toContain(
         "export default createServer({ base: __litzjsBase, document: __litzjsCreateDocumentResponse, manifest: __litzjsServerManifest, createContext: () => ({}) });",

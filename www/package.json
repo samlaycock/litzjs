@@ -6,10 +6,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "preview:worker": "vite build && wrangler dev --config wrangler.jsonc",
+    "preview:worker": "vite build && wrangler dev --config dist/server/wrangler.json",
     "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types",
-    "deploy": "vite build && wrangler deploy"
+    "deploy": "vite build && wrangler deploy --config dist/server/wrangler.json"
   },
   "dependencies": {
     "@types/three": "0.183.1",
