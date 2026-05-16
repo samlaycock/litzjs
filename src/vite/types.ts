@@ -76,8 +76,6 @@ export interface LitzNitroPluginOptions {
 }
 
 export interface LitzPluginOptions {
-  /** Browser entry imported by Litz's generated client runtime module. */
-  readonly clientEntry?: string;
   /** Path to a server entry file. Omit to skip the server build. */
   readonly server?: string;
   /** Options forwarded to `@vitejs/plugin-rsc`. */

@@ -102,7 +102,7 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
   let root = process.cwd();
   let configuredBase = "/";
   let baseOutDir = "dist";
-  const browserEntryPath = options.clientEntry ?? "src/main.tsx";
+  let browserEntryPath = "src/main.tsx";
   const configuredServerEntryPath = options.server;
   let serverEntryPath: string | null = null;
   let routeManifest: DiscoveredRoute[] = [];
@@ -169,6 +169,7 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
     async configResolved(config) {
       root = config.root;
       configuredBase = normalizeBasePath(config.base);
+      browserEntryPath = readBrowserEntryPath(root);
       serverEntryPath = resolveConfiguredServerEntry(root, configuredServerEntryPath);
 
       ({ routeManifest, layoutManifest, resourceManifest, apiManifest } =
@@ -826,6 +827,33 @@ function readDocumentTemplate(root: string): string {
   }
 
   return readFileSync(templatePath, "utf8");
+}
+
+function readBrowserEntryPath(root: string): string {
+  const templatePath = path.resolve(root, "index.html");
+
+  if (!existsSync(templatePath)) {
+    return "src/main.tsx";
+  }
+
+  const template = readFileSync(templatePath, "utf8");
+  const scriptPattern =
+    /<script\b(?=[^>]*\btype=["']module["'])(?=[^>]*\bsrc=["']([^"']+)["'])[^>]*>/gi;
+
+  for (const match of template.matchAll(scriptPattern)) {
+    const source = match[1];
+
+    if (!source || /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(source) || source.startsWith("//")) {
+      continue;
+    }
+
+    const pathname = source.split(/[?#]/, 1)[0] ?? source;
+    const normalizedPathname = pathname.startsWith("/") ? pathname.slice(1) : pathname;
+
+    return normalizeRelativePath(root, path.resolve(root, normalizedPathname));
+  }
+
+  return "src/main.tsx";
 }
 
 function finalizeFrameworkBuild(

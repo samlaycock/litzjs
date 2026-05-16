@@ -59,9 +59,8 @@ export default defineConfig({
 ```
 
 Litz does not auto-discover a server entry. Keep standard Vite `index.html` behavior for the browser
-entry and point Litz at a different browser entry with `clientEntry` only when your project does not
-use `src/main.tsx`. During development, Vite serves explicit HTML documents such as `/about.html`;
-Litz only falls back to `index.html` for extensionless app routes when a server entry is configured.
+entry. During development, Vite serves explicit HTML documents such as `/about.html`; Litz only
+falls back to `index.html` for extensionless app routes when a server entry is configured.
 
 Register routes, resources, and API routes explicitly with `defineApp(...)`.
 

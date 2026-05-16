@@ -1051,15 +1051,12 @@ const viteGroups: readonly ReferenceGroupSpec[] = [
       {
         name: "LitzPluginOptions",
         signature: `type LitzPluginOptions = {
-  clientEntry?: string;
   server?: string;
   rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
 };`,
         summary:
           "Options accepted by the main Vite plugin factory. Omit `server` for a client-only build.",
-        details: [
-          '`clientEntry` defaults to `"src/main.tsx"` and only needs to be set when the browser entry lives somewhere else.',
-        ],
+        details: ["The browser entry comes from Vite's standard `index.html` module script."],
       },
       {
         name: "litz",
@@ -1077,7 +1074,6 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
-      clientEntry: "app/browser.tsx",
       server: "src/server.ts",
     }),
   ],

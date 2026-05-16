@@ -146,17 +146,14 @@ describe("docs package names", () => {
     expect(readme).toContain("defineApp");
     expect(configurationDoc).toContain("defineApp");
     expect(configurationDoc).not.toContain("Glob patterns to discover route files");
-    expect(configurationDoc).toContain("clientEntry");
-    expect(configurationDoc).toContain('clientEntry: "app/browser.tsx"');
-    expect(configurationDoc).toContain(
-      "Only set this when your browser entry lives somewhere else",
-    );
+    expect(configurationDoc).toContain("index.html");
+    expect(configurationDoc).not.toContain("clientEntry");
     expect(apiReferenceDoc).toContain("defineApp");
-    expect(apiReferenceDoc).toContain("clientEntry?: string;");
-    expect(apiReferenceDoc).toContain('clientEntry` defaults to `"src/main.tsx"`');
-    expect(apiReferenceDoc).toContain('clientEntry: "app/browser.tsx"');
+    expect(apiReferenceDoc).not.toContain("clientEntry?: string;");
+    expect(apiReferenceDoc).not.toContain("clientEntry:");
     expect(apiReferenceDoc).not.toContain("routes?: string[];");
     expect(apiReferenceDoc).toContain("rsc?: Omit<RscPluginOptions");
+    expect(apiReferenceDoc).toContain("standard `index.html` module script");
     expect(troubleshootingDoc).toContain("defineApp");
     expect(troubleshootingDoc).toContain('import app from "./dist/server/index.mjs";');
     expect(troubleshootingDoc).toContain('const clientDir = path.resolve("dist/client");');
@@ -174,7 +171,7 @@ describe("docs package names", () => {
     expect(quickStartDoc).toContain("mountApp(root, { app });");
     expect(quickStartDoc).toContain("mountApp(root, { app, component: StrictMode });");
     expect(quickStartDoc).toContain("mountApp(root, { app, component: AppProviders });");
-    expect(configurationDoc).toContain('mountApp(document.getElementById("app")!, { app });');
+    expect(configurationDoc).not.toContain("clientEntry");
     expect(apiReferenceDoc).toContain("readonly app?: LitzApp;");
     expect(apiReferenceDoc).toContain("app, scrollRestoration: true");
   });
