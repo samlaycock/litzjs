@@ -97,4 +97,22 @@ describe("explicit app registration", () => {
       'Duplicate route registration for path "/duplicate"',
     );
   });
+
+  test("createServer rejects mixed app and manifest inputs", () => {
+    const route = defineRoute("/", {
+      component() {
+        return null;
+      },
+    });
+    const app = defineApp({ routes: [route] });
+
+    expect(() =>
+      createServer({
+        app,
+        manifest: {
+          routes: [{ id: "legacy", path: "/", route: route as never }],
+        },
+      }),
+    ).toThrow("Pass either createServer({ app }) or createServer({ manifest }), not both.");
+  });
 });

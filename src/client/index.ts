@@ -108,6 +108,7 @@ type ManifestEntry = {
   id: string;
   path: string;
   moduleFile?: string;
+  clientLoading?: "lazy" | "eager" | "preload";
   load: () => Promise<{
     route?: LoadedRoute;
   }>;
@@ -197,6 +198,7 @@ function createManifestFromApp(app: LitzAppDefinition | undefined): ManifestEntr
     app.routes.map((route) => ({
       id: route.id,
       path: route.path,
+      clientLoading: route.options?.clientLoading ?? app.clientLoading,
       load: async () => ({ route: route as LoadedRoute }),
     })),
   );
@@ -220,6 +222,41 @@ function configureActiveManifest(nextManifest: ManifestEntry[]): void {
       exactManifestEntries.set(entry.path, entry);
     }
   }
+
+  warmClientLoadedRoutes(manifest);
+}
+
+function warmClientLoadedRoutes(entries: readonly ManifestEntry[]): void {
+  const eagerEntries = entries.filter((entry) => entry.clientLoading === "eager");
+  const preloadEntries = entries.filter((entry) => entry.clientLoading === "preload");
+
+  for (const entry of eagerEntries) {
+    void prefetchMatchedRouteModule({ entry, params: {} });
+  }
+
+  if (preloadEntries.length === 0) {
+    return;
+  }
+
+  scheduleRoutePreload(() => {
+    for (const entry of preloadEntries) {
+      void prefetchMatchedRouteModule({ entry, params: {} });
+    }
+  });
+}
+
+function scheduleRoutePreload(callback: () => void): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if ("requestIdleCallback" in window) {
+    const requestIdleCallback = window.requestIdleCallback as (handler: () => void) => number;
+    requestIdleCallback(callback);
+    return;
+  }
+
+  globalThis.setTimeout(callback, 0);
 }
 
 function clearClientHotUpdateCaches(): void {

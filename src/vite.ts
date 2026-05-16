@@ -650,10 +650,13 @@ function injectServerRuntimeOptions(
         });
       } else if (node.arguments.length === 1 && ts.isObjectLiteralExpression(node.arguments[0]!)) {
         const optionsArgument = node.arguments[0]!;
+        const manifestInjection = hasObjectProperty(optionsArgument, "app")
+          ? ""
+          : " manifest: __litzjsServerManifest,";
         replacements.push({
           start: optionsArgument.getStart() + 1,
           end: optionsArgument.getStart() + 1,
-          text: " base: __litzjsBase, document: __litzjsCreateDocumentResponse, manifest: __litzjsServerManifest,",
+          text: ` base: __litzjsBase, document: __litzjsCreateDocumentResponse,${manifestInjection}`,
         });
       } else {
         throw new Error(
@@ -696,6 +699,26 @@ function injectServerRuntimeOptions(
     code: `${runtimeSource}${transformed}`,
     map: createLineOffsetSourceMap(id, code, countLines(runtimeSource)),
   };
+}
+
+function hasObjectProperty(objectLiteral: ts.ObjectLiteralExpression, name: string): boolean {
+  return objectLiteral.properties.some((property) => {
+    if (ts.isShorthandPropertyAssignment(property)) {
+      return property.name.text === name;
+    }
+
+    if (!ts.isPropertyAssignment(property)) {
+      return false;
+    }
+
+    const propertyName = property.name;
+
+    if (ts.isIdentifier(propertyName) || ts.isStringLiteral(propertyName)) {
+      return propertyName.text === name;
+    }
+
+    return false;
+  });
 }
 
 function getScriptKind(id: string): ts.ScriptKind {
