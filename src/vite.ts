@@ -38,7 +38,6 @@ import {
   discoverLayoutFromFile,
   discoverResourceFromFile,
   discoverRouteFromFile,
-  discoverServerEntry,
   isClientBoundaryModule,
   isRouteLikeModuleFile,
 } from "./vite/discovery";
@@ -75,7 +74,6 @@ export {
   discoverLayoutFromFile,
   discoverResourceFromFile,
   discoverRouteFromFile,
-  discoverServerEntry,
   handleLitzApiRequest,
   handleLitzDocumentRequest,
   handleLitzResourceRequest,
@@ -105,6 +103,7 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
   let configuredBase = "/";
   let baseOutDir = "dist";
   const browserEntryPath = options.clientEntry ?? "src/main.tsx";
+  const configuredServerEntryPath = options.server;
   let serverEntryPath: string | null = null;
   let routeManifest: DiscoveredRoute[] = [];
   let layoutManifest: DiscoveredLayout[] = [];
@@ -118,14 +117,16 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
   ];
   const resourcePatterns = ["src/routes/resources/**/*.{ts,tsx,js,jsx}"];
   const apiPatterns = ["src/routes/api/**/*.{ts,tsx,js,jsx}"];
-  const rscPlugins = vitePluginRsc({
-    ...options.rsc,
-    entries: {
-      client: LITZ_BROWSER_ENTRY_ID,
-      rsc: LITZ_RSC_ENTRY_ID,
-    },
-    serverHandler: false,
-  });
+  const rscPlugins = configuredServerEntryPath
+    ? vitePluginRsc({
+        ...options.rsc,
+        entries: {
+          client: LITZ_BROWSER_ENTRY_ID,
+          rsc: LITZ_RSC_ENTRY_ID,
+        },
+        serverHandler: false,
+      })
+    : [];
 
   const litzPlugin: Plugin = {
     name: "litzjs/vite",
@@ -139,19 +140,28 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
             build: {
               outDir: path.join(baseOutDir, "client"),
               manifest: true,
-            },
-          },
-          rsc: {
-            build: {
-              outDir: path.join(baseOutDir, "server"),
-              manifest: true,
               rollupOptions: {
-                output: {
-                  entryFileNames: "index.mjs",
+                input: {
+                  index: LITZ_BROWSER_ENTRY_ID,
                 },
               },
             },
           },
+          ...(configuredServerEntryPath
+            ? {
+                rsc: {
+                  build: {
+                    outDir: path.join(baseOutDir, "server"),
+                    manifest: true,
+                    rollupOptions: {
+                      output: {
+                        entryFileNames: "index.mjs",
+                      },
+                    },
+                  },
+                },
+              }
+            : {}),
         },
       };
     },
@@ -159,7 +169,7 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
     async configResolved(config) {
       root = config.root;
       configuredBase = normalizeBasePath(config.base);
-      serverEntryPath = await discoverServerEntry(root, options.server);
+      serverEntryPath = resolveConfiguredServerEntry(root, configuredServerEntryPath);
 
       ({ routeManifest, layoutManifest, resourceManifest, apiManifest } =
         await discoverAllManifests(root, routePatterns, resourcePatterns, apiPatterns));
@@ -175,7 +185,7 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
     resolveId(id) {
       if (id === ROUTE_MANIFEST_ID) return RESOLVED_ROUTE_MANIFEST_ID;
       if (id === RESOURCE_MANIFEST_ID) return RESOLVED_RESOURCE_MANIFEST_ID;
-      if (id === LITZ_RSC_ENTRY_ID) return RESOLVED_LITZ_RSC_ENTRY_ID;
+      if (configuredServerEntryPath && id === LITZ_RSC_ENTRY_ID) return RESOLVED_LITZ_RSC_ENTRY_ID;
       if (id === LITZ_BROWSER_ENTRY_ID) return RESOLVED_LITZ_BROWSER_ENTRY_ID;
       if (id === LITZ_RSC_RENDERER_ID) return RESOLVED_LITZ_RSC_RENDERER_ID;
       return null;
@@ -195,15 +205,12 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
         return createResourceManifestModule(resourceManifest);
       }
 
-      if (id === RESOLVED_LITZ_RSC_ENTRY_ID) {
-        return createGeneratedServerEntryModule(
-          root,
-          serverEntryPath,
-          configuredBase,
-          routeManifest,
-          resourceManifest,
-          apiManifest,
-        );
+      if (configuredServerEntryPath && id === RESOLVED_LITZ_RSC_ENTRY_ID) {
+        if (!serverEntryPath) {
+          throw new Error("[litzjs] Server entry was not resolved before loading the RSC entry.");
+        }
+
+        return createGeneratedServerEntryModule(serverEntryPath);
       }
 
       if (id === RESOLVED_LITZ_BROWSER_ENTRY_ID) {
@@ -249,7 +256,7 @@ export async function renderView(node, metadata = {}) {
     buildApp: {
       order: "post",
       async handler() {
-        finalizeFrameworkBuild(root, baseOutDir);
+        finalizeFrameworkBuild(root, baseOutDir, Boolean(configuredServerEntryPath));
       },
     },
 
@@ -539,30 +546,27 @@ export async function renderView(node, metadata = {}) {
   return [...rscPlugins, litzPlugin] as Plugin[];
 }
 
-function createGeneratedServerEntryModule(
+function createGeneratedServerEntryModule(serverEntryPath: string): string {
+  return `export { default } from ${JSON.stringify(toProjectImportSpecifier(serverEntryPath))};`;
+}
+
+function resolveConfiguredServerEntry(
   root: string,
-  serverEntryPath: string | null,
-  base: string,
-  routes: DiscoveredRoute[],
-  resources: DiscoveredResource[],
-  apiRoutes: DiscoveredApiRoute[],
-): string {
-  if (serverEntryPath) {
-    return `export { default } from ${JSON.stringify(toProjectImportSpecifier(serverEntryPath))};`;
+  configuredPath: string | undefined,
+): string | null {
+  if (!configuredPath) {
+    return null;
   }
 
-  return `${createInlineServerRuntime(root, base, createServerManifestModule(routes, resources, apiRoutes))}
-import { createServer } from "litzjs/server";
+  const absolutePath = path.resolve(root, configuredPath);
 
-export default createServer({
-  base: __litzjsBase,
-  document: __litzjsCreateDocumentResponse,
-  manifest: __litzjsServerManifest,
-  createContext() {
-    return undefined;
-  },
-});
-`;
+  if (!existsSync(absolutePath)) {
+    throw new Error(
+      `[litzjs] Configured server entry "${configuredPath}" does not exist. Either create the file or omit litz({ server }) for a client-only build.`,
+    );
+  }
+
+  return normalizeRelativePath(root, absolutePath);
 }
 
 function injectServerRuntimeOptions(
@@ -794,7 +798,11 @@ function readDocumentTemplate(root: string): string {
   return readFileSync(templatePath, "utf8");
 }
 
-function finalizeFrameworkBuild(root: string, outDir: string): void {
+function finalizeFrameworkBuild(root: string, outDir: string, hasServerEntry: boolean): void {
+  if (!hasServerEntry) {
+    return;
+  }
+
   const distDir = path.resolve(root, outDir);
   const clientDir = path.join(distDir, "client");
   const ssrDir = path.join(distDir, "ssr");

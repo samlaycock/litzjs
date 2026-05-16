@@ -26,7 +26,7 @@ function ServerConfiguration() {
           request handler: <code className="text-sky-400">Request → Response</code>.
         </p>
         <p className="text-neutral-400 mb-4">
-          The Vite plugin injects the discovered routes and configured base, so custom server
+          The Vite plugin injects the registered app manifest and configured base, so custom server
           entries only need to describe request-specific behavior:
         </p>
         <CodeBlock
@@ -160,16 +160,17 @@ export default createServer();`}
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Discovery</h2>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Registration</h2>
         <p className="text-neutral-400 mb-4">
-          The Vite plugin discovers routes, resources, API routes, and the configured base path,
-          then wires them into <code className="text-sky-400">createServer</code> during the build.
-          Custom server entries can stay focused on context, error handling, assets, and document
-          behavior.
+          Register routes, resources, and API routes with{" "}
+          <code className="text-sky-400">defineApp(...)</code>, then pass that app to{" "}
+          <code className="text-sky-400">createServer({`{ app }`})</code>. During builds, the Vite
+          plugin also injects the configured base path.
         </p>
         <p className="text-neutral-400 mb-4">
-          Discovery paths are configured in <code className="text-sky-400">vite.config.ts</code>{" "}
-          through the <code className="text-sky-400">litz()</code> plugin options.
+          Configure <code className="text-sky-400">litz({`{ server: "src/server.ts" }`})</code> when
+          you want Litz to produce a server build. Omit <code className="text-sky-400">server</code>{" "}
+          for client-only apps.
         </p>
       </section>
 

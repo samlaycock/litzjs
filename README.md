@@ -32,8 +32,7 @@ does not ask applications to install or compose those Vite plugins directly.
 
 ## Quick Start
 
-Add the Litz Vite plugin. By default, Litz uses the browser entry at `src/main.tsx` and a custom
-server entry from `src/server.ts`, falling back to `src/server/index.ts`.
+Add the Litz Vite plugin. Without a server entry, Litz produces a client-only build.
 
 `vite.config.ts`
 
@@ -46,23 +45,23 @@ export default defineConfig({
 });
 ```
 
-You can point Litz at different browser or server entries when you need a different project layout:
+Pass `server` when your app uses route loaders, actions, resources, API routes, or `view(...)`
+responses:
 
 ```ts
 export default defineConfig({
   plugins: [
     litz({
-      clientEntry: "app/main.tsx",
-      server: "app/server/entry.ts",
+      server: "src/server.ts",
     }),
   ],
 });
 ```
 
-Litz does not infer the browser entry by scanning HTML module scripts. Keep standard Vite
-`index.html` behavior and point Litz at a different browser entry with `clientEntry` when your
-project does not use `src/main.tsx`. During development, Vite serves explicit HTML documents such as
-`/about.html`; Litz only falls back to `index.html` for extensionless app routes.
+Litz does not auto-discover a server entry. Keep standard Vite `index.html` behavior for the browser
+entry and point Litz at a different browser entry with `clientEntry` only when your project does not
+use `src/main.tsx`. During development, Vite serves explicit HTML documents such as `/about.html`;
+Litz only falls back to `index.html` for extensionless app routes when a server entry is configured.
 
 Register routes, resources, and API routes explicitly with `defineApp(...)`.
 
@@ -937,21 +936,21 @@ import { createServer } from "litzjs/server";
 export default createServer();
 ```
 
-The Vite plugin injects the discovered server manifest automatically into that entry.
+The Vite plugin injects the server manifest and configured base automatically into that entry.
 
 ### Production Output
 
 When you run `vite build`, Litz writes the browser assets to `dist/client`.
 
-Server output is always `dist/server/index.mjs`. The Vite plugin injects the discovered server
-manifest into `createServer(...)` automatically.
+When `litz({ server: "..." })` is configured, server output is `dist/server/index.mjs`. The Vite
+plugin injects the server manifest into `createServer(...)` automatically.
 
 Your host server or platform is responsible for serving `dist/client` (for example through
 `express.static`, a CDN, or a platform asset binding) while forwarding dynamic requests to
 `dist/server/index.mjs`.
 
-You can let Litz discover `src/server.ts` or `src/server/index.ts`, or configure a different path
-explicitly in `vite.config.ts`:
+If `server` is omitted, Litz only builds the client output and does not emit `dist/server`.
+Configure the server entry explicitly in `vite.config.ts` when you need one:
 
 ```ts
 import { defineConfig } from "vite";
@@ -1120,7 +1119,7 @@ Middleware receives:
 - Litz is SPA-first. The browser owns the document.
 - Server logic only exists at explicit framework boundaries.
 - `view(...)` uses RSC as a transport, not as the whole app architecture.
-- Routes, resources, and API routes are discovered from top-level glob options.
+- Routes, resources, and API routes are registered explicitly with `defineApp(...)`.
 - Paths are explicit and absolute.
 - `server(...)` is a declarative marker on a normal JavaScript function, not an isolation boundary
   or security boundary by itself.

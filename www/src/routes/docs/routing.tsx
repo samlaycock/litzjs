@@ -164,55 +164,36 @@ function SettingsPage() {
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Route discovery</h2>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Route registration</h2>
         <p className="text-neutral-400 mb-4">
-          The Litz Vite plugin scans your project for files that export a{" "}
-          <code className="text-sky-400">route</code> binding created by{" "}
-          <code className="text-sky-400">defineRoute</code>. It collects these at build time so the
-          client router knows every path.
+          Define routes in ordinary TypeScript, then include them in{" "}
+          <code className="text-sky-400">defineApp({`{ routes: [...] }`})</code>. File placement
+          alone does not register a route.
         </p>
         <p className="text-neutral-400 mb-4">
           Because routes are path-based rather than filesystem-based, you can organise route files
-          however you like. The plugin only cares about the exported{" "}
-          <code className="text-sky-400">route</code> binding, not the directory structure.
-        </p>
-        <p className="text-neutral-400 mb-4">
-          Discovery is intentionally static. The supported declaration forms are:
+          however you like. The app definition controls which route objects participate.
         </p>
         <CodeBlock
           language="tsx"
-          code={`export const route = defineRoute("/dashboard", {
-  component: DashboardPage,
-});
-
-const dashboardRoute = defineRoute("/dashboard", {
-  component: DashboardPage,
-});
-
-export { dashboardRoute as route };`}
-        />
-        <p className="text-neutral-400 mt-4 mb-4">
-          The path must be a string literal or no-substitution template literal in the{" "}
-          <code className="text-sky-400">defineRoute</code> call. Local aliases and simple wrappers
-          are supported only when they resolve back to that static call.
-        </p>
-        <p className="text-neutral-400 mb-4">
-          These forms are not discovered and will warn during dev or build when the file imports{" "}
-          <code className="text-sky-400">defineRoute</code> from{" "}
-          <code className="text-sky-400">"litzjs"</code>:
-        </p>
-        <CodeBlock
-          language="tsx"
-          code={`const path = "/dashboard";
-
-export const route = defineRoute(path, {
-  component: DashboardPage,
-});
-
+          code={`// routes/dashboard.tsx
 export const dashboardRoute = defineRoute("/dashboard", {
   component: DashboardPage,
+});
+
+// app.ts
+import { defineApp } from "litzjs";
+
+import { dashboardRoute } from "./routes/dashboard";
+
+export const app = defineApp({
+  routes: [dashboardRoute],
 });`}
         />
+        <p className="text-neutral-400 mt-4 mb-4">
+          Route paths still come from <code className="text-sky-400">defineRoute</code>, so the URL
+          remains explicit at the definition site.
+        </p>
       </section>
 
       <div className="flex justify-between pt-8 border-t border-neutral-800">

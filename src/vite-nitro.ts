@@ -8,7 +8,6 @@ import path from "node:path";
 import type { LitzNitroPluginOptions } from "./vite/types";
 
 import { normalizeBasePath, resolveBasePathname } from "./base-path";
-import { discoverServerEntry } from "./vite/discovery";
 
 export type { LitzNitroPluginOptions };
 
@@ -91,14 +90,20 @@ export function litzNitro(options: LitzNitroPluginOptions = {}): PluginOption {
         ? path.resolve(root, options.output.publicDir)
         : path.resolve(finalNitroOutDir, "public");
 
-      const serverEntryPath = await discoverServerEntry(root, options.server);
-
-      if (serverEntryPath === null) {
+      if (!options.server) {
         throw new Error(
           [
-            "litzNitro() could not find a server entry for the Nitro renderer.",
-            'Create src/server.ts or src/server/index.ts, or pass the same custom server path to litzNitro({ server: "..." }) that you pass to litz({ server: "..." }).',
+            "litzNitro() requires an explicit server entry for the Nitro renderer.",
+            'Pass the same server path to litzNitro({ server: "..." }) that you pass to litz({ server: "..." }).',
           ].join(" "),
+        );
+      }
+
+      const serverEntryPath = path.resolve(root, options.server);
+
+      if (!existsSync(serverEntryPath)) {
+        throw new Error(
+          `[litzjs] Configured Nitro server entry "${options.server}" does not exist.`,
         );
       }
 
@@ -106,7 +111,7 @@ export function litzNitro(options: LitzNitroPluginOptions = {}): PluginOption {
       const isBuild = config.command === "build";
       const serverImportPath = isBuild
         ? path.resolve(root, rscOutDir, "index.js")
-        : path.resolve(root, serverEntryPath);
+        : serverEntryPath;
 
       writeNitroRendererSync(
         rendererRoot,
@@ -238,7 +243,7 @@ function writeNitroRendererSync(
     writeFileSync(
       rendererPath,
       [
-        "// Placeholder - replaced once the server entry is discovered.",
+        "// Placeholder - replaced once the explicit server entry is resolved.",
         'import { defineHandler } from "nitro/h3";',
         "",
         "export default defineHandler(() => new Response('Not ready', { status: 503 }));",

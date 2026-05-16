@@ -21,7 +21,7 @@ export default defineConfig({
   },
   plugins: [
     tailwindcss(),
-    litz(),
+    litz({ server: "src/server.ts" }),
     ...pwaPlugins,
     cloudflare({
       viteEnvironment: {

@@ -25,7 +25,6 @@ import {
   discoverLayoutFromFile,
   discoverResourceFromFile,
   discoverRouteFromFile,
-  discoverServerEntry,
   handleLitzApiRequest,
   handleLitzDocumentRequest,
   handleLitzResourceRequest,
@@ -142,34 +141,6 @@ describe("vite production server helpers", () => {
     expect(buildOutput).not.toContain("Warning:");
   }, 65000);
 
-  test("prefers src/server.ts when auto-discovering a custom server entry", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-"));
-
-    try {
-      mkdirSync(path.join(root, "src"), { recursive: true });
-      mkdirSync(path.join(root, "src", "server"), { recursive: true });
-      writeFileSync(path.join(root, "src", "server.ts"), "export default null;\n", "utf8");
-      writeFileSync(path.join(root, "src", "server", "index.ts"), "export default null;\n", "utf8");
-
-      expect(discoverServerEntry(root)).resolves.toBe("src/server.ts");
-    } finally {
-      rmSync(root, { force: true, recursive: true });
-    }
-  });
-
-  test("falls back to src/server/index.ts when src/server.ts is absent", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-"));
-
-    try {
-      mkdirSync(path.join(root, "src", "server"), { recursive: true });
-      writeFileSync(path.join(root, "src", "server", "index.ts"), "export default null;\n", "utf8");
-
-      expect(discoverServerEntry(root)).resolves.toBe("src/server/index.ts");
-    } finally {
-      rmSync(root, { force: true, recursive: true });
-    }
-  });
-
   test("does not include Nitro in the default litz plugin path", () => {
     const plugins = litz() as Plugin[];
 
@@ -177,8 +148,44 @@ describe("vite production server helpers", () => {
     expect(plugins.some((plugin) => plugin.name === "litzjs/nitro")).toBe(false);
   });
 
-  test("routes the framework server entry to the RSC build output", async () => {
+  test("omits the RSC server build environment when no server entry is configured", async () => {
     const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+
+    if (!plugin?.config) {
+      throw new Error("Expected litzjs/vite config hook to be available.");
+    }
+
+    const config = typeof plugin.config === "function" ? plugin.config : plugin.config.handler;
+    const result = await config.call(
+      {} as never,
+      {
+        build: {
+          outDir: "build",
+        },
+      } as never,
+      {
+        command: "build",
+        mode: "production",
+      } as never,
+    );
+
+    expect(result).toMatchObject({
+      environments: {
+        client: {
+          build: {
+            outDir: path.join("build", "client"),
+            manifest: true,
+          },
+        },
+      },
+    });
+    expect(result).not.toHaveProperty("environments.rsc");
+  });
+
+  test("routes the configured server entry to the RSC build output", async () => {
+    const plugin = (litz({ server: "src/server.ts" }) as Plugin[]).find(
+      (candidate) => candidate.name === "litzjs/vite",
+    );
 
     if (!plugin?.config) {
       throw new Error("Expected litzjs/vite config hook to be available.");
@@ -265,6 +272,49 @@ describe("vite production server helpers", () => {
     }
   });
 
+  test("fails fast when a configured server entry does not exist", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-missing-configured-server-"));
+
+    try {
+      const plugin = (litz({ server: "src/server.ts" }) as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/vite",
+      );
+
+      if (!plugin?.configResolved) {
+        throw new Error("Expected litzjs/vite configResolved hook to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      let error: unknown;
+
+      try {
+        await configResolved.call(
+          {} as never,
+          {
+            root,
+            base: "/",
+            command: "build",
+            build: {
+              outDir: "dist",
+            },
+            environments: {},
+          } as never,
+        );
+      } catch (caughtError) {
+        error = caughtError;
+      }
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('Configured server entry "src/server.ts"');
+      expect((error as Error).message).toContain("client-only build");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("allows Nitro dev runtime dependencies outside the Vite root", () => {
     const plugin = (litzNitro() as Plugin[]).find((candidate) => candidate.name === "litzjs/nitro");
 
@@ -309,7 +359,7 @@ describe("vite production server helpers", () => {
       writeFileSync(path.join(projectRoot, "src", "server.ts"), "export default null;\n", "utf8");
       process.chdir(projectRoot);
 
-      const plugin = (litzNitro() as Plugin[]).find(
+      const plugin = (litzNitro({ server: "src/server.ts" }) as Plugin[]).find(
         (candidate) => candidate.name === "litzjs/nitro",
       );
 
@@ -381,7 +431,7 @@ describe("vite production server helpers", () => {
       );
       writeFileSync(path.join(root, "src", "server.ts"), "export default null;\n", "utf8");
 
-      const plugin = (litzNitro() as Plugin[]).find(
+      const plugin = (litzNitro({ server: "src/server.ts" }) as Plugin[]).find(
         (candidate) => candidate.name === "litzjs/nitro",
       );
 
@@ -431,7 +481,7 @@ describe("vite production server helpers", () => {
     }
   });
 
-  test("fails fast when litzNitro cannot discover a server entry", async () => {
+  test("fails fast when litzNitro has no explicit server entry", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-nitro-missing-server-"));
 
     try {
@@ -470,7 +520,7 @@ describe("vite production server helpers", () => {
       }
 
       expect(error).toBeInstanceOf(Error);
-      expect((error as Error).message).toContain("litzNitro() could not find a server entry");
+      expect((error as Error).message).toContain("litzNitro() requires an explicit server entry");
       expect((error as Error).message).toContain('litzNitro({ server: "..." })');
     } finally {
       rmSync(root, { force: true, recursive: true });
@@ -1663,7 +1713,9 @@ describe("dev server hot updates", () => {
         "utf8",
       );
 
-      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz({ server: "src/server.ts" }) as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/vite",
+      );
 
       if (!plugin?.configResolved || !plugin.transform) {
         throw new Error("Expected litzjs/vite transform hooks to be available.");
@@ -1745,7 +1797,9 @@ describe("dev server hot updates", () => {
         "utf8",
       );
 
-      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz({ server: "src/server.ts" }) as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/vite",
+      );
 
       if (!plugin?.configResolved || !plugin.transform) {
         throw new Error("Expected litzjs/vite transform hooks to be available.");
@@ -1827,7 +1881,9 @@ describe("dev server hot updates", () => {
         "utf8",
       );
 
-      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz({ server: "src/server.ts" }) as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/vite",
+      );
 
       if (!plugin?.configResolved || !plugin.transform) {
         throw new Error("Expected litzjs/vite transform hooks to be available.");
@@ -1898,7 +1954,9 @@ describe("dev server hot updates", () => {
         "utf8",
       );
 
-      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz({ server: "src/server.ts" }) as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/vite",
+      );
 
       if (!plugin?.configResolved || !plugin.transform) {
         throw new Error("Expected litzjs/vite transform hooks to be available.");
@@ -1972,7 +2030,9 @@ describe("dev server hot updates", () => {
         "utf8",
       );
 
-      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz({ server: "src/server.ts" }) as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/vite",
+      );
 
       if (!plugin?.configResolved || !plugin.transform) {
         throw new Error("Expected litzjs/vite transform hooks to be available.");
@@ -2043,7 +2103,9 @@ describe("dev server hot updates", () => {
         "utf8",
       );
 
-      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+      const plugin = (litz({ server: "src/server.ts" }) as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/vite",
+      );
 
       if (!plugin?.configResolved || !plugin.transform) {
         throw new Error("Expected litzjs/vite transform hooks to be available.");
