@@ -256,7 +256,12 @@ export async function renderView(node, metadata = {}) {
     buildApp: {
       order: "post",
       async handler() {
-        finalizeFrameworkBuild(root, baseOutDir, Boolean(configuredServerEntryPath));
+        finalizeFrameworkBuild(
+          root,
+          baseOutDir,
+          configuredBase,
+          Boolean(configuredServerEntryPath),
+        );
       },
     },
 
@@ -823,7 +828,12 @@ function readDocumentTemplate(root: string): string {
   return readFileSync(templatePath, "utf8");
 }
 
-function finalizeFrameworkBuild(root: string, outDir: string, hasServerEntry: boolean): void {
+function finalizeFrameworkBuild(
+  root: string,
+  outDir: string,
+  base: string,
+  hasServerEntry: boolean,
+): void {
   if (!hasServerEntry) {
     return;
   }
@@ -861,16 +871,54 @@ function finalizeFrameworkBuild(root: string, outDir: string, hasServerEntry: bo
     return;
   }
 
+  const clientEntry = entry.file.replaceAll("\\", "/");
+  const clientStyles = (entry.css ?? []).map((cssFile) => cssFile.replaceAll("\\", "/"));
   const serverCode = readFileSync(serverEntryPath, "utf8");
+
+  writeFileSync(
+    path.join(clientDir, "index.html"),
+    createProductionDocumentHtml(root, base, clientEntry, clientStyles),
+    "utf8",
+  );
+
   writeFileSync(
     serverEntryPath,
     serverCode
-      .replaceAll("__LITZJS_CLIENT_ENTRY__", entry.file.replaceAll("\\", "/"))
-      .replaceAll(
-        "__LITZJS_CLIENT_STYLES__",
-        (entry.css ?? []).map((cssFile) => cssFile.replaceAll("\\", "/")).join(","),
-      ),
+      .replaceAll("__LITZJS_CLIENT_ENTRY__", clientEntry)
+      .replaceAll("__LITZJS_CLIENT_STYLES__", clientStyles.join(",")),
     "utf8",
+  );
+}
+
+function createProductionDocumentHtml(
+  root: string,
+  base: string,
+  clientEntry: string,
+  clientStyles: string[],
+): string {
+  const script = clientEntry
+    ? `<script type="module" src="${joinProductionBase(base, clientEntry)}"></script>`
+    : "";
+  const styles = clientStyles
+    .map((href) => `<link rel="stylesheet" crossorigin href="${joinProductionBase(base, href)}">`)
+    .join("\n");
+
+  return stripProductionModuleScripts(readDocumentTemplate(root))
+    .replace(/<\/head>/i, `${styles}\n  </head>`)
+    .replace(/<\/body>/i, `${script}\n  </body>`);
+}
+
+function joinProductionBase(base: string, pathname: string): string {
+  const normalizedBase = base === "/" ? "" : base.replace(/\/$/, "");
+  const normalizedPathname = pathname.startsWith("/") ? pathname : `/${pathname}`;
+
+  return `${normalizedBase}${normalizedPathname}` || "/";
+}
+
+function stripProductionModuleScripts(html: string): string {
+  return html.replace(
+    /<script\b(?=[^>]*\btype=["']module["'])(?=[^>]*\bsrc=["'][^"']+["'])[^>]*>\s*<\/script>/gi,
+    "",
   );
 }
 

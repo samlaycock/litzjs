@@ -619,6 +619,7 @@ describe("vite production server helpers", () => {
       }
 
       expect(existsSync(path.join(root, "dist", "client"))).toBe(true);
+      expect(existsSync(path.join(root, "dist", "client", "index.html"))).toBe(true);
       expect(existsSync(path.join(root, "dist", "server"))).toBe(true);
       expect(existsSync(path.join(root, "dist", "rsc"))).toBe(false);
       expect(existsSync(path.join(root, "dist", "ssr"))).toBe(false);
@@ -641,6 +642,7 @@ describe("vite production server helpers", () => {
       });
 
       expect(existsSync(path.join(root, "dist", "client"))).toBe(true);
+      expect(existsSync(path.join(root, "dist", "client", "index.html"))).toBe(true);
       expect(existsSync(path.join(root, "dist", "server"))).toBe(true);
       expect(existsSync(path.join(root, "dist", "rsc"))).toBe(false);
       expect(existsSync(path.join(root, "dist", "ssr"))).toBe(false);
@@ -688,6 +690,7 @@ describe("vite production server helpers", () => {
       await waitForHttpOk(`${baseUrl}/api/health`, serverProcess);
 
       const rootResponse = await fetch(`${baseUrl}/`);
+      const staticDocument = readFileSync(path.join(root, "dist", "client", "index.html"), "utf8");
       const featureResponse = await fetch(`${baseUrl}/features/loader-data`);
       const apiResponse = await fetch(`${baseUrl}/api/health`);
       const echoResponse = await fetch(`${baseUrl}/api/echo/runtime?tab=full`, {
@@ -721,6 +724,9 @@ describe("vite production server helpers", () => {
       expect(rootResponse.headers.get("content-type")).toContain("text/html");
       expect(rootHtml).toContain('id="app"');
       expect(rootHtml).toContain('type="module"');
+      expect(staticDocument).toContain('id="app"');
+      expect(staticDocument).toContain('type="module"');
+      expect(staticDocument).not.toContain("/src/main.tsx");
 
       expect(featureResponse.status).toBe(200);
       expect(featureResponse.headers.get("content-type")).toContain("text/html");
