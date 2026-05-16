@@ -854,7 +854,7 @@ function finalizeFrameworkBuild(
 
   const clientManifest = JSON.parse(readFileSync(clientManifestPath, "utf8")) as Record<
     string,
-    { css?: string[]; file?: string; isEntry?: boolean }
+    { css?: string[]; file?: string; imports?: string[]; isEntry?: boolean }
   >;
   const relativePrefix = path
     .relative(path.dirname(clientManifestPath), distDir)
@@ -872,7 +872,7 @@ function finalizeFrameworkBuild(
   }
 
   const clientEntry = entry.file.replaceAll("\\", "/");
-  const clientStyles = (entry.css ?? []).map((cssFile) => cssFile.replaceAll("\\", "/"));
+  const clientStyles = collectClientCss(clientManifest, entry);
   const serverCode = readFileSync(serverEntryPath, "utf8");
 
   writeFileSync(
@@ -888,6 +888,37 @@ function finalizeFrameworkBuild(
       .replaceAll("__LITZJS_CLIENT_STYLES__", clientStyles.join(",")),
     "utf8",
   );
+}
+
+function collectClientCss(
+  manifest: Record<string, { css?: string[]; imports?: string[] }>,
+  entry: { css?: string[]; imports?: string[] },
+): string[] {
+  const cssFiles = new Set<string>();
+  const visitedImports = new Set<string>();
+
+  const visit = (chunk: { css?: string[]; imports?: string[] }) => {
+    for (const cssFile of chunk.css ?? []) {
+      cssFiles.add(cssFile.replaceAll("\\", "/"));
+    }
+
+    for (const importKey of chunk.imports ?? []) {
+      if (visitedImports.has(importKey)) {
+        continue;
+      }
+
+      visitedImports.add(importKey);
+      const importedChunk = manifest[importKey];
+
+      if (importedChunk) {
+        visit(importedChunk);
+      }
+    }
+  };
+
+  visit(entry);
+
+  return [...cssFiles];
 }
 
 function createProductionDocumentHtml(
