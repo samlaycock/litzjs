@@ -8,7 +8,7 @@ const packageRoot = path.resolve(__dirname, "../..");
 
 export default defineConfig({
   root: rootDir,
-  plugins: [litz()],
+  plugins: [litz({ server: "src/server.ts" })],
   resolve: {
     alias: [
       {

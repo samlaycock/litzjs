@@ -1051,13 +1051,17 @@ const viteGroups: readonly ReferenceGroupSpec[] = [
   server?: string;
   rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
 };`,
-        summary: "Options accepted by the main Vite plugin factory.",
+        summary:
+          "Options accepted by the main Vite plugin factory. Omit `server` for a client-only build.",
       },
       {
         name: "litz",
         signature: `litz(options?: LitzPluginOptions): PluginOption`,
         summary:
           "Creates the Litz Vite plugin stack, including `@vitejs/plugin-rsc` and the framework server build.",
+        details: [
+          "`server` is optional. If it is omitted, Litz only produces the client build and does not emit `dist/server`.",
+        ],
         example: {
           language: "ts",
           code: `import { defineConfig } from "vite";

@@ -35,7 +35,8 @@ export default defineConfig({
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Options</h2>
         <p className="text-neutral-400 mb-4">
-          The <code className="text-sky-400">litz()</code> function accepts build entry options:
+          The <code className="text-sky-400">litz()</code> function accepts optional build entry
+          options. Omit <code className="text-sky-400">server</code> for a client-only build:
         </p>
         <CodeBlock
           language="ts"
@@ -111,8 +112,7 @@ mountApp(document.getElementById("app")!, { app });`}
           <code className="text-sky-400">litzjs/server</code>.
         </p>
         <p className="text-neutral-400 mb-4">
-          <strong>Default:</strong> <code className="text-sky-400">"src/server.ts"</code> or{" "}
-          <code className="text-sky-400">"src/server/index.ts"</code> (auto-discovered)
+          <strong>Default:</strong> omitted. When omitted, Litz does not produce a server build.
         </p>
         <CodeBlock
           language="ts"
@@ -139,7 +139,7 @@ export default defineConfig({
       // Browser entry (optional)
       clientEntry: "src/main.tsx",
 
-      // Custom server entry (optional)
+      // Server entry (optional; omitted means client-only)
       server: "src/server.ts",
     }),
   ],

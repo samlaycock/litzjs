@@ -32,7 +32,7 @@ export interface LitzRouteRule {
 }
 
 export interface LitzNitroPluginOptions {
-  /** Path to a custom server entry file. Defaults to `src/server.ts` or `src/server/index.ts`. */
+  /** Path to the server entry file used by the Nitro renderer. */
   readonly server?: string;
   /**
    * Deployment preset. Determines the server output format and runtime
@@ -78,7 +78,7 @@ export interface LitzNitroPluginOptions {
 export interface LitzPluginOptions {
   /** Browser entry imported by Litz's generated client runtime module. */
   readonly clientEntry?: string;
-  /** Path to a custom server entry file. */
+  /** Path to a server entry file. Omit to skip the server build. */
   readonly server?: string;
   /** Options forwarded to `@vitejs/plugin-rsc`. */
   readonly rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;

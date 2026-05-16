@@ -130,10 +130,10 @@ pnpm add -D vite typescript`}
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">Included capabilities</h3>
         <p className="text-neutral-400 mb-4">
-          The default <code className="text-sky-400">litz()</code> plugin includes the React Server
-          Components integration used by <code className="text-sky-400">view(...)</code> and the
-          framework build pipeline used for production builds. Most apps only need{" "}
-          <code className="text-sky-400">plugins: [litz()]</code>.
+          The <code className="text-sky-400">litz()</code> plugin can build client-only apps. Add{" "}
+          <code className="text-sky-400">server: "src/server.ts"</code> when you need the React
+          Server Components integration used by <code className="text-sky-400">view(...)</code>,
+          route loaders and actions, resources, or API routes.
         </p>
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">Runtime compatibility notes</h3>
@@ -195,8 +195,8 @@ export default defineConfig({
           <Link href="/docs/first-app" className="text-sky-400 hover:text-sky-300">
             First App
           </Link>{" "}
-          for the empty-directory walkthrough before you fine-tune route discovery patterns and
-          server entry options in Quick Start and Configuration.
+          for the empty-directory walkthrough before you fine-tune app registration and server entry
+          options in Quick Start and Configuration.
         </p>
       </section>
 

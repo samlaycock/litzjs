@@ -40,23 +40,6 @@ export async function discoverAllManifests(
   };
 }
 
-export async function discoverServerEntry(
-  root: string,
-  configuredPath?: string,
-): Promise<string | null> {
-  const candidates = configuredPath ? [configuredPath] : ["src/server.ts", "src/server/index.ts"];
-
-  for (const candidate of candidates) {
-    const absolutePath = path.resolve(root, candidate);
-
-    if (ts.sys.fileExists(absolutePath)) {
-      return normalizeRelativePath(root, absolutePath);
-    }
-  }
-
-  return null;
-}
-
 export function isClientBoundaryModule(file: string): boolean {
   return /\.client\.(ts|tsx|js|jsx)$/.test(file);
 }
