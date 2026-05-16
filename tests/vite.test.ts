@@ -468,6 +468,7 @@ describe("vite production server helpers", () => {
       expect(rendererSource).toContain(path.resolve(root, "dist", "rsc", "index.js"));
       expect(rendererSource).toContain("stripDevModuleScripts");
       expect(rendererSource).toContain('rel="stylesheet" crossorigin');
+      expect(rendererSource).toContain('cssFile.replaceAll("\\\\", "/")');
       expect(rendererSource).not.toContain("Not ready");
       expect(rendererSource).not.toContain(path.resolve(root, "src", "server.ts"));
       expect(rendererSource).not.toContain("/src/main.tsx");
@@ -587,11 +588,14 @@ describe("vite production server helpers", () => {
 
       const publicAssets = readdirSync(path.join(root, "dist", "client", "assets")).sort();
       const staticDocument = readFileSync(path.join(root, "dist", "client", "index.html"), "utf8");
+      const vitePluginSource = readFileSync(path.join(repoRoot, "src", "vite.ts"), "utf8");
 
       expect(publicAssets.some((file) => /^routes-.*\.css$/.test(file))).toBe(true);
       expect(publicAssets.some((file) => /^loader-data-.*\.css$/.test(file))).toBe(true);
       expect(staticDocument).toContain('rel="stylesheet"');
       expect(staticDocument).toContain(".css");
+      expect(vitePluginSource).toContain("JSON.stringify(clientStyles)");
+      expect(vitePluginSource).not.toContain("__litzjsClientStyles.split");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

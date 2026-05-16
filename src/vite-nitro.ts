@@ -286,7 +286,7 @@ function writeNitroRendererSync(
             "  const cssFiles = new Set();",
             "  const visitedImports = new Set();",
             "  const visit = (chunk) => {",
-            "    for (const cssFile of chunk.css ?? []) cssFiles.add(cssFile);",
+            '    for (const cssFile of chunk.css ?? []) cssFiles.add(cssFile.replaceAll("\\\\", "/"));',
             "    for (const importKey of chunk.imports ?? []) {",
             "      if (visitedImports.has(importKey)) continue;",
             "      visitedImports.add(importKey);",
