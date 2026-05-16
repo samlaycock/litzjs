@@ -147,8 +147,14 @@ describe("docs package names", () => {
     expect(configurationDoc).toContain("defineApp");
     expect(configurationDoc).not.toContain("Glob patterns to discover route files");
     expect(configurationDoc).toContain("clientEntry");
+    expect(configurationDoc).toContain('clientEntry: "app/browser.tsx"');
+    expect(configurationDoc).toContain(
+      "Only set this when your browser entry lives somewhere else",
+    );
     expect(apiReferenceDoc).toContain("defineApp");
     expect(apiReferenceDoc).toContain("clientEntry?: string;");
+    expect(apiReferenceDoc).toContain('clientEntry` defaults to `"src/main.tsx"`');
+    expect(apiReferenceDoc).toContain('clientEntry: "app/browser.tsx"');
     expect(apiReferenceDoc).not.toContain("routes?: string[];");
     expect(apiReferenceDoc).toContain("rsc?: Omit<RscPluginOptions");
     expect(troubleshootingDoc).toContain("defineApp");

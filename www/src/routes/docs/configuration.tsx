@@ -90,8 +90,26 @@ export const app = defineApp({
         <p className="text-neutral-400 mb-4">
           <strong>Default:</strong> <code className="text-sky-400">"src/main.tsx"</code>
         </p>
+        <p className="text-neutral-400 mb-4">
+          Only set this when your browser entry lives somewhere else. For example, if your browser
+          entry is <code className="text-sky-400">app/browser.tsx</code>:
+        </p>
         <CodeBlock
           language="ts"
+          code={`// vite.config.ts
+import { defineConfig } from "vite";
+import { litz } from "litzjs/vite";
+
+export default defineConfig({
+  plugins: [
+    litz({
+      clientEntry: "app/browser.tsx",
+    }),
+  ],
+});`}
+        />
+        <CodeBlock
+          language="tsx"
           code={`// app/browser.tsx
 import { mountApp } from "litzjs/client";
 

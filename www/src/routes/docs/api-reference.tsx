@@ -1057,6 +1057,9 @@ const viteGroups: readonly ReferenceGroupSpec[] = [
 };`,
         summary:
           "Options accepted by the main Vite plugin factory. Omit `server` for a client-only build.",
+        details: [
+          '`clientEntry` defaults to `"src/main.tsx"` and only needs to be set when the browser entry lives somewhere else.',
+        ],
       },
       {
         name: "litz",
@@ -1074,7 +1077,7 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
-      clientEntry: "src/main.tsx",
+      clientEntry: "app/browser.tsx",
       server: "src/server.ts",
     }),
   ],
