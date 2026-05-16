@@ -129,13 +129,15 @@ export default defineConfig({
           language="tsx"
           code={`import { mountApp } from "litzjs/client";
 
+import { app } from "./app";
+
 const root = document.getElementById("app");
 
 if (!root) {
   throw new Error('Missing "#app" root element.');
 }
 
-mountApp(root);`}
+mountApp(root, { app });`}
         />
       </section>
 
@@ -164,7 +166,24 @@ function HomePage() {
       </section>
 
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">7. Start the dev server</h2>
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">7. Register the app</h2>
+        <p className="text-neutral-400 mb-4">
+          Create <code className="text-sky-400">src/app.ts</code> and include the route explicitly:
+        </p>
+        <CodeBlock
+          language="ts"
+          code={`import { defineApp } from "litzjs";
+
+import { route as homeRoute } from "./routes";
+
+export const app = defineApp({
+  routes: [homeRoute],
+});`}
+        />
+      </section>
+
+      <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">8. Start the dev server</h2>
         <p className="text-neutral-400 mb-4">Run Vite directly from Bun in the same directory:</p>
         <CodeBlock language="bash" code={`bunx vite`} />
         <p className="text-neutral-400 mt-4 mb-4">

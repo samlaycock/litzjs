@@ -135,7 +135,7 @@ describe("docs package names", () => {
     expect(troubleshootingDoc).toContain("bun add -d typescript vite");
   });
 
-  test("configuration and API docs match current Vite defaults", () => {
+  test("configuration and API docs describe explicit app registration", () => {
     const readme = normalizeWhitespace(readDoc("README.md"));
     const configurationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/configuration.tsx"));
     const apiReferenceDoc = normalizeWhitespace(readDoc("www/src/routes/docs/api-reference.tsx"));
@@ -143,13 +143,15 @@ describe("docs package names", () => {
       readDoc("www/src/routes/docs/troubleshooting.tsx"),
     );
 
-    for (const doc of [readme, configurationDoc, apiReferenceDoc, troubleshootingDoc]) {
-      expect(doc).toContain("src/routes/**/*.{ts,tsx,js,jsx}");
-    }
-
+    expect(readme).toContain("defineApp");
+    expect(configurationDoc).toContain("defineApp");
+    expect(configurationDoc).not.toContain("Glob patterns to discover route files");
     expect(configurationDoc).toContain("clientEntry");
+    expect(apiReferenceDoc).toContain("defineApp");
     expect(apiReferenceDoc).toContain("clientEntry?: string;");
+    expect(apiReferenceDoc).not.toContain("routes?: string[];");
     expect(apiReferenceDoc).toContain("rsc?: Omit<RscPluginOptions");
+    expect(troubleshootingDoc).toContain("defineApp");
     expect(troubleshootingDoc).toContain('import app from "./dist/server/index.mjs";');
     expect(troubleshootingDoc).toContain('const clientDir = path.resolve("dist/client");');
     expect(troubleshootingDoc).not.toContain("dist/public");

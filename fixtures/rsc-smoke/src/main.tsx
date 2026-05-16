@@ -2,6 +2,7 @@ import type { PropsWithChildren } from "react";
 
 import { mountApp } from "litzjs/client";
 
+import { app } from "./app";
 import { AppShell } from "./components/app-shell";
 
 const root = document.getElementById("app");
@@ -28,6 +29,7 @@ function ClientNotFound() {
 }
 
 mountApp(root, {
+  app,
   component: AppShell,
   layout: {
     id: "fixture-client-layout",

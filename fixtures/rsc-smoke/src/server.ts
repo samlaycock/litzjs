@@ -1,6 +1,9 @@
 import { createServer } from "litzjs/server";
 
+import { app } from "./app";
+
 export default createServer({
+  app,
   assets(request) {
     const url = new URL(request.url);
 

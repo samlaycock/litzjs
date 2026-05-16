@@ -1,4 +1,4 @@
-import type { ApiRouteMethod } from "../index";
+import type { ApiRouteMethod, LitzApp } from "../index";
 
 import { normalizeBasePath, resolveBasePathname } from "../base-path";
 import {
@@ -154,6 +154,7 @@ export type CreateServerOptions<TContext = unknown> = {
   createContext?(request: Request): Promise<TContext> | TContext;
   validateInternalRequest?: InternalRequestValidator<TContext>;
   onError?(error: unknown, context: TContext | undefined): void;
+  app?: LitzApp;
   manifest?: ServerManifest;
   base?: string;
   document?: DocumentResponseOption;
@@ -164,7 +165,7 @@ export type CreateServerOptions<TContext = unknown> = {
 export function createServer<TContext = unknown>(
   options: CreateServerOptions<TContext> = {},
 ): { fetch(request: Request): Promise<Response> } {
-  const manifest = normalizeServerManifest(options.manifest);
+  const manifest = normalizeServerManifest(options.manifest, options.app);
   const basePath = normalizeBasePath(options.base);
 
   async function handle(request: Request): Promise<Response> {
@@ -266,15 +267,40 @@ export function createServer<TContext = unknown>(
   return { fetch: handle };
 }
 
-function normalizeServerManifest(manifest: ServerManifest | undefined): ServerManifest {
-  if (!manifest) {
+function normalizeServerManifest(
+  manifest: ServerManifest | undefined,
+  app: LitzApp | undefined,
+): ServerManifest {
+  const appManifest: ServerManifest | undefined = app
+    ? {
+        routes: app.routes.map((route) => ({
+          id: route.id,
+          path: route.path,
+          route: route as RouteModule["route"],
+        })),
+        resources: app.resources.map((resource) => ({
+          path: resource.path,
+          resource: resource as ResourceModule["resource"],
+        })),
+        apiRoutes: app.apiRoutes.map((api) => ({
+          path: api.path,
+          api: api as ApiModule["api"],
+        })),
+      }
+    : undefined;
+
+  const resolvedManifest = appManifest ?? manifest;
+
+  if (!resolvedManifest) {
     return {};
   }
 
   return {
-    ...manifest,
-    routes: manifest.routes ? sortByPathSpecificity(manifest.routes) : undefined,
-    apiRoutes: manifest.apiRoutes ? sortByPathSpecificity(manifest.apiRoutes) : undefined,
+    ...resolvedManifest,
+    routes: resolvedManifest.routes ? sortByPathSpecificity(resolvedManifest.routes) : undefined,
+    apiRoutes: resolvedManifest.apiRoutes
+      ? sortByPathSpecificity(resolvedManifest.apiRoutes)
+      : undefined,
   };
 }
 

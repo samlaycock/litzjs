@@ -111,13 +111,13 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
   let resourceManifest: DiscoveredResource[] = [];
   let apiManifest: DiscoveredApiRoute[] = [];
   let clientProjectedFiles = new Set<string>();
-  const routePatterns = options.routes ?? [
+  const routePatterns = [
     "src/routes/**/*.{ts,tsx,js,jsx}",
     "!src/routes/api/**/*.{ts,tsx,js,jsx}",
     "!src/routes/resources/**/*.{ts,tsx,js,jsx}",
   ];
-  const resourcePatterns = options.resources ?? ["src/routes/resources/**/*.{ts,tsx,js,jsx}"];
-  const apiPatterns = options.api ?? ["src/routes/api/**/*.{ts,tsx,js,jsx}"];
+  const resourcePatterns = ["src/routes/resources/**/*.{ts,tsx,js,jsx}"];
+  const apiPatterns = ["src/routes/api/**/*.{ts,tsx,js,jsx}"];
   const rscPlugins = vitePluginRsc({
     ...options.rsc,
     entries: {
