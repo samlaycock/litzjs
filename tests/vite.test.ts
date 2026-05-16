@@ -586,9 +586,12 @@ describe("vite production server helpers", () => {
       }
 
       const publicAssets = readdirSync(path.join(root, "dist", "client", "assets")).sort();
+      const staticDocument = readFileSync(path.join(root, "dist", "client", "index.html"), "utf8");
 
       expect(publicAssets.some((file) => /^routes-.*\.css$/.test(file))).toBe(true);
       expect(publicAssets.some((file) => /^loader-data-.*\.css$/.test(file))).toBe(true);
+      expect(staticDocument).toContain('rel="stylesheet"');
+      expect(staticDocument).toContain(".css");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
