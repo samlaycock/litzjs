@@ -35,8 +35,9 @@ export default defineConfig({
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Options</h2>
         <p className="text-neutral-400 mb-4">
-          The <code className="text-sky-400">litz()</code> function accepts optional build entry
-          options. Omit <code className="text-sky-400">server</code> for a client-only build:
+          The <code className="text-sky-400">litz()</code> function keeps Vite&apos;s normal browser
+          entry behavior. Put your client entry in <code className="text-sky-400">index.html</code>,
+          and omit <code className="text-sky-400">server</code> for a client-only build:
         </p>
         <CodeBlock
           language="ts"
@@ -46,7 +47,6 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
-      clientEntry: "src/main.tsx",
       server: "src/server.ts",
     }),
   ],
@@ -76,46 +76,6 @@ export const app = defineApp({
   resources: [accountResource],
   apiRoutes: [healthApi],
 });`}
-        />
-      </section>
-
-      <section className="mb-12">
-        <h3 className="text-xl font-medium text-neutral-100 mb-3">clientEntry</h3>
-        <p className="text-neutral-400 mb-4">
-          <strong>Type:</strong> <code className="text-sky-400">string</code>
-        </p>
-        <p className="text-neutral-400 mb-4">
-          Browser entry imported by Litz&apos;s generated client runtime module.
-        </p>
-        <p className="text-neutral-400 mb-4">
-          <strong>Default:</strong> <code className="text-sky-400">"src/main.tsx"</code>
-        </p>
-        <p className="text-neutral-400 mb-4">
-          Only set this when your browser entry lives somewhere else. For example, if your browser
-          entry is <code className="text-sky-400">app/browser.tsx</code>:
-        </p>
-        <CodeBlock
-          language="ts"
-          code={`// vite.config.ts
-import { defineConfig } from "vite";
-import { litz } from "litzjs/vite";
-
-export default defineConfig({
-  plugins: [
-    litz({
-      clientEntry: "app/browser.tsx",
-    }),
-  ],
-});`}
-        />
-        <CodeBlock
-          language="tsx"
-          code={`// app/browser.tsx
-import { mountApp } from "litzjs/client";
-
-import { app } from "./app";
-
-mountApp(document.getElementById("app")!, { app });`}
         />
       </section>
 
@@ -154,9 +114,6 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
-      // Browser entry (optional)
-      clientEntry: "src/main.tsx",
-
       // Server entry (optional; omitted means client-only)
       server: "src/server.ts",
     }),

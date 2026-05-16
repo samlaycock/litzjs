@@ -1575,16 +1575,19 @@ describe("dev server hot updates", () => {
     }
   });
 
-  test("uses the configured client entry for the generated browser entry", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-client-entry-"));
+  test("uses the index.html module script for the generated browser entry", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-html-entry-"));
 
     try {
       mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(
+        path.join(root, "index.html"),
+        '<!doctype html><html><body><script type="module" src="/src/entry.tsx"></script></body></html>\n',
+        "utf8",
+      );
       writeFileSync(path.join(root, "src", "entry.tsx"), "export {};\n", "utf8");
 
-      const plugin = (litz({ clientEntry: "src/entry.tsx" }) as Plugin[]).find(
-        (candidate) => candidate.name === "litzjs/vite",
-      );
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
 
       if (!plugin?.configResolved || !plugin.resolveId || !plugin.load) {
         throw new Error("Expected litzjs/vite browser-entry hooks to be available.");
@@ -1649,7 +1652,7 @@ describe("dev server hot updates", () => {
     }
   });
 
-  test("does not inspect HTML module scripts when resolving the default browser entry", async () => {
+  test("ignores non-index HTML module scripts when resolving the browser entry", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-browser-entry-vite-html-"));
 
     try {
@@ -1669,42 +1672,66 @@ describe("dev server hot updates", () => {
 
       const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
 
-      if (!plugin?.configResolved) {
-        throw new Error("Expected litzjs/vite configResolved hook to be available.");
+      if (!plugin?.configResolved || !plugin.resolveId || !plugin.load) {
+        throw new Error("Expected litzjs/vite browser-entry hooks to be available.");
       }
 
       const configResolved =
         typeof plugin.configResolved === "function"
           ? plugin.configResolved
           : plugin.configResolved.handler;
+      const resolveId =
+        typeof plugin.resolveId === "function" ? plugin.resolveId : plugin.resolveId.handler;
+      const load = typeof plugin.load === "function" ? plugin.load : plugin.load.handler;
+      const pluginContext = {} as never;
 
-      await configResolved.call(
-        {} as never,
-        {
-          root,
-          base: "/",
-          command: "serve",
-          build: {
-            outDir: "dist",
-          },
-          environments: {
-            client: {
-              build: {
-                outDir: path.join("dist", "client"),
-              },
+      await configResolved.call(pluginContext, {
+        root,
+        base: "/",
+        command: "serve",
+        build: {
+          outDir: "dist",
+        },
+        environments: {
+          client: {
+            build: {
+              outDir: path.join("dist", "client"),
             },
-            rsc: {
-              build: {
-                outDir: path.join("dist", "server"),
-                rollupOptions: {
-                  output: {
-                    codeSplitting: false,
-                  },
+          },
+          rsc: {
+            build: {
+              outDir: path.join("dist", "server"),
+              rollupOptions: {
+                output: {
+                  codeSplitting: false,
                 },
               },
             },
           },
+        },
+      } as never);
+
+      const resolvedId = resolveId.call(
+        pluginContext,
+        "virtual:litzjs:browser-entry",
+        undefined,
+        {} as never,
+      );
+      const browserEntrySource = load.call(
+        {
+          environment: {
+            name: "client",
+          },
         } as never,
+        resolvedId as string,
+        {} as never,
+      ) as string;
+
+      expect(browserEntrySource).toContain(
+        `/@fs/${path.join(root, "src", "main.tsx").replaceAll("\\", "/")}`,
+      );
+      expect(browserEntrySource).not.toContain(
+        `/@fs/${path.join(root, "src", "admin.tsx").replaceAll("\\", "/")}`,
       );
     } finally {
       rmSync(root, { force: true, recursive: true });
