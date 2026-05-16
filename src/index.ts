@@ -777,6 +777,9 @@ export type ClientLoadingMode = "lazy" | "eager" | "preload";
 type AppRouteRegistration = {
   readonly id: string;
   readonly path: string;
+  readonly options?: {
+    readonly clientLoading?: ClientLoadingMode;
+  };
 };
 type AppResourceRegistration = {
   readonly path: string;

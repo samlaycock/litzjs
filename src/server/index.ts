@@ -271,6 +271,12 @@ function normalizeServerManifest(
   manifest: ServerManifest | undefined,
   app: LitzApp | undefined,
 ): ServerManifest {
+  if (app && manifest) {
+    throw new Error(
+      "[litzjs] Pass either createServer({ app }) or createServer({ manifest }), not both.",
+    );
+  }
+
   const appManifest: ServerManifest | undefined = app
     ? {
         routes: app.routes.map((route) => ({

@@ -3,7 +3,7 @@ import * as React from "react";
 import { act } from "react";
 import { renderToString } from "react-dom/server";
 
-import { data, defineRoute, server } from "../src/index";
+import { data, defineApp, defineRoute, server } from "../src/index";
 import { flushDom, installTestDom } from "./test-dom";
 
 type ClientModule = typeof import("../src/client/index");
@@ -857,5 +857,32 @@ describe("client wildcard route runtime", () => {
     expect(warnings).toEqual([
       "[litzjs] mountApp(root, Wrapper) is no longer supported. Pass mountApp(root, { component: Wrapper }) instead.",
     ]);
+  });
+
+  test("reads explicit app client loading metadata when mounting", async () => {
+    clientModule = await import("../src/client/index");
+    let optionReads = 0;
+    const eagerRoute = {
+      id: "explicit-eager",
+      path: "/",
+      component: HomeRoute,
+      get options() {
+        optionReads++;
+        return {
+          clientLoading: "eager" as const,
+        };
+      },
+    };
+    const app = defineApp({
+      clientLoading: "lazy",
+      routes: [eagerRoute],
+    });
+
+    await act(async () => {
+      clientModule?.mountApp(container!, { app });
+      await flushApp();
+    });
+
+    expect(optionReads).toBeGreaterThan(0);
   });
 });

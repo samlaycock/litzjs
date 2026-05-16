@@ -1785,6 +1785,83 @@ describe("dev server hot updates", () => {
     }
   });
 
+  test("does not inject a server manifest when the server entry already passes an app", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-app-"));
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      writeFileSync(
+        path.join(root, "src", "server.ts"),
+        'import { createServer } from "litzjs/server";\nimport { app } from "./app";\n\nexport default createServer({ app });\n',
+        "utf8",
+      );
+
+      const plugin = (litz({ server: "src/server.ts" }) as Plugin[]).find(
+        (candidate) => candidate.name === "litzjs/vite",
+      );
+
+      if (!plugin?.configResolved || !plugin.transform) {
+        throw new Error("Expected litzjs/vite transform hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const transform =
+        typeof plugin.transform === "function" ? plugin.transform : plugin.transform.handler;
+      const pluginContext = {
+        environment: {
+          name: "nitro",
+        },
+      } as never;
+
+      await configResolved.call(
+        {} as never,
+        {
+          root,
+          base: "/app/",
+          command: "serve",
+          build: {
+            outDir: "dist",
+          },
+          environments: {
+            client: {
+              build: {
+                outDir: path.join("dist", "client"),
+              },
+            },
+            rsc: {
+              build: {
+                outDir: path.join("dist", "server"),
+                rollupOptions: {
+                  output: {
+                    codeSplitting: false,
+                  },
+                },
+              },
+            },
+          },
+        } as never,
+      );
+
+      const result = await transform.call(
+        pluginContext,
+        'import { createServer } from "litzjs/server";\nimport { app } from "./app";\n\nexport default createServer({ app });\n',
+        path.join(root, "src", "server.ts"),
+      );
+      const code = typeof result === "string" ? result : result?.code?.toString();
+
+      expect(code).toContain(
+        "export default createServer({ base: __litzjsBase, document: __litzjsCreateDocumentResponse, app });",
+      );
+      expect(code).not.toContain("manifest: __litzjsServerManifest, app");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("injects runtime options into empty custom server entries", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-server-entry-empty-"));
 
