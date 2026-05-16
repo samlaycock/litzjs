@@ -785,6 +785,7 @@ function createInlineServerRuntime(
     `const __litzjsBase = ${JSON.stringify(base)};`,
     `const __litzjsDocumentTemplate = ${JSON.stringify(readDocumentTemplate(root))};`,
     `const __litzjsClientEntry = "__LITZJS_CLIENT_ENTRY__";`,
+    `const __litzjsClientStyles = "__LITZJS_CLIENT_STYLES__";`,
     "",
     "function __litzjsJoinBase(base, pathname) {",
     '  const normalizedBase = base === "/" ? "" : base.replace(/\\/$/, "");',
@@ -801,7 +802,8 @@ function createInlineServerRuntime(
     '  const accept = request.headers.get("accept") ?? "";',
     '  if (!accept.includes("text/html") && !accept.includes("*/*")) return null;',
     '  const script = __litzjsClientEntry ? `<script type="module" src="${__litzjsJoinBase(__litzjsBase, __litzjsClientEntry)}"></script>` : "";',
-    "  const html = __litzjsStripDevModuleScripts(__litzjsDocumentTemplate).replace(/<\\/body>/i, `${script}\\n  </body>`);",
+    '  const styles = __litzjsClientStyles ? __litzjsClientStyles.split(",").map((href) => `<link rel="stylesheet" crossorigin href="${__litzjsJoinBase(__litzjsBase, href)}">`).join("\\n") : "";',
+    "  const html = __litzjsStripDevModuleScripts(__litzjsDocumentTemplate).replace(/<\\/head>/i, `${styles}\\n  </head>`).replace(/<\\/body>/i, `${script}\\n  </body>`);",
     '  return new Response(request.method === "HEAD" ? null : html, {',
     "    status: 200,",
     '    headers: { "content-type": "text/html; charset=utf-8" },',
@@ -842,7 +844,7 @@ function finalizeFrameworkBuild(root: string, outDir: string, hasServerEntry: bo
 
   const clientManifest = JSON.parse(readFileSync(clientManifestPath, "utf8")) as Record<
     string,
-    { file?: string; isEntry?: boolean }
+    { css?: string[]; file?: string; isEntry?: boolean }
   >;
   const relativePrefix = path
     .relative(path.dirname(clientManifestPath), distDir)
@@ -862,7 +864,12 @@ function finalizeFrameworkBuild(root: string, outDir: string, hasServerEntry: bo
   const serverCode = readFileSync(serverEntryPath, "utf8");
   writeFileSync(
     serverEntryPath,
-    serverCode.replaceAll("__LITZJS_CLIENT_ENTRY__", entry.file.replaceAll("\\", "/")),
+    serverCode
+      .replaceAll("__LITZJS_CLIENT_ENTRY__", entry.file.replaceAll("\\", "/"))
+      .replaceAll(
+        "__LITZJS_CLIENT_STYLES__",
+        (entry.css ?? []).map((cssFile) => cssFile.replaceAll("\\", "/")).join(","),
+      ),
     "utf8",
   );
 }
