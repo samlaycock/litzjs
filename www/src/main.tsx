@@ -1,6 +1,7 @@
 import { mountApp } from "litzjs/client";
 import { registerSW } from "virtual:pwa-register";
 
+import { app } from "./app";
 import { layout } from "./routes/_layouts/root";
 import "./index.css";
 
@@ -10,5 +11,5 @@ if (!root) {
   throw new Error('Missing "#app" root element.');
 }
 
-mountApp(root, { layout });
+mountApp(root, { app, layout });
 registerSW();

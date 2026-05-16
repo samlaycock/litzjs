@@ -76,12 +76,6 @@ export interface LitzNitroPluginOptions {
 }
 
 export interface LitzPluginOptions {
-  /** Glob patterns for route files. */
-  readonly routes?: string[];
-  /** Glob patterns for API route files. */
-  readonly api?: string[];
-  /** Glob patterns for resource files. */
-  readonly resources?: string[];
   /** Browser entry imported by Litz's generated client runtime module. */
   readonly clientEntry?: string;
   /** Path to a custom server entry file. */

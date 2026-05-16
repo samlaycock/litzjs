@@ -13,7 +13,7 @@ function DocsConfigurationPage() {
       <title>Configuration | Litz</title>
       <h1 className="text-3xl font-bold text-neutral-50 mb-4">Configuration</h1>
       <p className="text-xl text-neutral-300 mb-8">
-        Configure the Litz Vite plugin to customize routing, discovery, and server behavior.
+        Configure the Litz Vite plugin and register your app explicitly in TypeScript.
       </p>
 
       <section className="mb-12">
@@ -35,7 +35,7 @@ export default defineConfig({
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Options</h2>
         <p className="text-neutral-400 mb-4">
-          The <code className="text-sky-400">litz()</code> function accepts an options object:
+          The <code className="text-sky-400">litz()</code> function accepts build entry options:
         </p>
         <CodeBlock
           language="ts"
@@ -45,9 +45,6 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
-      routes: ["src/routes/**/*.{ts,tsx,js,jsx}"],
-      api: ["src/routes/api/**/*.{ts,tsx,js,jsx}"],
-      resources: ["src/routes/resources/**/*.{ts,tsx,js,jsx}"],
       clientEntry: "src/main.tsx",
       server: "src/server.ts",
     }),
@@ -57,66 +54,27 @@ export default defineConfig({
       </section>
 
       <section className="mb-12">
-        <h3 className="text-xl font-medium text-neutral-100 mb-3">routes</h3>
+        <h3 className="text-xl font-medium text-neutral-100 mb-3">App registration</h3>
         <p className="text-neutral-400 mb-4">
-          <strong>Type:</strong> <code className="text-sky-400">string[]</code>
-        </p>
-        <p className="text-neutral-400 mb-4">
-          Glob patterns to discover route files. Routes define pages with{" "}
-          <code className="text-sky-400">defineRoute()</code>.
-        </p>
-        <p className="text-neutral-400 mb-4">
-          <strong>Default:</strong> All .ts, .tsx, .js, and .jsx files in src/routes, excluding api
-          and resources subdirectories
+          Routes, resources, and API routes are registered with{" "}
+          <code className="text-sky-400">defineApp()</code>. File placement does not register
+          anything by itself.
         </p>
         <CodeBlock
           language="ts"
-          code={`// Example: custom route directory
-litz({
-  routes: ["app/pages/**/*.{ts,tsx}"],
-})`}
-        />
-      </section>
+          code={`// src/app.ts
+import { defineApp } from "litzjs";
 
-      <section className="mb-12">
-        <h3 className="text-xl font-medium text-neutral-100 mb-3">api</h3>
-        <p className="text-neutral-400 mb-4">
-          <strong>Type:</strong> <code className="text-sky-400">string[]</code>
-        </p>
-        <p className="text-neutral-400 mb-4">
-          Glob patterns to discover API route files. API routes define HTTP endpoints with{" "}
-          <code className="text-sky-400">defineApiRoute()</code>.
-        </p>
-        <p className="text-neutral-400 mb-4">
-          <strong>Default:</strong> All .ts, .tsx, .js, and .jsx files in src/routes/api
-        </p>
-        <CodeBlock
-          language="ts"
-          code={`// Example: custom API directory
-litz({
-  api: ["app/api/**/*.{ts,tsx}"],
-})`}
-        />
-      </section>
+import { api as healthApi } from "./api/health";
+import { resource as accountResource } from "./resources/account";
+import { route as homeRoute } from "./routes/home";
 
-      <section className="mb-12">
-        <h3 className="text-xl font-medium text-neutral-100 mb-3">resources</h3>
-        <p className="text-neutral-400 mb-4">
-          <strong>Type:</strong> <code className="text-sky-400">string[]</code>
-        </p>
-        <p className="text-neutral-400 mb-4">
-          Glob patterns to discover resource files. Resources define reusable server-backed UI with{" "}
-          <code className="text-sky-400">defineResource()</code>.
-        </p>
-        <p className="text-neutral-400 mb-4">
-          <strong>Default:</strong> All .ts, .tsx, .js, and .jsx files in src/routes/resources
-        </p>
-        <CodeBlock
-          language="ts"
-          code={`// Example: custom resources directory
-litz({
-  resources: ["app/components/**/*.{ts,tsx}"],
-})`}
+export const app = defineApp({
+  clientLoading: "lazy",
+  routes: [homeRoute],
+  resources: [accountResource],
+  apiRoutes: [healthApi],
+});`}
         />
       </section>
 
@@ -133,10 +91,12 @@ litz({
         </p>
         <CodeBlock
           language="ts"
-          code={`// Example: custom browser entry
-litz({
-  clientEntry: "app/browser.tsx",
-})`}
+          code={`// app/browser.tsx
+import { mountApp } from "litzjs/client";
+
+import { app } from "./app";
+
+mountApp(document.getElementById("app")!, { app });`}
         />
       </section>
 
@@ -156,16 +116,18 @@ litz({
         </p>
         <CodeBlock
           language="ts"
-          code={`// Example: custom server entry
-litz({
-  server: "app/server.ts",
-})`}
+          code={`// app/server.ts
+import { createServer } from "litzjs/server";
+
+import { app } from "./app";
+
+export default createServer({ app });`}
         />
       </section>
 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Complete example</h2>
-        <p className="text-neutral-400 mb-4">A full configuration with all options:</p>
+        <p className="text-neutral-400 mb-4">A full Vite plugin configuration:</p>
         <CodeBlock
           language="ts"
           code={`import { defineConfig } from "vite";
@@ -174,19 +136,6 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
-      // Route files (pages)
-      routes: [
-        "src/routes/**/*.{ts,tsx,js,jsx}",
-        "!src/routes/api/**/*.{ts,tsx,js,jsx}",
-        "!src/routes/resources/**/*.{ts,tsx,js,jsx}",
-      ],
-
-      // API route files
-      api: ["src/routes/api/**/*.{ts,tsx,js,jsx}"],
-
-      // Resource files (reusable server-backed UI)
-      resources: ["src/routes/resources/**/*.{ts,tsx,js,jsx}"],
-
       // Browser entry (optional)
       clientEntry: "src/main.tsx",
 

@@ -665,6 +665,7 @@ export type DefineRouteOptions<
 > = {
   component: React.ComponentType;
   layout?: LayoutReference;
+  clientLoading?: ClientLoadingMode;
   input?: TInput;
   loader?: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>, TInput>;
   action?: RouteServerHandler<TContext, TActionResult, NoInferType<TPath>, TInput>;
@@ -723,6 +724,7 @@ export type DefineLayoutOptions<
 > = {
   component: React.JSXElementConstructor<{ children: React.ReactNode }>;
   layout?: LayoutReference;
+  clientLoading?: ClientLoadingMode;
   input?: TInput;
   loader?: RouteServerHandler<TContext, TLoaderResult, NoInferType<TPath>, TInput>;
   middleware?: MiddlewareRef<TContext, ServerResult>[];
@@ -769,6 +771,41 @@ export type LitzLayout<
     usePending(): boolean;
   } & ([TLoaderResult] extends [never] ? {} : LayoutLoaderClientHooks<TLoaderResult>)
 >;
+
+export type ClientLoadingMode = "lazy" | "eager" | "preload";
+
+type AppRouteRegistration = {
+  readonly id: string;
+  readonly path: string;
+};
+type AppResourceRegistration = {
+  readonly path: string;
+};
+type AppApiRouteRegistration = {
+  readonly path: string;
+};
+
+export interface DefineAppOptions<
+  TRoutes extends readonly AppRouteRegistration[] = readonly AppRouteRegistration[],
+  TResources extends readonly AppResourceRegistration[] = readonly AppResourceRegistration[],
+  TApiRoutes extends readonly AppApiRouteRegistration[] = readonly AppApiRouteRegistration[],
+> {
+  readonly clientLoading?: ClientLoadingMode;
+  readonly routes?: TRoutes;
+  readonly resources?: TResources;
+  readonly apiRoutes?: TApiRoutes;
+}
+
+export interface LitzApp<
+  TRoutes extends readonly AppRouteRegistration[] = readonly AppRouteRegistration[],
+  TResources extends readonly AppResourceRegistration[] = readonly AppResourceRegistration[],
+  TApiRoutes extends readonly AppApiRouteRegistration[] = readonly AppApiRouteRegistration[],
+> {
+  readonly clientLoading: ClientLoadingMode;
+  readonly routes: TRoutes;
+  readonly resources: TResources;
+  readonly apiRoutes: TApiRoutes;
+}
 
 export type LayoutReference = {
   id: string;
@@ -996,6 +1033,7 @@ type ResourceOptions<
 > = ResourceComponentOption<TPath, TComponent> &
   ResourceLoaderOption<TPath, TContext, TLoaderResult, TInput> &
   ResourceActionOption<TPath, TContext, TActionResult, TInput> & {
+    clientLoading?: ClientLoadingMode;
     input?: TInput;
     middleware?: MiddlewareRef<TContext, ServerResult>[];
   };
@@ -1243,6 +1281,40 @@ export function defineRoute(
       return React.createElement(FormComponent, props);
     },
   } as any;
+}
+
+export function defineApp<
+  const TRoutes extends readonly AppRouteRegistration[] = readonly AppRouteRegistration[],
+  const TResources extends readonly AppResourceRegistration[] = readonly AppResourceRegistration[],
+  const TApiRoutes extends readonly AppApiRouteRegistration[] = readonly AppApiRouteRegistration[],
+>(
+  options: DefineAppOptions<TRoutes, TResources, TApiRoutes>,
+): LitzApp<TRoutes, TResources, TApiRoutes> {
+  assertUniqueDefinitionPaths("route", options.routes ?? []);
+  assertUniqueDefinitionPaths("resource", options.resources ?? []);
+  assertUniqueDefinitionPaths("API route", options.apiRoutes ?? []);
+
+  return {
+    clientLoading: options.clientLoading ?? "lazy",
+    routes: options.routes ?? ([] as unknown as TRoutes),
+    resources: options.resources ?? ([] as unknown as TResources),
+    apiRoutes: options.apiRoutes ?? ([] as unknown as TApiRoutes),
+  };
+}
+
+function assertUniqueDefinitionPaths(
+  kind: string,
+  definitions: readonly { readonly path: string }[],
+): void {
+  const seen = new Set<string>();
+
+  for (const definition of definitions) {
+    if (seen.has(definition.path)) {
+      throw new Error(`[litzjs] Duplicate ${kind} registration for path "${definition.path}".`);
+    }
+
+    seen.add(definition.path);
+  }
 }
 
 export function defineLayout<

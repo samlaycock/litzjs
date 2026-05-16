@@ -33,6 +33,30 @@ const litzCoreGroups: readonly ReferenceGroupSpec[] = [
       "These are the main entrypoints for declaring application structure and server behavior from `litzjs`.",
     entries: [
       {
+        name: "defineApp",
+        signature: `defineApp({ routes, resources, apiRoutes, clientLoading }): LitzApp`,
+        summary:
+          "Registers the routes, resources, and API routes that participate in the application.",
+        details: [
+          "Registration is explicit: importing a file does not enroll it unless the exported definition is included in `defineApp(...)`.",
+          '`clientLoading` defaults to `"lazy"` and can be overridden on route, layout, and resource definitions.',
+        ],
+        example: {
+          language: "ts",
+          code: `import { defineApp } from "litzjs";
+
+import { api as healthApi } from "./api/health";
+import { resource as accountResource } from "./resources/account";
+import { route as homeRoute } from "./routes/home";
+
+export const app = defineApp({
+  routes: [homeRoute],
+  resources: [accountResource],
+  apiRoutes: [healthApi],
+});`,
+        },
+      },
+      {
         name: "defineRoute",
         signature: `defineRoute(path, options): LitzRoute<TPath, TContext, TLoaderResult, TActionResult, TInput>`,
         summary:
@@ -979,6 +1003,7 @@ const serverGroups: readonly ReferenceGroupSpec[] = [
         signature: `type CreateServerOptions<TContext = unknown> = {
   createContext?(request: Request): Promise<TContext> | TContext;
   onError?(error: unknown, context: TContext | undefined): void;
+  app?: LitzApp;
   manifest?: ServerManifest;
   base?: string;
   document?: Response | string | ((request: Request) => Promise<Response | string | null | undefined> | Response | string | null | undefined);
@@ -1022,9 +1047,6 @@ const viteGroups: readonly ReferenceGroupSpec[] = [
       {
         name: "LitzPluginOptions",
         signature: `type LitzPluginOptions = {
-  routes?: string[];
-  api?: string[];
-  resources?: string[];
   clientEntry?: string;
   server?: string;
   rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
@@ -1035,7 +1057,7 @@ const viteGroups: readonly ReferenceGroupSpec[] = [
         name: "litz",
         signature: `litz(options?: LitzPluginOptions): PluginOption`,
         summary:
-          "Creates the Litz Vite plugin stack, including route/resource/API discovery, `@vitejs/plugin-rsc`, and the framework server build.",
+          "Creates the Litz Vite plugin stack, including `@vitejs/plugin-rsc` and the framework server build.",
         example: {
           language: "ts",
           code: `import { defineConfig } from "vite";
@@ -1044,7 +1066,6 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
-      routes: ["src/routes/**/*.{ts,tsx,js,jsx}"],
       clientEntry: "src/main.tsx",
       server: "src/server.ts",
     }),

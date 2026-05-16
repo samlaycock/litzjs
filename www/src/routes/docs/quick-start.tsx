@@ -26,6 +26,24 @@ function DocsQuickStartPage() {
       </p>
 
       <section className="mb-12">
+        <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Define the app</h2>
+        <p className="text-neutral-400 mb-4">
+          Create <code className="text-sky-400">src/app.ts</code> and explicitly register your
+          route:
+        </p>
+        <CodeBlock
+          language="ts"
+          code={`import { defineApp } from "litzjs";
+
+import { route as homeRoute } from "./routes";
+
+export const app = defineApp({
+  routes: [homeRoute],
+});`}
+        />
+      </section>
+
+      <section className="mb-12">
         <h2 className="text-2xl font-semibold text-neutral-100 mb-4">Mount the app</h2>
         <p className="text-neutral-400 mb-4">
           Create <code className="text-sky-400">src/main.tsx</code>:
@@ -34,13 +52,15 @@ function DocsQuickStartPage() {
           language="tsx"
           code={`import { mountApp } from "litzjs/client";
 
+import { app } from "./app";
+
 const root = document.getElementById("app");
 
 if (!root) {
   throw new Error('Missing "#app" root element.');
 }
 
-mountApp(root);`}
+mountApp(root, { app });`}
         />
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3 mt-6">Optional wrapper</h3>

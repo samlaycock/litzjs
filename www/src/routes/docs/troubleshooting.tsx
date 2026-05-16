@@ -77,57 +77,40 @@ import { litz } from "litzjs/vite";`}
         </p>
         <ul className="text-neutral-400 space-y-2 list-disc list-inside mb-4">
           <li>
-            Export <code className="text-sky-400">route</code> from the module and define the URL in{" "}
+            Export the route definition from its module and define the URL in{" "}
             <code className="text-sky-400">defineRoute("/path", ...)</code>.
           </li>
           <li>
-            Keep the route path static. Discovery reads string literals in{" "}
-            <code className="text-sky-400">defineRoute</code>,{" "}
-            <code className="text-sky-400">defineLayout</code>,{" "}
-            <code className="text-sky-400">defineResource</code>, and{" "}
-            <code className="text-sky-400">defineApiRoute</code> calls; paths stored in variables
-            are ignored.
+            Import that route from your app module and include it in{" "}
+            <code className="text-sky-400">defineApp({`{ routes: [...] }`})</code>. File placement
+            alone does not register routes.
           </li>
           <li>
-            Treat <code className="text-sky-400">[litzjs]</code> discovery warnings as registration
-            failures. They mean a matched file imports a Litz route factory but does not export the
-            required binding name, or the exported binding does not resolve to a static factory
-            call.
-          </li>
-          <li>
-            Keep page routes inside the configured route globs. The default is{" "}
-            <code className="text-sky-400">{"src/routes/**/*.{ts,tsx,js,jsx}"}</code>, excluding the{" "}
-            <code className="text-sky-400">api</code> and{" "}
-            <code className="text-sky-400">resources</code> subdirectories.
-          </li>
-          <li>
-            If you moved routes into a custom folder, update the Vite plugin{" "}
-            <code className="text-sky-400">routes</code> option so discovery can see them.
+            Pass the same app object to{" "}
+            <code className="text-sky-400">mountApp(root, {`{ app }`})</code> and{" "}
+            <code className="text-sky-400">createServer({`{ app }`})</code>.
           </li>
         </ul>
         <CodeBlock
           language="ts"
-          code={`// vite.config.ts
-import { defineConfig } from "vite";
-import { litz } from "litzjs/vite";
-
-export default defineConfig({
-  plugins: [
-    litz({
-      routes: ["app/pages/**/*.{ts,tsx}"],
-    }),
-  ],
-});
-
-// app/pages/dashboard.tsx
+          code={`// app/pages/dashboard.tsx
 import { defineRoute } from "litzjs";
 
 export const route = defineRoute("/dashboard", {
   component: DashboardPage,
+});
+
+// app/app.ts
+import { defineApp } from "litzjs";
+
+import { route as dashboardRoute } from "./pages/dashboard";
+
+export const app = defineApp({
+  routes: [dashboardRoute],
 });`}
         />
         <p className="text-neutral-400 mt-4">
-          For route shape and discovery rules, see{" "}
+          For route shape and app registration rules, see{" "}
           <Link href="/docs/routing" className="text-sky-400 hover:text-sky-300">
             Routing
           </Link>{" "}

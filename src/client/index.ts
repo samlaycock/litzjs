@@ -1,7 +1,13 @@
 import * as React from "react";
 import { routeManifest } from "virtual:litzjs:route-manifest";
 
-import type { ActionHookResult, LayoutReference, LoaderHookResult, SubmitOptions } from "../index";
+import type {
+  ActionHookResult,
+  LayoutReference,
+  LitzApp as LitzAppDefinition,
+  LoaderHookResult,
+  SubmitOptions,
+} from "../index";
 import type { RouteRuntimeState } from "./runtime";
 
 import { createFormDataPayload } from "../form-data";
@@ -107,16 +113,17 @@ type ManifestEntry = {
   }>;
 };
 
-const manifest = sortByPathSpecificity(routeManifest as ManifestEntry[]);
-const routeModuleFiles = new Set(
+const defaultManifest = sortByPathSpecificity(routeManifest as ManifestEntry[]);
+let manifest = defaultManifest;
+let routeModuleFiles = new Set(
   manifest
     .map((entry) => entry.moduleFile)
     .filter((value): value is string => typeof value === "string"),
 );
-const exactManifestEntries = new Map<string, ManifestEntry>();
-const dynamicManifestEntries: ManifestEntry[] = [];
+let exactManifestEntries = new Map<string, ManifestEntry>();
+let dynamicManifestEntries: ManifestEntry[] = [];
 const ROUTE_CACHE_LIMIT = 200;
-const ROUTE_MODULE_CACHE_LIMIT = Math.max(manifest.length, 1);
+let routeModuleCacheLimit = Math.max(manifest.length, 1);
 const routeCache = new Map<string, LoaderHookResult>();
 const routeModuleCache = new Map<string, LoadedRoute>();
 const routeModulePrefetchCache = new Map<string, Promise<LoadedRoute | null>>();
@@ -147,6 +154,7 @@ interface ManagedNavigationBehavior {
 }
 
 export interface MountAppOptions {
+  readonly app?: LitzAppDefinition;
   readonly component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
   readonly layout?: LayoutReference;
   readonly notFound?: React.ComponentType;
@@ -158,16 +166,11 @@ export function configureClientRuntime(options: { baseUrl?: string | undefined }
   configureClientBaseUrl(options.baseUrl);
 }
 
-for (const entry of manifest) {
-  if (hasPatternSegments(entry.path)) {
-    dynamicManifestEntries.push(entry);
-  } else {
-    exactManifestEntries.set(entry.path, entry);
-  }
-}
+configureActiveManifest(defaultManifest);
 
 export function mountApp(element: Element, options?: MountAppOptions): void {
   const resolvedOptions = normalizeMountAppOptions(options);
+  configureActiveManifest(createManifestFromApp(resolvedOptions?.app));
 
   void import("react-dom/client").then(({ createRoot }) => {
     const root = createRoot(element);
@@ -183,6 +186,40 @@ export function mountApp(element: Element, options?: MountAppOptions): void {
       }),
     );
   });
+}
+
+function createManifestFromApp(app: LitzAppDefinition | undefined): ManifestEntry[] {
+  if (!app) {
+    return defaultManifest;
+  }
+
+  return sortByPathSpecificity(
+    app.routes.map((route) => ({
+      id: route.id,
+      path: route.path,
+      load: async () => ({ route: route as LoadedRoute }),
+    })),
+  );
+}
+
+function configureActiveManifest(nextManifest: ManifestEntry[]): void {
+  manifest = nextManifest;
+  routeModuleFiles = new Set(
+    manifest
+      .map((entry) => entry.moduleFile)
+      .filter((value): value is string => typeof value === "string"),
+  );
+  exactManifestEntries = new Map();
+  dynamicManifestEntries = [];
+  routeModuleCacheLimit = Math.max(manifest.length, 1);
+
+  for (const entry of manifest) {
+    if (hasPatternSegments(entry.path)) {
+      dynamicManifestEntries.push(entry);
+    } else {
+      exactManifestEntries.set(entry.path, entry);
+    }
+  }
 }
 
 function clearClientHotUpdateCaches(): void {
@@ -1868,7 +1905,7 @@ function setCachedRouteModule(id: string, route: LoadedRoute): void {
 
   routeModuleCache.set(id, route);
 
-  while (routeModuleCache.size > ROUTE_MODULE_CACHE_LIMIT) {
+  while (routeModuleCache.size > routeModuleCacheLimit) {
     const oldestKey = routeModuleCache.keys().next().value;
 
     if (oldestKey === undefined) {

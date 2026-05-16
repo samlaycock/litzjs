@@ -32,13 +32,8 @@ does not ask applications to install or compose those Vite plugins directly.
 
 ## Quick Start
 
-Add the Litz Vite plugin. By default, Litz discovers:
-
-- routes from `src/routes/**/*.{ts,tsx,js,jsx}`
-- API routes from `src/routes/api/**/*.{ts,tsx,js,jsx}`
-- resources from `src/routes/resources/**/*.{ts,tsx,js,jsx}`
-- the browser entry from `src/main.tsx`
-- a custom server entry from `src/server.ts`, falling back to `src/server/index.ts`
+Add the Litz Vite plugin. By default, Litz uses the browser entry at `src/main.tsx` and a custom
+server entry from `src/server.ts`, falling back to `src/server/index.ts`.
 
 `vite.config.ts`
 
@@ -51,16 +46,13 @@ export default defineConfig({
 });
 ```
 
-You can still override discovery explicitly when you need a different project layout:
+You can point Litz at different browser or server entries when you need a different project layout:
 
 ```ts
 export default defineConfig({
   plugins: [
     litz({
       clientEntry: "app/main.tsx",
-      routes: ["app/pages/**/*.{ts,tsx}"],
-      resources: ["app/resources/**/*.{ts,tsx}"],
-      api: ["app/api/**/*.{ts,tsx}"],
       server: "app/server/entry.ts",
     }),
   ],
@@ -72,6 +64,20 @@ Litz does not infer the browser entry by scanning HTML module scripts. Keep stan
 project does not use `src/main.tsx`. During development, Vite serves explicit HTML documents such as
 `/about.html`; Litz only falls back to `index.html` for extensionless app routes.
 
+Register routes, resources, and API routes explicitly with `defineApp(...)`.
+
+`src/app.ts`
+
+```ts
+import { defineApp } from "litzjs";
+
+import { route as homeRoute } from "./routes";
+
+export const app = defineApp({
+  routes: [homeRoute],
+});
+```
+
 Mount the Litz app from your browser entry.
 
 `src/main.tsx`
@@ -79,13 +85,15 @@ Mount the Litz app from your browser entry.
 ```tsx
 import { mountApp } from "litzjs/client";
 
+import { app } from "./app";
+
 const root = document.getElementById("app");
 
 if (!root) {
   throw new Error('Missing "#app" root element.');
 }
 
-mountApp(root);
+mountApp(root, { app });
 ```
 
 You can optionally provide a wrapper component around the app root:
