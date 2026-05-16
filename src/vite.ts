@@ -791,7 +791,7 @@ function createInlineServerRuntime(
     `const __litzjsBase = ${JSON.stringify(base)};`,
     `const __litzjsDocumentTemplate = ${JSON.stringify(readDocumentTemplate(root))};`,
     `const __litzjsClientEntry = "__LITZJS_CLIENT_ENTRY__";`,
-    `const __litzjsClientStyles = "__LITZJS_CLIENT_STYLES__";`,
+    `const __litzjsClientStyles = __LITZJS_CLIENT_STYLES__;`,
     "",
     "function __litzjsJoinBase(base, pathname) {",
     '  const normalizedBase = base === "/" ? "" : base.replace(/\\/$/, "");',
@@ -808,7 +808,7 @@ function createInlineServerRuntime(
     '  const accept = request.headers.get("accept") ?? "";',
     '  if (!accept.includes("text/html") && !accept.includes("*/*")) return null;',
     '  const script = __litzjsClientEntry ? `<script type="module" src="${__litzjsJoinBase(__litzjsBase, __litzjsClientEntry)}"></script>` : "";',
-    '  const styles = __litzjsClientStyles ? __litzjsClientStyles.split(",").map((href) => `<link rel="stylesheet" crossorigin href="${__litzjsJoinBase(__litzjsBase, href)}">`).join("\\n") : "";',
+    '  const styles = __litzjsClientStyles.map((href) => `<link rel="stylesheet" crossorigin href="${__litzjsJoinBase(__litzjsBase, href)}">`).join("\\n");',
     "  const html = __litzjsStripDevModuleScripts(__litzjsDocumentTemplate).replace(/<\\/head>/i, `${styles}\\n  </head>`).replace(/<\\/body>/i, `${script}\\n  </body>`);",
     '  return new Response(request.method === "HEAD" ? null : html, {',
     "    status: 200,",
@@ -913,7 +913,7 @@ function finalizeFrameworkBuild(
     serverEntryPath,
     serverCode
       .replaceAll("__LITZJS_CLIENT_ENTRY__", clientEntry)
-      .replaceAll("__LITZJS_CLIENT_STYLES__", clientStyles.join(",")),
+      .replaceAll("__LITZJS_CLIENT_STYLES__", JSON.stringify(clientStyles)),
     "utf8",
   );
 }
