@@ -935,6 +935,7 @@ const clientGroups: readonly ReferenceGroupSpec[] = [
       {
         name: "MountAppOptions",
         signature: `interface MountAppOptions {
+  readonly app?: LitzApp;
   readonly component?: React.JSXElementConstructor<{ children: React.ReactNode }>;
   readonly layout?: LayoutReference;
   readonly notFound?: React.ComponentType;
@@ -954,7 +955,10 @@ const clientGroups: readonly ReferenceGroupSpec[] = [
           language: "tsx",
           code: `import { mountApp } from "litzjs/client";
 
+import { app } from "./app";
+
 mountApp(document.getElementById("root")!, {
+  app,
   scrollRestoration: true,
   focusManagement: true,
 });`,

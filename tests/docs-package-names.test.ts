@@ -158,6 +158,21 @@ describe("docs package names", () => {
     expect(troubleshootingDoc).not.toContain("dist/server/index.js");
   });
 
+  test("mountApp examples pass the registered app through options", () => {
+    const firstAppDoc = normalizeWhitespace(readDoc("www/src/routes/docs/first-app.tsx"));
+    const quickStartDoc = normalizeWhitespace(readDoc("www/src/routes/docs/quick-start.tsx"));
+    const configurationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/configuration.tsx"));
+    const apiReferenceDoc = normalizeWhitespace(readDoc("www/src/routes/docs/api-reference.tsx"));
+
+    expect(firstAppDoc).toContain("mountApp(root, { app });");
+    expect(quickStartDoc).toContain("mountApp(root, { app });");
+    expect(quickStartDoc).toContain("mountApp(root, { app, component: StrictMode });");
+    expect(quickStartDoc).toContain("mountApp(root, { app, component: AppProviders });");
+    expect(configurationDoc).toContain('mountApp(document.getElementById("app")!, { app });');
+    expect(apiReferenceDoc).toContain("readonly app?: LitzApp;");
+    expect(apiReferenceDoc).toContain("app, scrollRestoration: true");
+  });
+
   test("package metadata keeps implementation dependencies out of the peer surface", () => {
     const packageJson = JSON.parse(readDoc("package.json")) as {
       readonly dependencies?: Record<string, string>;
