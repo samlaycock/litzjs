@@ -144,6 +144,11 @@ export interface ServerManifest {
   readonly apiRoutes?: ApiModule[];
 }
 
+export interface LitzRuntimeServer<TContext = unknown> {
+  readonly fetch: (request: Request) => Promise<Response>;
+  readonly __litzjsCreateServerOptions?: CreateServerOptions<TContext>;
+}
+
 let rscRendererPromise:
   | Promise<{
       renderToReadableStream(node: unknown): ReadableStream;
@@ -164,7 +169,7 @@ export type CreateServerOptions<TContext = unknown> = {
 
 export function createServer<TContext = unknown>(
   options: CreateServerOptions<TContext> = {},
-): { fetch(request: Request): Promise<Response> } {
+): LitzRuntimeServer<TContext> {
   const manifest = normalizeServerManifest(options.manifest, options.app);
   const basePath = normalizeBasePath(options.base);
 
@@ -264,7 +269,25 @@ export function createServer<TContext = unknown>(
     }
   }
 
-  return { fetch: handle };
+  return { fetch: handle, __litzjsCreateServerOptions: options };
+}
+
+export function __withLitzRuntimeOptions<TContext = unknown>(
+  server: LitzRuntimeServer<TContext>,
+  options: CreateServerOptions<TContext>,
+): LitzRuntimeServer<TContext> {
+  if (!server.__litzjsCreateServerOptions) {
+    return server;
+  }
+
+  const userOptions = server.__litzjsCreateServerOptions;
+
+  return createServer({
+    ...userOptions,
+    ...options,
+    app: userOptions.app,
+    manifest: userOptions.app ? userOptions.manifest : options.manifest,
+  });
 }
 
 function normalizeServerManifest(

@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ts from "typescript";
 
-import { createClientModuleProjection } from "../src/client-projection";
+import {
+  createClientModuleProjection,
+  createServerModuleProjection,
+} from "../src/client-projection";
 
 describe("client projection", () => {
   test("strips shorthand middleware references from client output", () => {
@@ -248,5 +251,34 @@ export const route = defineRoute("/", {
     expect(projected).toContain("import.meta.hot.accept((mod) =>");
     expect(projected).toContain('kind: "route"');
     expect(projected).toContain("definition: mod.route");
+  });
+});
+
+describe("server projection", () => {
+  test("strips route component code from server output", () => {
+    const source = `
+import { Link, defineRoute, server } from "litzjs";
+
+const loader = server(async () => {
+  return { kind: "data", data: { ok: true } };
+});
+
+export const route = defineRoute("/", {
+  component: HomePage,
+  loader,
+});
+
+function HomePage() {
+  return <Link href="/client-only">Client-only component code</Link>;
+}
+`;
+
+    const projected = createServerModuleProjection("/virtual/routes/home.tsx", source);
+
+    expect(projected).toContain("loader");
+    expect(projected).toContain("server(async");
+    expect(projected).not.toContain("HomePage");
+    expect(projected).not.toContain("Client-only component code");
+    expect(projected).not.toContain("Link");
   });
 });

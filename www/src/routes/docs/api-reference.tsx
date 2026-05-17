@@ -1086,7 +1086,7 @@ export default defineConfig({
         summary:
           "Runs the full multi-environment Litz production build through Vite's app builder API.",
         details: [
-          "Use this for programmatic builds instead of calling `vite.build(...)` directly, so client, RSC, SSR, and Nitro outputs are orchestrated as one app build.",
+          "Use this for programmatic builds instead of calling `vite.build(...)` directly, so client, RSC, and server outputs are orchestrated as one app build.",
         ],
         example: {
           language: "ts",

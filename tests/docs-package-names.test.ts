@@ -188,7 +188,7 @@ describe("docs package names", () => {
       "react-dom": "^19.0.0",
       vite: "^8.0.0",
     });
-    expect(packageJson.dependencies?.nitro).toBe("3.0.260429-beta");
+    expect(packageJson.dependencies?.nitro).toBeUndefined();
     expect(packageJson.peerDependenciesMeta).toBeUndefined();
     expect(packageJson.dependencies?.["@vitejs/plugin-rsc"]).toBe("0.5.26");
     expect(packageJson.dependencies?.typescript).toBe("6.0.3");
