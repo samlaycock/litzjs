@@ -1932,6 +1932,40 @@ describe("dev server abort signal lifecycle", () => {
     expect(capturedHref).toBe("http://litzjs.local/app/api/test");
   });
 
+  test("preserves params for base-prefixed dynamic API requests", async () => {
+    let capturedParams: Record<string, string> | undefined;
+    const server = createMockViteDevServer(async () => ({
+      api: {
+        methods: {
+          GET({ params }: { params: Record<string, string> }) {
+            capturedParams = params;
+            return Response.json({ params });
+          },
+        },
+      },
+    }));
+    const request = createMockRequest({
+      url: "/app/api/users/42",
+      method: "GET",
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzApiRequest(
+      server,
+      [{ path: "/api/users/:id", modulePath: "src/api/users/[id].ts" }],
+      request,
+      response,
+      next,
+      "/app/",
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.getBody()).toBe(JSON.stringify({ params: { id: "42" } }));
+    expect(capturedParams).toEqual({ id: "42" });
+    expect(next).not.toHaveBeenCalled();
+  });
+
   test("rebuilds repeated query params for internal resource requests", async () => {
     let capturedTags: string[] = [];
     let capturedHref = "";
