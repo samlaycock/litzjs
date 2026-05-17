@@ -540,6 +540,55 @@ describe("resource runtime", () => {
     expect(requestUrls).toEqual(["/app/_litzjs/resource"]);
   });
 
+  test("applies the configured client base to resource action redirects", async () => {
+    configureClientBaseUrl("/app/");
+
+    const visitedPaths: string[] = [];
+    window.addEventListener("popstate", () => {
+      visitedPaths.push(
+        `${window.location.pathname}${window.location.search}${window.location.hash}`,
+      );
+    });
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      const metadata = headers.get("x-litzjs-request");
+
+      if (metadata) {
+        return Response.json({
+          kind: "redirect",
+          location: "/dashboard?from=resource#stats",
+          replace: false,
+        });
+      }
+
+      return Response.json({
+        kind: "data",
+        data: { id: "user-redirect", count: 1 },
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<accountResource.Component params={{ id: "user-redirect" }} />);
+      await flushDom();
+    });
+
+    const button = document.querySelector("button");
+    expect(button).not.toBeNull();
+
+    await act(async () => {
+      (document.querySelector("form") as HTMLFormElement).requestSubmit(
+        button as HTMLButtonElement,
+      );
+      await flushDom();
+    });
+
+    expect(visitedPaths).toEqual(["/app/dashboard?from=resource#stats"]);
+    expect(window.location.pathname).toBe("/app/dashboard");
+    expect(window.location.search).toBe("?from=resource");
+    expect(window.location.hash).toBe("#stats");
+  });
+
   test("resource store preserves entries across unmount/remount cycles", async () => {
     let loaderCalls = 0;
 
