@@ -34,12 +34,13 @@ const litzCoreGroups: readonly ReferenceGroupSpec[] = [
     entries: [
       {
         name: "defineApp",
-        signature: `defineApp({ routes, resources, apiRoutes, clientLoading }): LitzApp`,
+        signature: `defineApp({ routes, resources, apiRoutes, clientLoading, dataSerializer }): LitzApp`,
         summary:
           "Registers the routes, resources, and API routes that participate in the application.",
         details: [
           "Registration is explicit: importing a file does not enroll it unless the exported definition is included in `defineApp(...)`.",
           '`clientLoading` defaults to `"lazy"` and can be overridden on route, layout, and resource definitions.',
+          "`dataSerializer` customizes the `data(...)` transport for route loaders/actions, resources, and batched loader responses. It does not apply to `view(...)` Flight responses.",
         ],
         example: {
           language: "ts",
@@ -177,6 +178,7 @@ const response = await api.fetch({
         summary: "Returns structured data for loaders or actions.",
         details: [
           "`revalidate` lets an action trigger route or resource reloads after the result settles.",
+          "`defineApp({ dataSerializer })` can customize transport encoding for the payload value while preserving the result envelope.",
         ],
       },
       {
@@ -1013,8 +1015,12 @@ const serverGroups: readonly ReferenceGroupSpec[] = [
   document?: Response | string | ((request: Request) => Promise<Response | string | null | undefined> | Response | string | null | undefined);
   notFound?: Response | string | ((request: Request) => Promise<Response | string | null | undefined> | Response | string | null | undefined);
   assets?: (request: Request) => Promise<Response | null | undefined> | Response | null | undefined;
+  dataSerializer?: DataSerializer;
 };`,
         summary: "Options accepted by `createServer(...)`.",
+        details: [
+          "`dataSerializer` is a server-only escape hatch. Prefer `defineApp({ dataSerializer })` when the same app is passed to `createServer` and `mountApp`.",
+        ],
       },
       {
         name: "createServer",

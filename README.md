@@ -1066,6 +1066,42 @@ Behavior summary:
 - explicit action `error(...)` is available through `useActionError()` and `useError()`
 - route faults go through route error boundaries
 
+### Custom Data Serializers
+
+By default, Litz encodes `data(...)`, `invalid(...)`, and `error(...)` payload data with
+`JSON.stringify(...)` and decodes them with `JSON.parse(...)`. Configure `dataSerializer` on your
+app when loader, action, or resource data needs to round-trip richer values such as `BigInt`:
+
+```tsx
+import { defineApp } from "litzjs";
+
+export const app = defineApp({
+  dataSerializer: {
+    stringify(value) {
+      return JSON.stringify(value, (_key, nestedValue) =>
+        typeof nestedValue === "bigint" ? { $bigint: nestedValue.toString() } : nestedValue,
+      );
+    },
+    parse(text) {
+      return JSON.parse(text, (_key, nestedValue) =>
+        nestedValue &&
+        typeof nestedValue === "object" &&
+        "$bigint" in nestedValue &&
+        typeof nestedValue.$bigint === "string"
+          ? BigInt(nestedValue.$bigint)
+          : nestedValue,
+      );
+    },
+  },
+  routes: [route],
+  resources: [resource],
+});
+```
+
+Pass the same app to `createServer({ app })` and `mountApp(..., { app })`. The serializer applies to
+route loaders, route actions, resource loaders/actions, and batched loader responses. It does not
+apply to `view(...)` responses, which use the React Flight transport.
+
 ## Middleware
 
 Routes, resources, and API routes can declare a `middleware` array. Middleware runs in order and can continue with `next()`, short-circuit with a result, or explicitly replace `context` with `next({ context })`.
