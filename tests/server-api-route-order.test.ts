@@ -72,4 +72,97 @@ describe("createServer API route ordering", () => {
     expect(response.status).toBe(200);
     expect(body.route).toBe("static");
   });
+
+  test("uses GET handlers for HEAD API requests without returning a body", async () => {
+    let method = "";
+    const server = createServer({
+      manifest: {
+        apiRoutes: [
+          {
+            path: "/api/status",
+            api: {
+              methods: {
+                GET({ request }) {
+                  method = request.method;
+
+                  return new Response("ready", {
+                    headers: {
+                      "x-status": "ready",
+                    },
+                  });
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const response = await server.fetch(
+      new Request("https://example.com/api/status", {
+        method: "HEAD",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-status")).toBe("ready");
+    expect(await response.text()).toBe("");
+    expect(method).toBe("HEAD");
+  });
+
+  test("includes Allow headers on API method-not-allowed responses", async () => {
+    const server = createServer({
+      manifest: {
+        apiRoutes: [
+          {
+            path: "/api/status",
+            api: {
+              methods: {
+                GET() {
+                  return new Response("ready");
+                },
+                POST() {
+                  return new Response("updated");
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const response = await server.fetch(
+      new Request("https://example.com/api/status", {
+        method: "DELETE",
+      }),
+    );
+
+    expect(response.status).toBe(405);
+    expect(response.headers.get("allow")).toBe("GET, HEAD, POST");
+  });
+
+  test("includes Allow headers on internal endpoint method-not-allowed responses", async () => {
+    const server = createServer({
+      manifest: {
+        routes: [],
+        resources: [],
+      },
+    });
+
+    const routeResponse = await server.fetch(
+      new Request("https://example.com/_litzjs/route", {
+        method: "GET",
+      }),
+    );
+    const resourceResponse = await server.fetch(
+      new Request("https://example.com/_litzjs/resource", {
+        method: "GET",
+      }),
+    );
+
+    expect(routeResponse.status).toBe(405);
+    expect(routeResponse.headers.get("allow")).toBe("POST");
+    expect(resourceResponse.status).toBe(405);
+    expect(resourceResponse.headers.get("allow")).toBe("POST");
+  });
 });

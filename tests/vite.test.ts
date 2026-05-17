@@ -1966,6 +1966,99 @@ describe("dev server abort signal lifecycle", () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  test("uses GET handlers for HEAD API requests without returning a body", async () => {
+    let method = "";
+    const server = createMockViteDevServer(async () => ({
+      api: {
+        methods: {
+          GET({ request }: { request: Request }) {
+            method = request.method;
+
+            return new Response("ready", {
+              headers: {
+                "x-status": "ready",
+              },
+            });
+          },
+        },
+      },
+    }));
+    const request = createMockRequest({
+      url: "/api/status",
+      method: "HEAD",
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzApiRequest(
+      server,
+      [{ path: "/api/status", modulePath: "src/api/status.ts" }],
+      request,
+      response,
+      next,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.getHeaderValue("x-status")).toBe("ready");
+    expect(response.getBody()).toBe("");
+    expect(method).toBe("HEAD");
+  });
+
+  test("includes Allow headers on API method-not-allowed responses", async () => {
+    const server = createMockViteDevServer(async () => ({
+      api: {
+        methods: {
+          GET() {
+            return new Response("ready");
+          },
+          POST() {
+            return new Response("updated");
+          },
+        },
+      },
+    }));
+    const request = createMockRequest({
+      url: "/api/status",
+      method: "DELETE",
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzApiRequest(
+      server,
+      [{ path: "/api/status", modulePath: "src/api/status.ts" }],
+      request,
+      response,
+      next,
+    );
+
+    expect(response.statusCode).toBe(405);
+    expect(response.getHeaderValue("allow")).toBe("GET, HEAD, POST");
+  });
+
+  test("includes Allow headers on internal endpoint method-not-allowed responses", async () => {
+    const server = createMockViteDevServer(async () => ({}));
+    const routeRequest = createMockRequest({
+      url: "/_litzjs/route",
+      method: "GET",
+    });
+    const routeResponse = createMockResponse();
+    const resourceRequest = createMockRequest({
+      url: "/_litzjs/resource",
+      method: "GET",
+    });
+    const resourceResponse = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzRouteRequest(server, [], routeRequest, routeResponse, next);
+    await handleLitzResourceRequest(server, [], resourceRequest, resourceResponse, next);
+
+    expect(routeResponse.statusCode).toBe(405);
+    expect(routeResponse.getHeaderValue("allow")).toBe("POST");
+    expect(resourceResponse.statusCode).toBe(405);
+    expect(resourceResponse.getHeaderValue("allow")).toBe("POST");
+  });
+
   test("rebuilds repeated query params for internal resource requests", async () => {
     let capturedTags: string[] = [];
     let capturedHref = "";

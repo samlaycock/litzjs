@@ -396,6 +396,25 @@ function toHeadResponseIfNeeded(request: Request, response: Response): Response 
   });
 }
 
+function createAllowedMethodsHeader(
+  methods: Partial<Record<ApiRouteMethod, unknown>> | undefined,
+): string | undefined {
+  if (!methods) {
+    return undefined;
+  }
+
+  const allowed = Object.keys(methods)
+    .filter((method) => method !== "ALL")
+    .sort();
+
+  if (methods.GET && !methods.HEAD) {
+    allowed.push("HEAD");
+    allowed.sort();
+  }
+
+  return allowed.length > 0 ? allowed.join(", ") : undefined;
+}
+
 async function handleResourceRequest<TContext>(
   request: Request,
   resources: ResourceModule[],
@@ -409,7 +428,12 @@ async function handleResourceRequest<TContext>(
 
   try {
     if (request.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405 });
+      return new Response("Method Not Allowed", {
+        status: 405,
+        headers: {
+          allow: "POST",
+        },
+      });
     }
 
     const body = await parseInternalRequestBody(request);
@@ -514,7 +538,12 @@ async function handleRouteRequest<TContext>(
 
   try {
     if (request.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405 });
+      return new Response("Method Not Allowed", {
+        status: 405,
+        headers: {
+          allow: "POST",
+        },
+      });
     }
 
     const body = await parseInternalRequestBody(request);
@@ -674,17 +703,29 @@ async function handleApiRequest<TContext>(
     }
 
     const method = request.method.toUpperCase() as Exclude<ApiRouteMethod, "ALL">;
-    const handler = matched.entry.api.methods[method] ?? matched.entry.api.methods.ALL;
+    const handler =
+      matched.entry.api.methods[method] ??
+      (method === "HEAD" ? matched.entry.api.methods.GET : undefined) ??
+      matched.entry.api.methods.ALL;
     const middleware = matched.entry.api.middleware ?? [];
 
     if (!handler) {
-      return new Response("Method Not Allowed", { status: 405 });
+      const allow = createAllowedMethodsHeader(matched.entry.api.methods);
+
+      return new Response("Method Not Allowed", {
+        status: 405,
+        headers: allow
+          ? {
+              allow,
+            }
+          : undefined,
+      });
     }
 
     const signal = request.signal;
     const context = await getContext();
 
-    return await runMiddlewareChain({
+    const response = await runMiddlewareChain({
       middleware,
       request,
       params,
@@ -708,13 +749,15 @@ async function handleApiRequest<TContext>(
         });
       },
     });
+
+    return toHeadResponseIfNeeded(request, response);
   } catch (error) {
     if (error instanceof Response) {
-      return error;
+      return toHeadResponseIfNeeded(request, error);
     }
 
     if (isServerResultLike(error)) {
-      return createApiResponseFromResult(error);
+      return toHeadResponseIfNeeded(request, createApiResponseFromResult(error));
     }
 
     throw error;
