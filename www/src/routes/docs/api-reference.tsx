@@ -182,6 +182,15 @@ const response = await api.fetch({
         ],
       },
       {
+        name: "jsonDataSerializer",
+        signature: `const jsonDataSerializer: DataSerializer`,
+        summary:
+          "The default `data(...)` transport serializer, backed by `JSON.stringify` and `JSON.parse`.",
+        details: [
+          "Use it when composing a custom serializer that should delegate unsupported values back to Litz's default JSON behavior.",
+        ],
+      },
+      {
         name: "view",
         signature: `view<TNode extends React.ReactNode>(node: TNode, options?: { headers?: HeadersInit; revalidate?: string[] }): ViewResult<TNode>`,
         summary: "Returns a rendered React node payload instead of JSON data.",

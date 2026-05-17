@@ -1101,6 +1101,8 @@ export const app = defineApp({
 Pass the same app to `createServer({ app })` and `mountApp(..., { app })`. The serializer applies to
 route loaders, route actions, resource loaders/actions, and batched loader responses. It does not
 apply to `view(...)` responses, which use the React Flight transport.
+Use `jsonDataSerializer` when a custom serializer needs to delegate back to Litz's default JSON
+implementation.
 
 ## Middleware
 

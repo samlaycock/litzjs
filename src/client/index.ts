@@ -179,7 +179,13 @@ configureActiveManifest(defaultManifest);
 export function mountApp(element: Element, options?: MountAppOptions): void {
   const resolvedOptions = normalizeMountAppOptions(options);
   configureActiveManifest(createManifestFromApp(resolvedOptions?.app));
-  configureDataSerializer(resolvedOptions?.app?.dataSerializer);
+
+  if (
+    resolvedOptions?.app &&
+    Object.prototype.hasOwnProperty.call(resolvedOptions.app, "dataSerializer")
+  ) {
+    configureDataSerializer(resolvedOptions.app.dataSerializer);
+  }
 
   void import("react-dom/client").then(({ createRoot }) => {
     const root = createRoot(element);

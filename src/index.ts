@@ -15,6 +15,7 @@ export {
   type FormJsonValue,
   type SubmitPayload,
 } from "./form-data";
+export { jsonDataSerializer } from "./data-serializer";
 export type { SearchParamRecord, SearchParamValue } from "./search-params";
 export type { DataSerializer } from "./data-serializer";
 

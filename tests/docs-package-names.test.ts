@@ -303,6 +303,7 @@ describe("docs package names", () => {
       "fault",
       "formJson",
       "invalid",
+      "jsonDataSerializer",
       "redirect",
       "server",
       "useLocation",
