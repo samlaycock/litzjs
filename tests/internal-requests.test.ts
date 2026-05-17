@@ -148,6 +148,29 @@ describe("internal action requests", () => {
     throw new Error("Expected malformed metadata header to be rejected");
   });
 
+  test("rejects malformed multipart bodies as malformed internal requests", async () => {
+    try {
+      await parseInternalRequestBody(
+        new Request("http://litz.local/_litzjs/action", {
+          method: "POST",
+          headers: {
+            "content-type": "multipart/form-data; boundary=litz-boundary",
+            "x-litzjs-request": JSON.stringify({
+              path: "/projects",
+              operation: "action",
+            }),
+          },
+          body: "--not-the-declared-boundary\r\n",
+        }),
+      );
+    } catch (error) {
+      expect(error).toBeInstanceOf(MalformedInternalRequestError);
+      return;
+    }
+
+    throw new Error("Expected malformed multipart body to be rejected");
+  });
+
   test("returns a safe 400 response for malformed internal JSON bodies", async () => {
     const server = createServer({
       manifest: {
@@ -202,6 +225,42 @@ describe("internal action requests", () => {
           "x-litzjs-request": '{"secret":"do-not-leak"',
         },
         body: new FormData(),
+      }),
+    );
+    const text = await response.text();
+
+    expect(response.status).toBe(400);
+    expect(text).toContain("Malformed internal request.");
+    expect(text).not.toContain("do-not-leak");
+  });
+
+  test("returns a safe 400 response for malformed multipart bodies", async () => {
+    const server = createServer({
+      manifest: {
+        routes: [
+          {
+            id: "projects",
+            path: "/projects",
+            route: {
+              action() {
+                return { kind: "data", data: { ok: true } };
+              },
+            },
+          },
+        ],
+      },
+    });
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/action", {
+        method: "POST",
+        headers: {
+          "content-type": "multipart/form-data; boundary=litz-boundary",
+          "x-litzjs-request": JSON.stringify({
+            path: "/projects",
+            operation: "action",
+          }),
+        },
+        body: "--not-the-declared-boundary\r\nsecret=do-not-leak\r\n",
       }),
     );
     const text = await response.text();

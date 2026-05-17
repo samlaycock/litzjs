@@ -13,7 +13,7 @@ export type {
 } from "../internal-transport";
 export { createInternalActionRequestInit, LITZ_RESULT_ACCEPT } from "../internal-transport";
 
-const MALFORMED_INTERNAL_REQUEST_MESSAGE = "Malformed internal request.";
+export const MALFORMED_INTERNAL_REQUEST_MESSAGE = "Malformed internal request.";
 
 export class MalformedInternalRequestError extends Error {
   constructor() {
@@ -57,7 +57,13 @@ export async function parseInternalRequestBody(request: Request): Promise<Intern
     return metadata;
   }
 
-  const formData = await request.formData();
+  let formData: FormData;
+
+  try {
+    formData = await request.formData();
+  } catch {
+    throw new MalformedInternalRequestError();
+  }
 
   return {
     ...metadata,
