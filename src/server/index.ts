@@ -277,7 +277,12 @@ export function __withLitzRuntimeOptions<TContext = unknown>(
   options: CreateServerOptions<TContext>,
 ): LitzRuntimeServer<TContext> {
   if (!server.__litzjsCreateServerOptions) {
-    return server;
+    throw new Error(
+      [
+        "[litzjs] The configured server entry must export a server created by createServer().",
+        "Litz could not apply the generated base, document, and route manifest runtime options.",
+      ].join(" "),
+    );
   }
 
   const userOptions = server.__litzjsCreateServerOptions;
