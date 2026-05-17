@@ -50,6 +50,29 @@ const submitRoute = defineRoute("/submit/:id", {
 const loadSubmitRoute = mock(async () => ({
   route: submitRoute,
 }));
+const bigintSerializer = {
+  stringify(value: unknown): string {
+    return JSON.stringify(value, (_key, nestedValue) =>
+      typeof nestedValue === "bigint"
+        ? { __litzjsTestBigInt: nestedValue.toString() }
+        : nestedValue,
+    );
+  },
+  parse(text: string): unknown {
+    return JSON.parse(text, (_key, nestedValue) => {
+      if (
+        nestedValue &&
+        typeof nestedValue === "object" &&
+        "__litzjsTestBigInt" in nestedValue &&
+        typeof nestedValue.__litzjsTestBigInt === "string"
+      ) {
+        return BigInt(nestedValue.__litzjsTestBigInt);
+      }
+
+      return nestedValue;
+    }) as unknown;
+  },
+};
 
 function HomeRoute(): React.ReactElement {
   if (!clientModule) {
@@ -218,7 +241,7 @@ describe("client wildcard route runtime", () => {
   });
 
   afterEach(() => {
-    clientModule?.configureClientRuntime({ baseUrl: undefined });
+    clientModule?.configureClientRuntime({ baseUrl: undefined, dataSerializer: undefined });
     globalThis.fetch = originalFetch;
     container?.remove();
     cleanupDom?.();
@@ -273,6 +296,40 @@ describe("client wildcard route runtime", () => {
       "wildcard-route",
     );
     expect(loadDocsRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test("mountApp without an app preserves a serializer configured by configureClientRuntime", async () => {
+    clientModule = await import("../src/client/index");
+    const { parseLoaderResponse } = await import("../src/client/transport");
+
+    clientModule.configureClientRuntime({ dataSerializer: bigintSerializer });
+
+    await act(async () => {
+      clientModule?.mountApp(container!);
+      await flushApp();
+    });
+
+    const result = await parseLoaderResponse(
+      new Response(
+        bigintSerializer.stringify({
+          kind: "data",
+          data: { count: 9007199254740993n },
+        }),
+        {
+          headers: {
+            "content-type": "application/vnd.litzjs.result+json",
+          },
+        },
+      ),
+    );
+
+    expect(result.kind).toBe("data");
+
+    if (result.kind !== "data") {
+      throw new Error("Expected data result.");
+    }
+
+    expect(result.data).toEqual({ count: 9007199254740993n });
   });
 
   test("renders a managed route fault when a lazy route module rejects during navigation", async () => {
