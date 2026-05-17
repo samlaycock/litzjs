@@ -614,6 +614,87 @@ describe("resource runtime", () => {
     expect(document.querySelector(".revalidate-count")?.getAttribute("data-value")).toBe("3");
   });
 
+  test("resource action redirects skip revalidation and success callbacks", async () => {
+    const events: string[] = [];
+    const visitedPaths: string[] = [];
+    let loaderCalls = 0;
+    let actionCalls = 0;
+
+    window.addEventListener("popstate", () => {
+      visitedPaths.push(`${window.location.pathname}${window.location.search}`);
+    });
+
+    const redirectResource = defineResource("/resource/revalidate-redirect/:id", {
+      component: function RedirectResource() {
+        const details = redirectResource.useData() as { count: number } | null;
+        const submit = redirectResource.useSubmit({
+          revalidate: true,
+          onSuccess() {
+            events.push("success");
+          },
+        });
+
+        return (
+          <section>
+            <div className="redirect-count" data-value={details?.count ?? -1} />
+            <button
+              type="button"
+              className="redirect-submit"
+              onClick={() => {
+                void submit({ increment: "1" });
+              }}
+            >
+              Submit
+            </button>
+          </section>
+        );
+      },
+      loader: server(async () => data({ count: 1 })),
+      action: server(async () => data({ count: 2 })),
+    });
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+
+      if (headers.has("x-litzjs-request")) {
+        actionCalls += 1;
+        return Response.json(
+          {
+            kind: "redirect",
+            location: "/dashboard?redirected=1",
+            replace: false,
+          },
+          {
+            headers: {
+              "x-litzjs-revalidate": "/resource/revalidate-redirect/:id",
+            },
+          },
+        );
+      }
+
+      loaderCalls += 1;
+      return Response.json({
+        kind: "data",
+        data: { count: loaderCalls === 1 ? 1 : 3 },
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<redirectResource.Component params={{ id: "user-redirect" }} />);
+      await flushDom();
+    });
+
+    await act(async () => {
+      (document.querySelector(".redirect-submit") as HTMLButtonElement).click();
+      await flushDom();
+    });
+
+    expect(actionCalls).toBe(1);
+    expect(loaderCalls).toBe(1);
+    expect(events).toEqual([]);
+    expect(visitedPaths).toEqual(["/dashboard?redirected=1"]);
+  });
+
   test("resource component cache uses the latest component implementation after HMR", async () => {
     globalThis.fetch = (async () =>
       Response.json({
