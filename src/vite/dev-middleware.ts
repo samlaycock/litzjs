@@ -101,6 +101,7 @@ export async function handleLitzResourceRequest(
 
   if (request.method !== "POST") {
     response.statusCode = 405;
+    response.setHeader("allow", "POST");
     response.end("Method Not Allowed");
     return;
   }
@@ -228,6 +229,7 @@ export async function handleLitzRouteRequest(
 
   if (request.method !== "POST") {
     response.statusCode = 405;
+    response.setHeader("allow", "POST");
     response.end("Method Not Allowed");
     return;
   }
@@ -533,11 +535,20 @@ export async function handleLitzApiRequest(
     const api = module.api;
 
     const method = (request.method ?? "GET").toUpperCase() as Exclude<ApiRouteMethod, "ALL">;
-    const handler = api?.methods?.[method] ?? api?.methods?.ALL;
+    const handler =
+      api?.methods?.[method] ??
+      (method === "HEAD" ? api?.methods?.GET : undefined) ??
+      api?.methods?.ALL;
     const matchedParams = matchPathname(matched.path, pathname);
 
     if (!handler) {
       response.statusCode = 405;
+      const allow = createAllowedMethodsHeader(api?.methods);
+
+      if (allow) {
+        response.setHeader("allow", allow);
+      }
+
       response.end("Method Not Allowed");
       return;
     }
@@ -572,15 +583,19 @@ export async function handleLitzApiRequest(
       },
     });
 
-    await writeFetchResponseToNode(response, apiResponse);
+    await writeFetchResponseToNode(response, apiResponse, request.method === "HEAD");
   } catch (error) {
     if (error instanceof Response) {
-      await writeFetchResponseToNode(response, error);
+      await writeFetchResponseToNode(response, error, request.method === "HEAD");
       return;
     }
 
     if (isServerResultLike(error)) {
-      await writeFetchResponseToNode(response, createApiResponseFromResult(error));
+      await writeFetchResponseToNode(
+        response,
+        createApiResponseFromResult(error),
+        request.method === "HEAD",
+      );
       return;
     }
 
@@ -873,6 +888,7 @@ function applyRevalidateHeader(response: ServerResponse, revalidate?: string[]):
 async function writeFetchResponseToNode(
   response: ServerResponse,
   fetchResponse: Response,
+  omitBody = false,
 ): Promise<void> {
   response.statusCode = fetchResponse.status;
 
@@ -880,7 +896,7 @@ async function writeFetchResponseToNode(
     response.setHeader(key, value);
   });
 
-  if (!fetchResponse.body) {
+  if (omitBody || !fetchResponse.body) {
     response.end();
     return;
   }
@@ -898,6 +914,25 @@ async function writeFetchResponseToNode(
   }
 
   response.end();
+}
+
+function createAllowedMethodsHeader(
+  methods: Partial<Record<ApiRouteMethod, unknown>> | undefined,
+): string | undefined {
+  if (!methods) {
+    return undefined;
+  }
+
+  const allowed = Object.keys(methods)
+    .filter((method) => method !== "ALL")
+    .sort();
+
+  if (methods.GET && !methods.HEAD) {
+    allowed.push("HEAD");
+    allowed.sort();
+  }
+
+  return allowed.length > 0 ? allowed.join(", ") : undefined;
 }
 
 // ── Path & Route Matching ────────────────────────────────────────────────────
