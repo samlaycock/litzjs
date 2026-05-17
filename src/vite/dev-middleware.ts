@@ -534,7 +534,7 @@ export async function handleLitzApiRequest(
 
     const method = (request.method ?? "GET").toUpperCase() as Exclude<ApiRouteMethod, "ALL">;
     const handler = api?.methods?.[method] ?? api?.methods?.ALL;
-    const matchedParams = matchPathname(matched.path, requestUrl.pathname);
+    const matchedParams = matchPathname(matched.path, pathname);
 
     if (!handler) {
       response.statusCode = 405;
