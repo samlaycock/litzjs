@@ -25,6 +25,7 @@ import { sortRecord } from "./sort-record";
 import {
   isRedirectSignal,
   isRouteLikeError,
+  getRevalidateTargets,
   parseActionResponse,
   parseLoaderResponse,
 } from "./transport";
@@ -437,9 +438,13 @@ function useResourceRuntime(resourcePath: string, request?: ResourceRequest): Re
         return;
       }
 
+      if (shouldRevalidateResourceAfterSubmit(resourcePath, result.headers, options?.revalidate)) {
+        await reloadImpl("revalidating");
+      }
+
       options?.onSuccess?.(result);
     },
-    [preparedRequest, resourcePath],
+    [preparedRequest, reloadImpl, resourcePath],
   );
 
   const reload = React.useCallback(() => {
@@ -482,6 +487,30 @@ function useResourceRuntime(resourcePath: string, request?: ResourceRequest): Re
       submit,
     ],
   );
+}
+
+function shouldRevalidateResourceAfterSubmit(
+  resourcePath: string,
+  headers: Headers,
+  revalidate: SubmitOptions["revalidate"],
+): boolean {
+  if (revalidate === false) {
+    return false;
+  }
+
+  if (revalidate === true) {
+    return true;
+  }
+
+  const targets = new Set(getRevalidateTargets(headers));
+
+  if (Array.isArray(revalidate)) {
+    for (const target of revalidate) {
+      targets.add(target);
+    }
+  }
+
+  return targets.has(resourcePath);
 }
 
 async function performPreparedResourceRequest(
