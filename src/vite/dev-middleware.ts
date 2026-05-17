@@ -27,6 +27,7 @@ import { cancelResponseBody } from "../response-body";
 import { createSearchParams, type SearchParamRecord } from "../search-params";
 import {
   isMalformedInternalRequestError,
+  MALFORMED_INTERNAL_REQUEST_MESSAGE,
   parseInternalRequestBody,
   type InternalRequestBody,
 } from "../server/internal-requests";
@@ -884,7 +885,7 @@ function sendBadRequest(response: ServerResponse): void {
 function sendMalformedInternalRequest(response: ServerResponse): void {
   sendLitzJson(response, 400, {
     kind: "fault",
-    message: "Malformed internal request.",
+    message: MALFORMED_INTERNAL_REQUEST_MESSAGE,
   });
 }
 

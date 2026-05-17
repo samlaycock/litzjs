@@ -2531,6 +2531,70 @@ describe("dev server error masking", () => {
     expect(response.getBody()).toContain("Resource does not define a loader.");
   });
 
+  test("returns safe bad requests for malformed internal JSON bodies", async () => {
+    const server = createMockViteDevServer(async () => ({}));
+    const request = createMockRequest({
+      url: "/_litzjs/resource",
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: '{"secret":"do-not-leak"',
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzResourceRequest(server, [], request, response, next);
+
+    expect(response.statusCode).toBe(400);
+    expect(response.getBody()).toContain("Malformed internal request.");
+    expect(response.getBody()).not.toContain("do-not-leak");
+  });
+
+  test("returns safe bad requests for malformed internal metadata headers", async () => {
+    const server = createMockViteDevServer(async () => ({}));
+    const request = createMockRequest({
+      url: "/_litzjs/route",
+      method: "POST",
+      headers: {
+        "x-litzjs-request": '{"secret":"do-not-leak"',
+      },
+      body: "",
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzRouteRequest(server, [], request, response, next);
+
+    expect(response.statusCode).toBe(400);
+    expect(response.getBody()).toContain("Malformed internal request.");
+    expect(response.getBody()).not.toContain("do-not-leak");
+  });
+
+  test("returns safe bad requests for malformed multipart internal bodies", async () => {
+    const server = createMockViteDevServer(async () => ({}));
+    const request = createMockRequest({
+      url: "/_litzjs/resource",
+      method: "POST",
+      headers: {
+        "content-type": "multipart/form-data; boundary=litz-boundary",
+        "x-litzjs-request": JSON.stringify({
+          path: "/resources/config",
+          operation: "loader",
+        }),
+      },
+      body: "--not-the-declared-boundary\r\nsecret=do-not-leak\r\n",
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzResourceRequest(server, [], request, response, next);
+
+    expect(response.statusCode).toBe(400);
+    expect(response.getBody()).toContain("Malformed internal request.");
+    expect(response.getBody()).not.toContain("do-not-leak");
+  });
+
   test("does not expose raw error messages from resource handlers", async () => {
     const sensitiveMessage = "ECONNREFUSED 127.0.0.1:5432 - password=hunter2";
     const server = createMockViteDevServer(async () => {
