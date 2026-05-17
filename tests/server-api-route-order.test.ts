@@ -75,6 +75,7 @@ describe("createServer API route ordering", () => {
 
   test("uses GET handlers for HEAD API requests without returning a body", async () => {
     let method = "";
+    let cancelled = false;
     const server = createServer({
       manifest: {
         apiRoutes: [
@@ -85,11 +86,18 @@ describe("createServer API route ordering", () => {
                 GET({ request }) {
                   method = request.method;
 
-                  return new Response("ready", {
-                    headers: {
-                      "x-status": "ready",
+                  return new Response(
+                    new ReadableStream({
+                      cancel() {
+                        cancelled = true;
+                      },
+                    }),
+                    {
+                      headers: {
+                        "x-status": "ready",
+                      },
                     },
-                  });
+                  );
                 },
               },
             },
@@ -108,6 +116,7 @@ describe("createServer API route ordering", () => {
     expect(response.headers.get("x-status")).toBe("ready");
     expect(await response.text()).toBe("");
     expect(method).toBe("HEAD");
+    expect(cancelled).toBe(true);
   });
 
   test("includes Allow headers on API method-not-allowed responses", async () => {

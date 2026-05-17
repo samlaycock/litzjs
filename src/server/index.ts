@@ -2,6 +2,7 @@ import type { ApiRouteMethod, LitzApp } from "../index";
 
 import { normalizeBasePath, resolveBasePathname } from "../base-path";
 import { jsonDataSerializer, type DataSerializer } from "../data-serializer";
+import { createAllowedMethodsHeader } from "../http-methods";
 import {
   createBodylessResponse,
   createApiResponseFromResult,
@@ -18,6 +19,7 @@ import {
   sortByPathSpecificity,
   trimPathSegments,
 } from "../path-matching";
+import { cancelResponseBody } from "../response-body";
 import { createSearchParams, type SearchParamRecord } from "../search-params";
 import { parseInternalRequestBody, type InternalRequestBody } from "./internal-requests";
 import { createInternalHandlerHeaders } from "./request-headers";
@@ -389,30 +391,13 @@ function toHeadResponseIfNeeded(request: Request, response: Response): Response 
     return response;
   }
 
+  cancelResponseBody(response);
+
   return new Response(null, {
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
   });
-}
-
-function createAllowedMethodsHeader(
-  methods: Partial<Record<ApiRouteMethod, unknown>> | undefined,
-): string | undefined {
-  if (!methods) {
-    return undefined;
-  }
-
-  const allowed = Object.keys(methods)
-    .filter((method) => method !== "ALL")
-    .sort();
-
-  if (methods.GET && !methods.HEAD) {
-    allowed.push("HEAD");
-    allowed.sort();
-  }
-
-  return allowed.length > 0 ? allowed.join(", ") : undefined;
 }
 
 async function handleResourceRequest<TContext>(

@@ -9,6 +9,7 @@ import type { ApiRouteMethod } from "../index";
 import type { DiscoveredApiRoute, DiscoveredResource, DiscoveredRoute } from "./types";
 
 import { resolveBasePathname } from "../base-path";
+import { createAllowedMethodsHeader } from "../http-methods";
 import {
   createApiResponseFromResult,
   isBodyForbiddenStatus,
@@ -22,6 +23,7 @@ import {
   interpolatePath,
   matchPathname,
 } from "../path-matching";
+import { cancelResponseBody } from "../response-body";
 import { createSearchParams, type SearchParamRecord } from "../search-params";
 import { parseInternalRequestBody, type InternalRequestBody } from "../server/internal-requests";
 import { createInternalHandlerHeaders } from "../server/request-headers";
@@ -896,7 +898,13 @@ async function writeFetchResponseToNode(
     response.setHeader(key, value);
   });
 
-  if (omitBody || !fetchResponse.body) {
+  if (omitBody) {
+    cancelResponseBody(fetchResponse);
+    response.end();
+    return;
+  }
+
+  if (!fetchResponse.body) {
     response.end();
     return;
   }
@@ -914,25 +922,6 @@ async function writeFetchResponseToNode(
   }
 
   response.end();
-}
-
-function createAllowedMethodsHeader(
-  methods: Partial<Record<ApiRouteMethod, unknown>> | undefined,
-): string | undefined {
-  if (!methods) {
-    return undefined;
-  }
-
-  const allowed = Object.keys(methods)
-    .filter((method) => method !== "ALL")
-    .sort();
-
-  if (methods.GET && !methods.HEAD) {
-    allowed.push("HEAD");
-    allowed.sort();
-  }
-
-  return allowed.length > 0 ? allowed.join(", ") : undefined;
 }
 
 // ── Path & Route Matching ────────────────────────────────────────────────────
