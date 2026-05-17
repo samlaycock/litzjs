@@ -1,6 +1,32 @@
 import ts from "typescript";
 
 export function createClientModuleProjection(filePath: string, source: string): string | null {
+  return createProjectedModule(
+    filePath,
+    source,
+    shouldSkipClientProjectionSubtree,
+    transformClientProjectionStatement,
+    true,
+  );
+}
+
+export function createServerModuleProjection(filePath: string, source: string): string | null {
+  return createProjectedModule(
+    filePath,
+    source,
+    shouldSkipServerProjectionSubtree,
+    transformServerProjectionStatement,
+    false,
+  );
+}
+
+function createProjectedModule(
+  filePath: string,
+  source: string,
+  shouldSkipSubtree: (node: ts.Node) => boolean,
+  transformStatement: (statement: ts.Statement) => ts.Statement,
+  includeHotAccept: boolean,
+): string | null {
   const scriptKind = filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const sourceFile = ts.createSourceFile(
     filePath,
@@ -34,7 +60,7 @@ export function createClientModuleProjection(filePath: string, source: string): 
       statement,
       topLevelNames,
       importBindings,
-      shouldSkipProjectionSubtree,
+      shouldSkipSubtree,
     );
 
     for (const importName of referencedNames.imports) {
@@ -63,7 +89,7 @@ export function createClientModuleProjection(filePath: string, source: string): 
     projectionNeedsPlaceholder(statement),
   );
   const transformedStatements = projectionStatements.map((statement) =>
-    transformProjectionStatement(statement),
+    transformStatement(statement),
   );
   const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
   const placeholder = needsPlaceholder
@@ -87,7 +113,7 @@ export function createClientModuleProjection(filePath: string, source: string): 
   const moduleSource = [...printedImports, ...placeholder, ...transformedStatements]
     .map((statement) => printer.printNode(ts.EmitHint.Unspecified, statement, sourceFile))
     .join("\n\n");
-  const hmrAcceptSource = createProjectionHotAcceptSource(rootStatement);
+  const hmrAcceptSource = includeHotAccept ? createProjectionHotAcceptSource(rootStatement) : "\n";
 
   return `${moduleSource}${hmrAcceptSource}\n`;
 }
@@ -464,7 +490,7 @@ function isIgnoredIdentifierReference(node: ts.Identifier): boolean {
   return false;
 }
 
-function shouldSkipProjectionSubtree(node: ts.Node): boolean {
+function shouldSkipClientProjectionSubtree(node: ts.Node): boolean {
   if (
     ts.isCallExpression(node) &&
     ts.isIdentifier(node.expression) &&
@@ -483,6 +509,15 @@ function shouldSkipProjectionSubtree(node: ts.Node): boolean {
   }
 
   return false;
+}
+
+function shouldSkipServerProjectionSubtree(node: ts.Node): boolean {
+  return (
+    (ts.isPropertyAssignment(node) ||
+      ts.isMethodDeclaration(node) ||
+      ts.isShorthandPropertyAssignment(node)) &&
+    getProjectionNodePropertyName(node) === "component"
+  );
 }
 
 function projectImportStatement(
@@ -558,7 +593,7 @@ function projectionNeedsPlaceholder(statement: ts.Statement): boolean {
   return required;
 }
 
-function transformProjectionStatement(statement: ts.Statement): ts.Statement {
+function transformClientProjectionStatement(statement: ts.Statement): ts.Statement {
   const result = ts.transform(statement, [
     (context) => {
       const visit: ts.Visitor = (node) => {
@@ -677,9 +712,56 @@ function transformProjectionStatement(statement: ts.Statement): ts.Statement {
   return transformed ?? statement;
 }
 
+function transformServerProjectionStatement(statement: ts.Statement): ts.Statement {
+  const result = ts.transform(statement, [
+    (context) => {
+      const visit: ts.Visitor = (node) => {
+        if (
+          ts.isCallExpression(node) &&
+          ts.isIdentifier(node.expression) &&
+          (node.expression.text === "defineRoute" ||
+            node.expression.text === "defineLayout" ||
+            node.expression.text === "defineResource") &&
+          node.arguments[1] &&
+          ts.isObjectLiteralExpression(node.arguments[1])
+        ) {
+          const pathArgument = node.arguments[0] ?? ts.factory.createStringLiteral("");
+          const properties = node.arguments[1].properties.filter(
+            (property) => getProjectionNodePropertyName(property) !== "component",
+          );
+
+          return ts.factory.updateCallExpression(node, node.expression, node.typeArguments, [
+            pathArgument,
+            ts.factory.updateObjectLiteralExpression(node.arguments[1], properties),
+          ]);
+        }
+
+        return ts.visitEachChild(node, visit, context);
+      };
+
+      return (node: ts.Statement) => ts.visitNode(node, visit) as ts.Statement;
+    },
+  ]);
+  const [transformed] = result.transformed;
+  result.dispose();
+  return transformed ?? statement;
+}
+
 function getObjectPropertyName(name: ts.PropertyName): string | null {
   if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
     return name.text;
+  }
+
+  return null;
+}
+
+function getProjectionNodePropertyName(node: ts.Node): string | null {
+  if (ts.isShorthandPropertyAssignment(node)) {
+    return node.name.text;
+  }
+
+  if (ts.isPropertyAssignment(node) || ts.isMethodDeclaration(node)) {
+    return getObjectPropertyName(node.name);
   }
 
   return null;

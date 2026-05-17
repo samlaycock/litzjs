@@ -11,7 +11,6 @@ import vitePluginRsc from "@vitejs/plugin-rsc";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import picomatch from "picomatch";
-import ts from "typescript";
 import { createBuilder } from "vite";
 
 import type {
@@ -24,7 +23,7 @@ import type {
 } from "./vite/types";
 
 import { normalizeBasePath } from "./base-path";
-import { createClientModuleProjection } from "./client-projection";
+import { createClientModuleProjection, createServerModuleProjection } from "./client-projection";
 import { sortByPathSpecificity } from "./path-matching";
 import {
   handleLitzApiRequest,
@@ -51,9 +50,11 @@ import {
   LITZ_BROWSER_ENTRY_ID,
   LITZ_RSC_ENTRY_ID,
   LITZ_RSC_RENDERER_ID,
+  LITZ_SERVER_RUNTIME_OPTIONS_ID,
   RESOLVED_LITZ_BROWSER_ENTRY_ID,
   RESOLVED_LITZ_RSC_ENTRY_ID,
   RESOLVED_LITZ_RSC_RENDERER_ID,
+  RESOLVED_LITZ_SERVER_RUNTIME_OPTIONS_ID,
   RESOLVED_RESOURCE_MANIFEST_ID,
   RESOLVED_ROUTE_MANIFEST_ID,
   RESOURCE_MANIFEST_ID,
@@ -78,19 +79,6 @@ export {
   handleLitzDocumentRequest,
   handleLitzResourceRequest,
   handleLitzRouteRequest,
-};
-
-type LitzSourceMap = {
-  readonly version: 3;
-  readonly sources: string[];
-  readonly sourcesContent: string[];
-  readonly names: string[];
-  readonly mappings: string;
-};
-
-type ServerRuntimeTransformResult = {
-  readonly code: string;
-  readonly map: LitzSourceMap;
 };
 
 /**
@@ -152,10 +140,11 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
                 rsc: {
                   build: {
                     outDir: path.join(baseOutDir, "server"),
-                    manifest: true,
+                    manifest: false,
                     rollupOptions: {
                       output: {
                         entryFileNames: "index.mjs",
+                        codeSplitting: false,
                       },
                     },
                   },
@@ -187,6 +176,7 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
       if (id === ROUTE_MANIFEST_ID) return RESOLVED_ROUTE_MANIFEST_ID;
       if (id === RESOURCE_MANIFEST_ID) return RESOLVED_RESOURCE_MANIFEST_ID;
       if (configuredServerEntryPath && id === LITZ_RSC_ENTRY_ID) return RESOLVED_LITZ_RSC_ENTRY_ID;
+      if (id === LITZ_SERVER_RUNTIME_OPTIONS_ID) return RESOLVED_LITZ_SERVER_RUNTIME_OPTIONS_ID;
       if (id === LITZ_BROWSER_ENTRY_ID) return RESOLVED_LITZ_BROWSER_ENTRY_ID;
       if (id === LITZ_RSC_RENDERER_ID) return RESOLVED_LITZ_RSC_RENDERER_ID;
       return null;
@@ -212,6 +202,14 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
         }
 
         return createGeneratedServerEntryModule(serverEntryPath);
+      }
+
+      if (id === RESOLVED_LITZ_SERVER_RUNTIME_OPTIONS_ID) {
+        return createServerRuntimeOptionsModule(
+          root,
+          configuredBase,
+          createServerManifestModule(routeManifest, resourceManifest, apiManifest),
+        );
       }
 
       if (id === RESOLVED_LITZ_BROWSER_ENTRY_ID) {
@@ -521,22 +519,10 @@ export async function renderView(node, metadata = {}) {
     async transform(code, id) {
       const cleanId = normalizeViteModuleId(id);
 
-      if (serverEntryPath && this.environment.name !== "client") {
-        const relativeId = path.isAbsolute(cleanId)
-          ? normalizeRelativePath(root, cleanId)
-          : cleanId;
+      if (this.environment.name !== "client" && clientProjectedFiles.has(cleanId)) {
+        const projected = createServerModuleProjection(cleanId, code);
 
-        if (relativeId === serverEntryPath) {
-          const transformed = injectServerRuntimeOptions(
-            code,
-            id,
-            root,
-            configuredBase,
-            createServerManifestModule(routeManifest, resourceManifest, apiManifest),
-          );
-
-          return transformed;
-        }
+        return projected ? { code: projected, map: null } : null;
       }
 
       if (this.environment.name !== "client" || !clientProjectedFiles.has(cleanId)) {
@@ -553,7 +539,13 @@ export async function renderView(node, metadata = {}) {
 }
 
 function createGeneratedServerEntryModule(serverEntryPath: string): string {
-  return `export { default } from ${JSON.stringify(toProjectImportSpecifier(serverEntryPath))};`;
+  return [
+    `import server from ${JSON.stringify(toProjectImportSpecifier(serverEntryPath))};`,
+    'import { __withLitzRuntimeOptions } from "litzjs/server";',
+    `import { runtimeOptions } from ${JSON.stringify(LITZ_SERVER_RUNTIME_OPTIONS_ID)};`,
+    "",
+    "export default __withLitzRuntimeOptions(server, runtimeOptions);",
+  ].join("\n");
 }
 
 function resolveConfiguredServerEntry(
@@ -575,220 +567,16 @@ function resolveConfiguredServerEntry(
   return normalizeRelativePath(root, absolutePath);
 }
 
-function injectServerRuntimeOptions(
-  code: string,
-  id: string,
-  root: string,
-  base: string,
-  serverManifestModule: string,
-): ServerRuntimeTransformResult | null {
-  const sourceFile = ts.createSourceFile(id, code, ts.ScriptTarget.Latest, true, getScriptKind(id));
-  const createServerIdentifiers = new Set<string>();
-  const createServerNamespaces = new Set<string>();
-  let referencesCreateServer = false;
-  const replacements: Array<{ start: number; end: number; text: string }> = [];
-
-  const runtimeSource = createInlineServerRuntime(root, base, serverManifestModule);
-
-  const visitImports = (node: ts.Node) => {
-    if (
-      ts.isImportDeclaration(node) &&
-      ts.isStringLiteral(node.moduleSpecifier) &&
-      node.moduleSpecifier.text === "litzjs/server"
-    ) {
-      const importClause = node.importClause;
-
-      if (importClause?.namedBindings) {
-        if (ts.isNamespaceImport(importClause.namedBindings)) {
-          createServerNamespaces.add(importClause.namedBindings.name.text);
-        } else {
-          for (const element of importClause.namedBindings.elements) {
-            const importedName = element.propertyName?.text ?? element.name.text;
-
-            if (importedName === "createServer") {
-              createServerIdentifiers.add(element.name.text);
-            }
-          }
-        }
-      }
-    }
-
-    ts.forEachChild(node, visitImports);
-  };
-
-  visitImports(sourceFile);
-
-  const isCreateServerExpression = (expression: ts.Expression): boolean => {
-    if (ts.isIdentifier(expression) && createServerIdentifiers.has(expression.text)) {
-      return true;
-    }
-
-    return (
-      ts.isPropertyAccessExpression(expression) &&
-      expression.name.text === "createServer" &&
-      ts.isIdentifier(expression.expression) &&
-      createServerNamespaces.has(expression.expression.text)
-    );
-  };
-
-  const visitCalls = (node: ts.Node) => {
-    if (ts.isIdentifier(node) && createServerIdentifiers.has(node.text)) {
-      referencesCreateServer = true;
-    }
-
-    if (
-      ts.isPropertyAccessExpression(node) &&
-      node.name.text === "createServer" &&
-      ts.isIdentifier(node.expression) &&
-      createServerNamespaces.has(node.expression.text)
-    ) {
-      referencesCreateServer = true;
-    }
-
-    if (ts.isCallExpression(node) && isCreateServerExpression(node.expression)) {
-      referencesCreateServer = true;
-
-      if (node.arguments.length === 0) {
-        replacements.push({
-          start: node.getEnd() - 1,
-          end: node.getEnd() - 1,
-          text: "{ base: __litzjsBase, document: __litzjsCreateDocumentResponse, manifest: __litzjsServerManifest }",
-        });
-      } else if (node.arguments.length === 1 && ts.isObjectLiteralExpression(node.arguments[0]!)) {
-        const optionsArgument = node.arguments[0]!;
-        const manifestInjection = hasObjectProperty(optionsArgument, "app")
-          ? ""
-          : " manifest: __litzjsServerManifest,";
-        replacements.push({
-          start: optionsArgument.getStart() + 1,
-          end: optionsArgument.getStart() + 1,
-          text: ` base: __litzjsBase, document: __litzjsCreateDocumentResponse,${manifestInjection}`,
-        });
-      } else {
-        throw new Error(
-          [
-            "[litzjs] Could not inject route manifest options into this custom server entry.",
-            "Call createServer() with no arguments or with an inline object literal so Litz can add base, document, and manifest options.",
-          ].join(" "),
-        );
-      }
-    }
-
-    ts.forEachChild(node, visitCalls);
-  };
-
-  visitCalls(sourceFile);
-
-  if (replacements.length === 0) {
-    if (referencesCreateServer) {
-      throw new Error(
-        [
-          "[litzjs] Could not find a direct createServer(...) call to inject in this custom server entry.",
-          "Export createServer() or createServer({ ... }) directly from the configured server entry.",
-        ].join(" "),
-      );
-    }
-
-    return null;
-  }
-
-  let transformed = code;
-
-  for (const replacement of replacements.sort((a, b) => b.start - a.start)) {
-    transformed =
-      transformed.slice(0, replacement.start) +
-      replacement.text +
-      transformed.slice(replacement.end);
-  }
-
-  return {
-    code: `${runtimeSource}${transformed}`,
-    map: createLineOffsetSourceMap(id, code, countLines(runtimeSource)),
-  };
-}
-
-function hasObjectProperty(objectLiteral: ts.ObjectLiteralExpression, name: string): boolean {
-  return objectLiteral.properties.some((property) => {
-    if (ts.isShorthandPropertyAssignment(property)) {
-      return property.name.text === name;
-    }
-
-    if (!ts.isPropertyAssignment(property)) {
-      return false;
-    }
-
-    const propertyName = property.name;
-
-    if (ts.isIdentifier(propertyName) || ts.isStringLiteral(propertyName)) {
-      return propertyName.text === name;
-    }
-
-    return false;
-  });
-}
-
-function getScriptKind(id: string): ts.ScriptKind {
-  if (/\.tsx$/i.test(id)) return ts.ScriptKind.TSX;
-  if (/\.jsx$/i.test(id)) return ts.ScriptKind.JSX;
-  if (/\.ts$/i.test(id)) return ts.ScriptKind.TS;
-  return ts.ScriptKind.JS;
-}
-
-function countLines(source: string): number {
-  return source === "" ? 0 : source.split("\n").length - 1;
-}
-
-function createLineOffsetSourceMap(id: string, source: string, lineOffset: number): LitzSourceMap {
-  const lineCount = source.split("\n").length;
-  const mappings = [
-    ...Array.from({ length: lineOffset }, () => ""),
-    ...Array.from({ length: lineCount }, (_, index) =>
-      encodeVlqSegments(index === 0 ? [0, 0, 0, 0] : [0, 0, 1, 0]),
-    ),
-  ].join(";");
-
-  return {
-    version: 3,
-    sources: [id],
-    sourcesContent: [source],
-    names: [],
-    mappings,
-  };
-}
-
-function encodeVlqSegments(values: number[]): string {
-  return values.map(encodeVlqValue).join("");
-}
-
-function encodeVlqValue(value: number): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  let vlq = value < 0 ? (-value << 1) | 1 : value << 1;
-  let encoded = "";
-
-  do {
-    let digit = vlq & 31;
-    vlq >>>= 5;
-
-    if (vlq > 0) {
-      digit |= 32;
-    }
-
-    encoded += chars[digit];
-  } while (vlq > 0);
-
-  return encoded;
-}
-
-function createInlineServerRuntime(
+function createServerRuntimeOptionsModule(
   root: string,
   base: string,
   serverManifestModule: string,
 ): string {
   return [
     serverManifestModule
-      .replace("export const serverManifest =", "const __litzjsServerManifest =")
+      .replace("export const serverManifest =", "const serverManifest =")
       .trimStart(),
-    `const __litzjsBase = ${JSON.stringify(base)};`,
+    `const base = ${JSON.stringify(base)};`,
     `const __litzjsDocumentTemplate = ${JSON.stringify(readDocumentTemplate(root))};`,
     `const __litzjsClientEntry = "__LITZJS_CLIENT_ENTRY__";`,
     `const __litzjsClientStyles = __LITZJS_CLIENT_STYLES__;`,
@@ -803,12 +591,12 @@ function createInlineServerRuntime(
     '  return html.replace(/<script\\b(?=[^>]*\\btype=["\']module["\'])(?=[^>]*\\bsrc=["\'][^"\']+["\'])[^>]*>\\s*<\\/script>/gi, "");',
     "}",
     "",
-    "function __litzjsCreateDocumentResponse(request) {",
+    "function document(request) {",
     '  if (request.method !== "GET" && request.method !== "HEAD") return null;',
     '  const accept = request.headers.get("accept") ?? "";',
     '  if (!accept.includes("text/html") && !accept.includes("*/*")) return null;',
-    '  const script = __litzjsClientEntry ? `<script type="module" src="${__litzjsJoinBase(__litzjsBase, __litzjsClientEntry)}"></script>` : "";',
-    '  const styles = __litzjsClientStyles.map((href) => `<link rel="stylesheet" crossorigin href="${__litzjsJoinBase(__litzjsBase, href)}">`).join("\\n");',
+    '  const script = __litzjsClientEntry ? `<script type="module" src="${__litzjsJoinBase(base, __litzjsClientEntry)}"></script>` : "";',
+    '  const styles = __litzjsClientStyles.map((href) => `<link rel="stylesheet" crossorigin href="${__litzjsJoinBase(base, href)}">`).join("\\n");',
     "  const html = __litzjsStripDevModuleScripts(__litzjsDocumentTemplate).replace(/<\\/head>/i, `${styles}\\n  </head>`).replace(/<\\/body>/i, `${script}\\n  </body>`);",
     '  return new Response(request.method === "HEAD" ? null : html, {',
     "    status: 200,",
@@ -816,6 +604,11 @@ function createInlineServerRuntime(
     "  });",
     "}",
     "",
+    "export const runtimeOptions = {",
+    "  base,",
+    "  document,",
+    "  manifest: serverManifest,",
+    "};",
   ].join("\n");
 }
 

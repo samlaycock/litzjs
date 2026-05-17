@@ -31,50 +31,6 @@ export interface LitzRouteRule {
       };
 }
 
-export interface LitzNitroPluginOptions {
-  /** Path to the server entry file used by the Nitro renderer. */
-  readonly server?: string;
-  /**
-   * Deployment preset. Determines the server output format and runtime
-   * adapter (e.g. `"node-server"`, `"cloudflare-pages"`, `"vercel"`).
-   */
-  readonly preset?: string;
-  /**
-   * Per-route rules for caching, headers, redirects, pre-rendering, and
-   * proxying. Keys are path patterns (e.g. `"/api/**"`).
-   */
-  readonly routeRules?: Readonly<Record<string, LitzRouteRule>>;
-  /**
-   * Compress static assets with gzip, brotli, or zstd. Pass `true` to
-   * enable all supported algorithms, or an object to pick individually.
-   */
-  readonly compressPublicAssets?:
-    | boolean
-    | {
-        readonly gzip?: boolean;
-        readonly brotli?: boolean;
-        readonly zstd?: boolean;
-      };
-  /** Base URL path for the application (e.g. `"/app/"`). */
-  readonly baseURL?: string;
-  /** Generate source maps for the server build. */
-  readonly sourcemap?: boolean;
-  /** Minify the server build output. */
-  readonly minify?: boolean;
-  /**
-   * Nitro build output directories. Defaults to Vite's standard `dist`
-   * directory with `public` and `server` subdirectories.
-   */
-  readonly output?: {
-    /** Final build output directory. */
-    readonly dir?: string;
-    /** Browser/static asset output directory. */
-    readonly publicDir?: string;
-    /** Server runtime output directory. */
-    readonly serverDir?: string;
-  };
-}
-
 export interface LitzPluginOptions {
   /** Path to a server entry file. Omit to skip the server build. */
   readonly server?: string;
