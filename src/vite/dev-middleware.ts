@@ -25,7 +25,11 @@ import {
 } from "../path-matching";
 import { cancelResponseBody } from "../response-body";
 import { createSearchParams, type SearchParamRecord } from "../search-params";
-import { parseInternalRequestBody, type InternalRequestBody } from "../server/internal-requests";
+import {
+  isMalformedInternalRequestError,
+  parseInternalRequestBody,
+  type InternalRequestBody,
+} from "../server/internal-requests";
 import { createInternalHandlerHeaders } from "../server/request-headers";
 import { toImportSpecifier } from "./paths";
 import { LITZ_RSC_RENDERER_ID } from "./virtual-ids";
@@ -193,6 +197,11 @@ export async function handleLitzResourceRequest(
 
     await sendServerResult(server, response, result, viewId);
   } catch (error) {
+    if (isMalformedInternalRequestError(error)) {
+      sendMalformedInternalRequest(response);
+      return;
+    }
+
     if (isServerResultLike(error)) {
       await sendServerResult(server, response, error, viewId);
       return;
@@ -391,6 +400,11 @@ export async function handleLitzRouteRequest(
 
     await sendServerResult(server, response, result, viewId);
   } catch (error) {
+    if (isMalformedInternalRequestError(error)) {
+      sendMalformedInternalRequest(response);
+      return;
+    }
+
     if (isServerResultLike(error)) {
       await sendServerResult(server, response, error, viewId);
       return;
@@ -865,6 +879,13 @@ function sendBadRequest(response: ServerResponse): void {
   response.statusCode = 400;
   response.setHeader("content-type", "text/plain; charset=utf-8");
   response.end("Bad Request");
+}
+
+function sendMalformedInternalRequest(response: ServerResponse): void {
+  sendLitzJson(response, 400, {
+    kind: "fault",
+    message: "Malformed internal request.",
+  });
 }
 
 function applyHeaders(response: ServerResponse, headers?: HeadersInit): void {

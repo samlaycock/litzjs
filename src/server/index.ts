@@ -21,7 +21,11 @@ import {
 } from "../path-matching";
 import { cancelResponseBody } from "../response-body";
 import { createSearchParams, type SearchParamRecord } from "../search-params";
-import { parseInternalRequestBody, type InternalRequestBody } from "./internal-requests";
+import {
+  isMalformedInternalRequestError,
+  parseInternalRequestBody,
+  type InternalRequestBody,
+} from "./internal-requests";
 import { createInternalHandlerHeaders } from "./request-headers";
 
 type Awaitable<T> = T | Promise<T>;
@@ -500,6 +504,10 @@ async function handleResourceRequest<TContext>(
 
     return createServerResultResponse(result, viewId, dataSerializer);
   } catch (error) {
+    if (isMalformedInternalRequestError(error)) {
+      return createMalformedInternalRequestResponse(dataSerializer);
+    }
+
     if (isServerResultLike(error)) {
       return createServerResultResponse(error, viewId, dataSerializer);
     }
@@ -652,6 +660,10 @@ async function handleRouteRequest<TContext>(
 
     return createServerResultResponse(result, viewId, dataSerializer);
   } catch (error) {
+    if (isMalformedInternalRequestError(error)) {
+      return createMalformedInternalRequestResponse(dataSerializer);
+    }
+
     if (isServerResultLike(error)) {
       return createServerResultResponse(error, viewId, dataSerializer);
     }
@@ -1164,6 +1176,18 @@ function createUnhandledFaultResponse(dataSerializer = jsonDataSerializer): Resp
     {
       kind: "fault",
       message: "Internal server error.",
+    },
+    undefined,
+    dataSerializer,
+  );
+}
+
+function createMalformedInternalRequestResponse(dataSerializer = jsonDataSerializer): Response {
+  return createLitzJsonResponse(
+    400,
+    {
+      kind: "fault",
+      message: "Malformed internal request.",
     },
     undefined,
     dataSerializer,
