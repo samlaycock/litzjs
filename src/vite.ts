@@ -573,9 +573,7 @@ function createServerRuntimeOptionsModule(
   serverManifestModule: string,
 ): string {
   return [
-    serverManifestModule
-      .replace("export const serverManifest =", "const serverManifest =")
-      .trimStart(),
+    createPrivateServerManifestModule(serverManifestModule),
     `const base = ${JSON.stringify(base)};`,
     `const __litzjsDocumentTemplate = ${JSON.stringify(readDocumentTemplate(root))};`,
     `const __litzjsClientEntry = "__LITZJS_CLIENT_ENTRY__";`,
@@ -610,6 +608,19 @@ function createServerRuntimeOptionsModule(
     "  manifest: serverManifest,",
     "};",
   ].join("\n");
+}
+
+function createPrivateServerManifestModule(serverManifestModule: string): string {
+  const privateServerManifestModule = serverManifestModule.replace(
+    "export const serverManifest =",
+    "const serverManifest =",
+  );
+
+  if (privateServerManifestModule === serverManifestModule) {
+    throw new Error("[litzjs] Failed to make the generated server manifest module private.");
+  }
+
+  return privateServerManifestModule.trimStart();
 }
 
 function readDocumentTemplate(root: string): string {

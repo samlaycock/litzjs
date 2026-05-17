@@ -281,4 +281,31 @@ function HomePage() {
     expect(projected).not.toContain("Client-only component code");
     expect(projected).not.toContain("Link");
   });
+
+  test("keeps non-route component object references in server output", () => {
+    const source = `
+import { defineRoute } from "litzjs";
+import { Widget } from "./widget";
+
+const uiConfig = {
+  component: Widget,
+};
+
+export const route = defineRoute("/", {
+  component: HomePage,
+  loader: () => uiConfig.component.name,
+});
+
+function HomePage() {
+  return <main>Home</main>;
+}
+`;
+
+    const projected = createServerModuleProjection("/virtual/routes/home.tsx", source);
+
+    expect(projected).toContain('import { Widget } from "./widget";');
+    expect(projected).toContain("component: Widget");
+    expect(projected).toContain("uiConfig.component.name");
+    expect(projected).not.toContain("HomePage");
+  });
 });

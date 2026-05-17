@@ -516,7 +516,7 @@ function shouldSkipServerProjectionSubtree(node: ts.Node): boolean {
     (ts.isPropertyAssignment(node) ||
       ts.isMethodDeclaration(node) ||
       ts.isShorthandPropertyAssignment(node)) &&
-    getProjectionNodePropertyName(node) === "component"
+    isServerComponentProjectionProperty(node)
   );
 }
 
@@ -803,4 +803,29 @@ function isServerOnlyProjectionProperty(
   }
 
   return false;
+}
+
+function isServerComponentProjectionProperty(
+  node: ts.PropertyAssignment | ts.MethodDeclaration | ts.ShorthandPropertyAssignment,
+): boolean {
+  if (getProjectionNodePropertyName(node) !== "component") {
+    return false;
+  }
+
+  const parent = node.parent;
+
+  if (!ts.isObjectLiteralExpression(parent)) {
+    return false;
+  }
+
+  const call = parent.parent;
+
+  return (
+    ts.isCallExpression(call) &&
+    ts.isIdentifier(call.expression) &&
+    (call.expression.text === "defineRoute" ||
+      call.expression.text === "defineLayout" ||
+      call.expression.text === "defineResource") &&
+    call.arguments[1] === parent
+  );
 }

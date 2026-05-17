@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { data, defineApiRoute, defineApp, defineResource, defineRoute, server } from "../src";
-import { createServer } from "../src/server";
+import { __withLitzRuntimeOptions, createServer } from "../src/server";
 import { createInternalActionRequestInit } from "../src/server/internal-requests";
 
 describe("explicit app registration", () => {
@@ -114,5 +114,19 @@ describe("explicit app registration", () => {
         },
       }),
     ).toThrow("Pass either createServer({ app }) or createServer({ manifest }), not both.");
+  });
+
+  test("generated runtime options reject server entries not created by createServer", () => {
+    expect(() =>
+      __withLitzRuntimeOptions(
+        {
+          fetch: async () => new Response("ok"),
+        },
+        {
+          base: "/app",
+          manifest: {},
+        },
+      ),
+    ).toThrow("must export a server created by createServer()");
   });
 });
