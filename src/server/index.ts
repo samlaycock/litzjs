@@ -577,7 +577,7 @@ async function handleRouteRequest<TContext>(
         batchTargets.push(batchTarget);
       }
 
-      const batchResults = await Promise.all(
+      const batchResults = await Promise.allSettled(
         batchTargets.map((batchTarget) =>
           executeRouteTarget({
             route,
@@ -593,19 +593,9 @@ async function handleRouteRequest<TContext>(
       const results: BatchedLoaderResponseEntry[] = [];
 
       for (const batchResult of batchResults) {
-        const serializedResult = createBatchedLoaderResponseEntry(batchResult);
-
-        if (!serializedResult) {
-          return createLitzJsonResponse(
-            409,
-            {
-              kind: "fault",
-              message: "Batched route loaders do not support view results.",
-            },
-            undefined,
-            dataSerializer,
-          );
-        }
+        const serializedResult = createSettledBatchedLoaderResponseEntry(batchResult, (error) =>
+          reportError?.(error, getLoadedContext?.()),
+        );
 
         results.push(serializedResult);
       }
@@ -956,6 +946,42 @@ function createBatchedLoaderResponseEntry(result: unknown): BatchedLoaderRespons
         },
       };
   }
+}
+
+function createSettledBatchedLoaderResponseEntry(
+  result: PromiseSettledResult<unknown>,
+  reportError?: (error: unknown) => void,
+): BatchedLoaderResponseEntry {
+  if (result.status === "rejected") {
+    if (isServerResultLike(result.reason)) {
+      return createBatchedLoaderResponseEntry(result.reason) ?? createUnsupportedViewBatchFault();
+    }
+
+    reportError?.(result.reason);
+    return createUnhandledBatchedLoaderFault();
+  }
+
+  return createBatchedLoaderResponseEntry(result.value) ?? createUnsupportedViewBatchFault();
+}
+
+function createUnsupportedViewBatchFault(): BatchedLoaderResponseEntry {
+  return {
+    status: 409,
+    body: {
+      kind: "fault",
+      message: "Batched route loaders do not support view results.",
+    },
+  };
+}
+
+function createUnhandledBatchedLoaderFault(): BatchedLoaderResponseEntry {
+  return {
+    status: 500,
+    body: {
+      kind: "fault",
+      message: "Internal server error.",
+    },
+  };
 }
 
 async function createServerResultResponse(
