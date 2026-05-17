@@ -399,6 +399,221 @@ describe("resource runtime", () => {
     ]);
   });
 
+  test("resource actions honor revalidate: true before calling onSuccess", async () => {
+    const events: string[] = [];
+    let loaderCalls = 0;
+    let actionCalls = 0;
+
+    const revalidateResource = defineResource("/resource/revalidate-true/:id", {
+      component: function RevalidateResource() {
+        const details = revalidateResource.useData() as { count: number } | null;
+        const submit = revalidateResource.useSubmit({
+          revalidate: true,
+          onSuccess() {
+            events.push(
+              `success:${document.querySelector(".revalidate-count")?.getAttribute("data-value")}`,
+            );
+          },
+        });
+
+        return (
+          <section>
+            <div className="revalidate-count" data-value={details?.count ?? -1} />
+            <button
+              type="button"
+              className="revalidate-submit"
+              onClick={() => {
+                void submit({ increment: "1" });
+              }}
+            >
+              Submit
+            </button>
+          </section>
+        );
+      },
+      loader: server(async () => data({ count: 1 })),
+      action: server(async () => data({ count: 2 })),
+    });
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+
+      if (headers.has("x-litzjs-request")) {
+        actionCalls += 1;
+        return Response.json({
+          kind: "data",
+          data: { count: 2 },
+        });
+      }
+
+      loaderCalls += 1;
+      return Response.json({
+        kind: "data",
+        data: { count: loaderCalls === 1 ? 1 : 3 },
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<revalidateResource.Component params={{ id: "user-true" }} />);
+      await flushDom();
+    });
+
+    await act(async () => {
+      (document.querySelector(".revalidate-submit") as HTMLButtonElement).click();
+      await flushDom();
+    });
+
+    expect(actionCalls).toBe(1);
+    expect(loaderCalls).toBe(2);
+    expect(document.querySelector(".revalidate-count")?.getAttribute("data-value")).toBe("3");
+    expect(events).toEqual(["success:3"]);
+  });
+
+  test("resource actions honor revalidate: false by keeping action data until onSuccess", async () => {
+    const events: string[] = [];
+    let loaderCalls = 0;
+    let actionCalls = 0;
+
+    const revalidateResource = defineResource("/resource/revalidate-false/:id", {
+      component: function RevalidateResource() {
+        const details = revalidateResource.useData() as { count: number } | null;
+        const submit = revalidateResource.useSubmit({
+          revalidate: false,
+          onSuccess() {
+            events.push(
+              `success:${document.querySelector(".revalidate-count")?.getAttribute("data-value")}`,
+            );
+          },
+        });
+
+        return (
+          <section>
+            <div className="revalidate-count" data-value={details?.count ?? -1} />
+            <button
+              type="button"
+              className="revalidate-submit"
+              onClick={() => {
+                void submit({ increment: "1" });
+              }}
+            >
+              Submit
+            </button>
+          </section>
+        );
+      },
+      loader: server(async () => data({ count: 1 })),
+      action: server(async () => data({ count: 2 })),
+    });
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+
+      if (headers.has("x-litzjs-request")) {
+        actionCalls += 1;
+        return Response.json(
+          {
+            kind: "data",
+            data: { count: 2 },
+          },
+          {
+            headers: {
+              "x-litzjs-revalidate": "/resource/revalidate-false/:id",
+            },
+          },
+        );
+      }
+
+      loaderCalls += 1;
+      return Response.json({
+        kind: "data",
+        data: { count: loaderCalls === 1 ? 1 : 3 },
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<revalidateResource.Component params={{ id: "user-false" }} />);
+      await flushDom();
+    });
+
+    await act(async () => {
+      (document.querySelector(".revalidate-submit") as HTMLButtonElement).click();
+      await flushDom();
+    });
+
+    expect(actionCalls).toBe(1);
+    expect(loaderCalls).toBe(1);
+    expect(document.querySelector(".revalidate-count")?.getAttribute("data-value")).toBe("2");
+    expect(events).toEqual(["success:2"]);
+  });
+
+  test("resource actions revalidate when server targets the resource path", async () => {
+    let loaderCalls = 0;
+    let actionCalls = 0;
+
+    const revalidateResource = defineResource("/resource/revalidate-header/:id", {
+      component: function RevalidateResource() {
+        const details = revalidateResource.useData() as { count: number } | null;
+        const submit = revalidateResource.useSubmit();
+
+        return (
+          <section>
+            <div className="revalidate-count" data-value={details?.count ?? -1} />
+            <button
+              type="button"
+              className="revalidate-submit"
+              onClick={() => {
+                void submit({ increment: "1" });
+              }}
+            >
+              Submit
+            </button>
+          </section>
+        );
+      },
+      loader: server(async () => data({ count: 1 })),
+      action: server(async () => data({ count: 2 })),
+    });
+
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+
+      if (headers.has("x-litzjs-request")) {
+        actionCalls += 1;
+        return Response.json(
+          {
+            kind: "data",
+            data: { count: 2 },
+          },
+          {
+            headers: {
+              "x-litzjs-revalidate": "/resource/other/:id, /resource/revalidate-header/:id",
+            },
+          },
+        );
+      }
+
+      loaderCalls += 1;
+      return Response.json({
+        kind: "data",
+        data: { count: loaderCalls === 1 ? 1 : 3 },
+      });
+    }) as typeof fetch;
+
+    await act(async () => {
+      root?.render(<revalidateResource.Component params={{ id: "user-header" }} />);
+      await flushDom();
+    });
+
+    await act(async () => {
+      (document.querySelector(".revalidate-submit") as HTMLButtonElement).click();
+      await flushDom();
+    });
+
+    expect(actionCalls).toBe(1);
+    expect(loaderCalls).toBe(2);
+    expect(document.querySelector(".revalidate-count")?.getAttribute("data-value")).toBe("3");
+  });
+
   test("resource component cache uses the latest component implementation after HMR", async () => {
     globalThis.fetch = (async () =>
       Response.json({
