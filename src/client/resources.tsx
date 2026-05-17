@@ -433,6 +433,10 @@ function useResourceRuntime(resourcePath: string, request?: ResourceRequest): Re
         return;
       }
 
+      if (result.kind === "redirect") {
+        return;
+      }
+
       if (result.kind === "error" || result.kind === "fault") {
         options?.onError?.(result);
         return;
