@@ -19,7 +19,7 @@ import {
   type SearchParamRecord,
 } from "../search-params";
 import { isAbortError } from "./abort-error";
-import { resolveClientTransportPath } from "./base-url";
+import { resolveClientHref, resolveClientTransportPath } from "./base-url";
 import { applySearchParams } from "./navigation";
 import { sortRecord } from "./sort-record";
 import {
@@ -903,11 +903,13 @@ function performClientRedirect(href: string, replace: boolean): void {
     return;
   }
 
+  const resolvedHref = resolveClientHref(href);
+
   if (replace) {
-    window.history.replaceState(null, "", href);
+    window.history.replaceState(null, "", resolvedHref);
   } else {
-    window.history.pushState(null, "", href);
+    window.history.pushState(null, "", resolvedHref);
   }
 
-  window.dispatchEvent(new PopStateEvent("popstate"));
+  window.dispatchEvent(new window.PopStateEvent("popstate"));
 }
