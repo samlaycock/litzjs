@@ -741,6 +741,101 @@ describe("server security", () => {
     });
   });
 
+  test("serializes partial batched route loader failures without rerunning successful siblings", async () => {
+    let layoutCalls = 0;
+    let routeCalls = 0;
+
+    const server = createServer({
+      manifest: {
+        routes: [
+          {
+            id: "projects.show",
+            path: "/projects/:id",
+            route: {
+              loader() {
+                routeCalls += 1;
+                throw new Error("route loader failed");
+              },
+              options: {
+                layout: {
+                  id: "projects.layout",
+                  path: "/projects",
+                  options: {
+                    loader() {
+                      layoutCalls += 1;
+
+                      return {
+                        kind: "data",
+                        data: {
+                          source: "layout",
+                        },
+                      };
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/route", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          path: "/projects/:id",
+          targets: ["projects.layout", "projects.show"],
+          operation: "loader",
+          request: {
+            params: { id: "42" },
+          },
+        }),
+      }),
+    );
+    const body = (await response.json()) as {
+      kind: "batch";
+      results: Array<{
+        status: number;
+        body: {
+          kind: "data" | "fault";
+          data?: {
+            source: string;
+          };
+          message?: string;
+          revalidate?: string[];
+        };
+      }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.kind).toBe("batch");
+    expect(layoutCalls).toBe(1);
+    expect(routeCalls).toBe(1);
+    expect(body.results).toEqual([
+      {
+        status: 200,
+        body: {
+          kind: "data",
+          data: {
+            source: "layout",
+          },
+          revalidate: [],
+        },
+      },
+      {
+        status: 500,
+        body: {
+          kind: "fault",
+          message: "Internal server error.",
+        },
+      },
+    ]);
+  });
+
   test("executes batched internal route loader requests concurrently", async () => {
     const startedTargets: string[] = [];
     const routeDeferred = createDeferred<string>();

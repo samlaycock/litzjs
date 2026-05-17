@@ -338,7 +338,7 @@ export async function handleLitzRouteRequest(
         batchTargets.push(batchTarget);
       }
 
-      const batchResults = await Promise.all(
+      const batchResults = await Promise.allSettled(
         batchTargets.map((batchTarget) =>
           executeDevRouteTarget({
             route,
@@ -353,15 +353,7 @@ export async function handleLitzRouteRequest(
       const results: BatchedLoaderResponseEntry[] = [];
 
       for (const batchResult of batchResults) {
-        const serializedResult = createDevBatchedLoaderResponseEntry(batchResult);
-
-        if (!serializedResult) {
-          sendLitzJson(response, 409, {
-            kind: "fault",
-            message: "Batched route loaders do not support view results.",
-          });
-          return;
-        }
+        const serializedResult = createSettledDevBatchedLoaderResponseEntry(server, batchResult);
 
         results.push(serializedResult);
       }
@@ -1187,6 +1179,45 @@ function createDevBatchedLoaderResponseEntry(result: unknown): BatchedLoaderResp
         },
       };
   }
+}
+
+function createSettledDevBatchedLoaderResponseEntry(
+  server: ViteDevServer,
+  result: PromiseSettledResult<unknown>,
+): BatchedLoaderResponseEntry {
+  if (result.status === "rejected") {
+    if (isServerResultLike(result.reason)) {
+      return (
+        createDevBatchedLoaderResponseEntry(result.reason) ?? createUnsupportedViewBatchFault()
+      );
+    }
+
+    server.ssrFixStacktrace(result.reason as Error);
+    console.error(result.reason);
+    return createUnhandledBatchedLoaderFault();
+  }
+
+  return createDevBatchedLoaderResponseEntry(result.value) ?? createUnsupportedViewBatchFault();
+}
+
+function createUnsupportedViewBatchFault(): BatchedLoaderResponseEntry {
+  return {
+    status: 409,
+    body: {
+      kind: "fault",
+      message: "Batched route loaders do not support view results.",
+    },
+  };
+}
+
+function createUnhandledBatchedLoaderFault(): BatchedLoaderResponseEntry {
+  return {
+    status: 500,
+    body: {
+      kind: "fault",
+      message: "Route request failed.",
+    },
+  };
 }
 
 /**
