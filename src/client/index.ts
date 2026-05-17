@@ -52,7 +52,7 @@ import {
   useRequiredRouteStatus,
 } from "./runtime";
 import { sortRecord } from "./sort-record";
-import { getRevalidateTargets } from "./transport";
+import { configureDataSerializer, getRevalidateTargets } from "./transport";
 
 installClientBindings({
   usePathname,
@@ -163,8 +163,15 @@ export interface MountAppOptions {
   readonly focusManagement?: boolean;
 }
 
-export function configureClientRuntime(options: { baseUrl?: string | undefined }): void {
+export function configureClientRuntime(options: {
+  baseUrl?: string | undefined;
+  dataSerializer?: LitzAppDefinition["dataSerializer"];
+}): void {
   configureClientBaseUrl(options.baseUrl);
+
+  if (Object.prototype.hasOwnProperty.call(options, "dataSerializer")) {
+    configureDataSerializer(options.dataSerializer);
+  }
 }
 
 configureActiveManifest(defaultManifest);
@@ -172,6 +179,7 @@ configureActiveManifest(defaultManifest);
 export function mountApp(element: Element, options?: MountAppOptions): void {
   const resolvedOptions = normalizeMountAppOptions(options);
   configureActiveManifest(createManifestFromApp(resolvedOptions?.app));
+  configureDataSerializer(resolvedOptions?.app?.dataSerializer);
 
   void import("react-dom/client").then(({ createRoot }) => {
     const root = createRoot(element);

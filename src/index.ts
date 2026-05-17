@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import type { DataSerializer } from "./data-serializer";
 import type { SubmitPayload } from "./form-data";
 
 import { resolveClientHref } from "./client/base-url";
@@ -15,6 +16,7 @@ export {
   type SubmitPayload,
 } from "./form-data";
 export type { SearchParamRecord, SearchParamValue } from "./search-params";
+export type { DataSerializer } from "./data-serializer";
 
 export type MiddlewareOverrides<TContext = unknown> = {
   context?: TContext;
@@ -794,6 +796,7 @@ export interface DefineAppOptions<
   TApiRoutes extends readonly AppApiRouteRegistration[] = readonly AppApiRouteRegistration[],
 > {
   readonly clientLoading?: ClientLoadingMode;
+  readonly dataSerializer?: DataSerializer;
   readonly routes?: TRoutes;
   readonly resources?: TResources;
   readonly apiRoutes?: TApiRoutes;
@@ -805,6 +808,7 @@ export interface LitzApp<
   TApiRoutes extends readonly AppApiRouteRegistration[] = readonly AppApiRouteRegistration[],
 > {
   readonly clientLoading: ClientLoadingMode;
+  readonly dataSerializer?: DataSerializer;
   readonly routes: TRoutes;
   readonly resources: TResources;
   readonly apiRoutes: TApiRoutes;
@@ -1299,6 +1303,7 @@ export function defineApp<
 
   return {
     clientLoading: options.clientLoading ?? "lazy",
+    dataSerializer: options.dataSerializer,
     routes: options.routes ?? ([] as unknown as TRoutes),
     resources: options.resources ?? ([] as unknown as TResources),
     apiRoutes: options.apiRoutes ?? ([] as unknown as TApiRoutes),

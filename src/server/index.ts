@@ -1,6 +1,7 @@
 import type { ApiRouteMethod, LitzApp } from "../index";
 
 import { normalizeBasePath, resolveBasePathname } from "../base-path";
+import { jsonDataSerializer, type DataSerializer } from "../data-serializer";
 import {
   createBodylessResponse,
   createApiResponseFromResult,
@@ -165,6 +166,7 @@ export type CreateServerOptions<TContext = unknown> = {
   document?: DocumentResponseOption;
   notFound?: DocumentResponseOption;
   assets?: (request: Request) => Promise<Response | null | undefined> | Response | null | undefined;
+  dataSerializer?: DataSerializer;
 };
 
 export function createServer<TContext = unknown>(
@@ -172,6 +174,8 @@ export function createServer<TContext = unknown>(
 ): LitzRuntimeServer<TContext> {
   const manifest = normalizeServerManifest(options.manifest, options.app);
   const basePath = normalizeBasePath(options.base);
+  const dataSerializer =
+    options.app?.dataSerializer ?? options.dataSerializer ?? jsonDataSerializer;
 
   async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -202,6 +206,7 @@ export function createServer<TContext = unknown>(
           options.validateInternalRequest,
           (error, context) => options.onError?.(error, context),
           () => (contextLoaded ? contextValue : undefined),
+          dataSerializer,
         );
       }
 
@@ -214,6 +219,7 @@ export function createServer<TContext = unknown>(
           (error, context) => options.onError?.(error, context),
           () => (contextLoaded ? contextValue : undefined),
           basePath,
+          dataSerializer,
         );
       }
 
@@ -397,6 +403,7 @@ async function handleResourceRequest<TContext>(
   validateInternalRequest?: InternalRequestValidator<TContext>,
   reportError?: (error: unknown, context: TContext | undefined) => void,
   getLoadedContext?: () => TContext | undefined,
+  dataSerializer = jsonDataSerializer,
 ): Promise<Response> {
   let viewId = "litzjs#view";
 
@@ -425,7 +432,12 @@ async function handleResourceRequest<TContext>(
     const entry = resources.find((resource) => resource.path === resourcePath);
 
     if (!resourcePath || !entry?.resource) {
-      return createLitzJsonResponse(404, { kind: "fault", message: "Resource not found." });
+      return createLitzJsonResponse(
+        404,
+        { kind: "fault", message: "Resource not found." },
+        undefined,
+        dataSerializer,
+      );
     }
 
     const resource = entry.resource;
@@ -434,10 +446,15 @@ async function handleResourceRequest<TContext>(
     viewId = `${entry.path}#${operation}`;
 
     if (!handler) {
-      return createLitzJsonResponse(405, {
-        kind: "fault",
-        message: `Resource does not define a ${operation}.`,
-      });
+      return createLitzJsonResponse(
+        405,
+        {
+          kind: "fault",
+          message: `Resource does not define a ${operation}.`,
+        },
+        undefined,
+        dataSerializer,
+      );
     }
 
     const normalizedRequest = normalizeInternalRequest(
@@ -472,14 +489,14 @@ async function handleResourceRequest<TContext>(
       },
     });
 
-    return createServerResultResponse(result, viewId);
+    return createServerResultResponse(result, viewId, dataSerializer);
   } catch (error) {
     if (isServerResultLike(error)) {
-      return createServerResultResponse(error, viewId);
+      return createServerResultResponse(error, viewId, dataSerializer);
     }
 
     reportError?.(error, getLoadedContext?.());
-    return createUnhandledFaultResponse();
+    return createUnhandledFaultResponse(dataSerializer);
   }
 }
 
@@ -491,6 +508,7 @@ async function handleRouteRequest<TContext>(
   reportError?: (error: unknown, context: TContext | undefined) => void,
   getLoadedContext?: () => TContext | undefined,
   base?: string,
+  dataSerializer = jsonDataSerializer,
 ): Promise<Response> {
   let viewId = "litzjs#view";
 
@@ -523,7 +541,12 @@ async function handleRouteRequest<TContext>(
     const entry = routes.find((route) => route.path === routePath);
 
     if (!routePath || !entry?.route) {
-      return createLitzJsonResponse(404, { kind: "fault", message: "Route not found." });
+      return createLitzJsonResponse(
+        404,
+        { kind: "fault", message: "Route not found." },
+        undefined,
+        dataSerializer,
+      );
     }
 
     const route = entry.route;
@@ -543,7 +566,12 @@ async function handleRouteRequest<TContext>(
         const batchTarget = findTargetRouteMatch(chain, batchTargetId);
 
         if (!batchTarget) {
-          return createLitzJsonResponse(404, { kind: "fault", message: "Route target not found." });
+          return createLitzJsonResponse(
+            404,
+            { kind: "fault", message: "Route target not found." },
+            undefined,
+            dataSerializer,
+          );
         }
 
         batchTargets.push(batchTarget);
@@ -568,19 +596,29 @@ async function handleRouteRequest<TContext>(
         const serializedResult = createBatchedLoaderResponseEntry(batchResult);
 
         if (!serializedResult) {
-          return createLitzJsonResponse(409, {
-            kind: "fault",
-            message: "Batched route loaders do not support view results.",
-          });
+          return createLitzJsonResponse(
+            409,
+            {
+              kind: "fault",
+              message: "Batched route loaders do not support view results.",
+            },
+            undefined,
+            dataSerializer,
+          );
         }
 
         results.push(serializedResult);
       }
 
-      return createLitzJsonResponse(200, {
-        kind: "batch",
-        results,
-      });
+      return createLitzJsonResponse(
+        200,
+        {
+          kind: "batch",
+          results,
+        },
+        undefined,
+        dataSerializer,
+      );
     }
 
     const target =
@@ -589,7 +627,12 @@ async function handleRouteRequest<TContext>(
         : findTargetRouteMatch(chain, targetId ?? routePath);
 
     if (!target) {
-      return createLitzJsonResponse(404, { kind: "fault", message: "Route target not found." });
+      return createLitzJsonResponse(
+        404,
+        { kind: "fault", message: "Route target not found." },
+        undefined,
+        dataSerializer,
+      );
     }
 
     viewId = `${target.id}#${operation}`;
@@ -603,14 +646,14 @@ async function handleRouteRequest<TContext>(
       context,
     });
 
-    return createServerResultResponse(result, viewId);
+    return createServerResultResponse(result, viewId, dataSerializer);
   } catch (error) {
     if (isServerResultLike(error)) {
-      return createServerResultResponse(error, viewId);
+      return createServerResultResponse(error, viewId, dataSerializer);
     }
 
     reportError?.(error, getLoadedContext?.());
-    return createUnhandledFaultResponse();
+    return createUnhandledFaultResponse(dataSerializer);
   }
 }
 
@@ -918,12 +961,18 @@ function createBatchedLoaderResponseEntry(result: unknown): BatchedLoaderRespons
 async function createServerResultResponse(
   result: unknown,
   viewId = "litzjs#view",
+  dataSerializer = jsonDataSerializer,
 ): Promise<Response> {
   if (!result || typeof result !== "object" || !("kind" in result)) {
-    return createLitzJsonResponse(500, {
-      kind: "fault",
-      message: "Handler returned an unknown result.",
-    });
+    return createLitzJsonResponse(
+      500,
+      {
+        kind: "fault",
+        message: "Handler returned an unknown result.",
+      },
+      undefined,
+      dataSerializer,
+    );
   }
 
   const serverResult = result as {
@@ -955,6 +1004,7 @@ async function createServerResultResponse(
           revalidate: serverResult.revalidate ?? [],
         },
         headers,
+        dataSerializer,
       );
     case "invalid":
       return createLitzJsonResponse(
@@ -966,6 +1016,7 @@ async function createServerResultResponse(
           data: serverResult.data,
         },
         headers,
+        dataSerializer,
       );
     case "redirect":
       return createLitzJsonResponse(
@@ -977,6 +1028,7 @@ async function createServerResultResponse(
           revalidate: serverResult.revalidate ?? [],
         },
         headers,
+        dataSerializer,
       );
     case "error":
       return createLitzJsonResponse(
@@ -988,6 +1040,7 @@ async function createServerResultResponse(
           data: serverResult.data,
         },
         headers,
+        dataSerializer,
       );
     case "fault":
       return createLitzJsonResponse(
@@ -998,6 +1051,7 @@ async function createServerResultResponse(
           digest: serverResult.digest,
         },
         headers,
+        dataSerializer,
       );
     case "view": {
       headers.set("content-type", "text/x-component");
@@ -1012,10 +1066,15 @@ async function createServerResultResponse(
       });
     }
     default:
-      return createLitzJsonResponse(500, {
-        kind: "fault",
-        message: `Unsupported result kind "${serverResult.kind}".`,
-      });
+      return createLitzJsonResponse(
+        500,
+        {
+          kind: "fault",
+          message: `Unsupported result kind "${serverResult.kind}".`,
+        },
+        undefined,
+        dataSerializer,
+      );
   }
 }
 
@@ -1030,6 +1089,7 @@ function createLitzJsonResponse(
   status: number,
   body: Record<string, unknown>,
   headers?: Headers,
+  dataSerializer = jsonDataSerializer,
 ): Response {
   const responseHeaders = new Headers(headers);
 
@@ -1038,17 +1098,22 @@ function createLitzJsonResponse(
   }
 
   responseHeaders.set("content-type", "application/vnd.litzjs.result+json");
-  return new Response(JSON.stringify(body), {
+  return new Response(dataSerializer.stringify(body), {
     status,
     headers: responseHeaders,
   });
 }
 
-function createUnhandledFaultResponse(): Response {
-  return createLitzJsonResponse(500, {
-    kind: "fault",
-    message: "Internal server error.",
-  });
+function createUnhandledFaultResponse(dataSerializer = jsonDataSerializer): Response {
+  return createLitzJsonResponse(
+    500,
+    {
+      kind: "fault",
+      message: "Internal server error.",
+    },
+    undefined,
+    dataSerializer,
+  );
 }
 
 function createBadRequestResponse(): Response {

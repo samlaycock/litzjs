@@ -1,5 +1,6 @@
 import type { ActionHookResult, LoaderHookResult } from "../index";
 
+import { jsonDataSerializer, type DataSerializer } from "../data-serializer";
 import { createPublicResultHeaders } from "./result-headers";
 
 export type LitzJsonBody =
@@ -43,6 +44,12 @@ type BatchedLoaderBody = {
   kind: "batch";
   results: BatchedLoaderEntry[];
 };
+
+let dataSerializer: DataSerializer = jsonDataSerializer;
+
+export function configureDataSerializer(serializer?: DataSerializer): void {
+  dataSerializer = serializer ?? jsonDataSerializer;
+}
 
 export async function parseLoaderResponse(response: Response): Promise<LoaderHookResult> {
   const contentType = response.headers.get("content-type") ?? "";
@@ -111,7 +118,7 @@ export async function parseLoaderBatchResponse(
   }
 
   try {
-    const parsedBody = JSON.parse(bodyText) as unknown;
+    const parsedBody = dataSerializer.parse(bodyText);
 
     if (isBatchedLoaderBody(parsedBody)) {
       return parsedBody.results.map((entry) => {
@@ -331,7 +338,7 @@ async function parseLitzJsonResponse<const TAllowedKinds extends readonly LitzJs
   }
 
   try {
-    const parsedBody = JSON.parse(bodyText) as unknown;
+    const parsedBody = dataSerializer.parse(bodyText);
 
     if (isLitzJsonBody(parsedBody) && allowedKinds.includes(parsedBody.kind)) {
       return parsedBody as Extract<LitzJsonBody, { kind: TAllowedKinds[number] | "fault" }>;
