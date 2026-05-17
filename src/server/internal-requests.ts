@@ -13,11 +13,30 @@ export type {
 } from "../internal-transport";
 export { createInternalActionRequestInit, LITZ_RESULT_ACCEPT } from "../internal-transport";
 
+const MALFORMED_INTERNAL_REQUEST_MESSAGE = "Malformed internal request.";
+
+export class MalformedInternalRequestError extends Error {
+  constructor() {
+    super(MALFORMED_INTERNAL_REQUEST_MESSAGE);
+    this.name = "MalformedInternalRequestError";
+  }
+}
+
+export function isMalformedInternalRequestError(
+  error: unknown,
+): error is MalformedInternalRequestError {
+  return error instanceof MalformedInternalRequestError;
+}
+
 export async function parseInternalRequestBody(request: Request): Promise<InternalRequestBody> {
   const contentType = request.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
-    return (await request.json()) as InternalRequestBody;
+    try {
+      return (await request.json()) as InternalRequestBody;
+    } catch {
+      throw new MalformedInternalRequestError();
+    }
   }
 
   const metadataHeader = request.headers.get(INTERNAL_REQUEST_HEADER);
@@ -26,7 +45,13 @@ export async function parseInternalRequestBody(request: Request): Promise<Intern
     return {};
   }
 
-  const metadata = JSON.parse(metadataHeader) as InternalRequestMetadata;
+  let metadata: InternalRequestMetadata;
+
+  try {
+    metadata = JSON.parse(metadataHeader) as InternalRequestMetadata;
+  } catch {
+    throw new MalformedInternalRequestError();
+  }
 
   if (request.method === "GET" || request.method === "HEAD") {
     return metadata;

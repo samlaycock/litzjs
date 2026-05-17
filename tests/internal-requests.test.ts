@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import { formJson } from "../src";
+import { createServer } from "../src/server";
 import {
   createInternalActionRequestInit,
+  MalformedInternalRequestError,
   parseInternalRequestBody,
 } from "../src/server/internal-requests";
 
@@ -106,5 +108,106 @@ describe("internal action requests", () => {
         },
       ),
     ).toThrow(/null/);
+  });
+
+  test("rejects malformed JSON bodies as malformed internal requests", async () => {
+    try {
+      await parseInternalRequestBody(
+        new Request("http://litz.local/_litzjs/resource", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: '{"secret":"do-not-leak"',
+        }),
+      );
+    } catch (error) {
+      expect(error).toBeInstanceOf(MalformedInternalRequestError);
+      return;
+    }
+
+    throw new Error("Expected malformed JSON body to be rejected");
+  });
+
+  test("rejects malformed internal metadata headers as malformed internal requests", async () => {
+    try {
+      await parseInternalRequestBody(
+        new Request("http://litz.local/_litzjs/action", {
+          method: "POST",
+          headers: {
+            "x-litzjs-request": '{"secret":"do-not-leak"',
+          },
+          body: new FormData(),
+        }),
+      );
+    } catch (error) {
+      expect(error).toBeInstanceOf(MalformedInternalRequestError);
+      return;
+    }
+
+    throw new Error("Expected malformed metadata header to be rejected");
+  });
+
+  test("returns a safe 400 response for malformed internal JSON bodies", async () => {
+    const server = createServer({
+      manifest: {
+        resources: [
+          {
+            path: "/projects",
+            resource: {
+              loader() {
+                return { kind: "data", data: { ok: true } };
+              },
+            },
+          },
+        ],
+      },
+    });
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/resource", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: '{"secret":"do-not-leak"',
+      }),
+    );
+    const text = await response.text();
+
+    expect(response.status).toBe(400);
+    expect(text).toContain("Malformed internal request.");
+    expect(text).not.toContain("do-not-leak");
+  });
+
+  test("returns a safe 400 response for malformed internal metadata headers", async () => {
+    const server = createServer({
+      manifest: {
+        routes: [
+          {
+            id: "projects",
+            path: "/projects",
+            route: {
+              action() {
+                return { kind: "data", data: { ok: true } };
+              },
+            },
+          },
+        ],
+      },
+    });
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/action", {
+        method: "POST",
+        headers: {
+          "x-litzjs-request": '{"secret":"do-not-leak"',
+        },
+        body: new FormData(),
+      }),
+    );
+    const text = await response.text();
+
+    expect(response.status).toBe(400);
+    expect(text).toContain("Malformed internal request.");
+    expect(text).not.toContain("do-not-leak");
   });
 });
