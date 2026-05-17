@@ -1304,7 +1304,9 @@ export function defineApp<
 
   return {
     clientLoading: options.clientLoading ?? "lazy",
-    dataSerializer: options.dataSerializer,
+    ...(Object.prototype.hasOwnProperty.call(options, "dataSerializer")
+      ? { dataSerializer: options.dataSerializer }
+      : {}),
     routes: options.routes ?? ([] as unknown as TRoutes),
     resources: options.resources ?? ([] as unknown as TResources),
     apiRoutes: options.apiRoutes ?? ([] as unknown as TApiRoutes),

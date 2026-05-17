@@ -332,6 +332,44 @@ describe("client wildcard route runtime", () => {
     expect(result.data).toEqual({ count: 9007199254740993n });
   });
 
+  test("mountApp with an app that has no serializer preserves a serializer configured by configureClientRuntime", async () => {
+    clientModule = await import("../src/client/index");
+    const { parseLoaderResponse } = await import("../src/client/transport");
+    const app = defineApp({
+      routes: [projectRoute],
+    });
+
+    clientModule.configureClientRuntime({ dataSerializer: bigintSerializer });
+
+    await act(async () => {
+      clientModule?.mountApp(container!, { app });
+      await flushApp();
+    });
+
+    const result = await parseLoaderResponse(
+      new Response(
+        bigintSerializer.stringify({
+          kind: "data",
+          data: { count: 9007199254740995n },
+        }),
+        {
+          headers: {
+            "content-type": "application/vnd.litzjs.result+json",
+          },
+        },
+      ),
+    );
+
+    expect(Object.prototype.hasOwnProperty.call(app, "dataSerializer")).toBe(false);
+    expect(result.kind).toBe("data");
+
+    if (result.kind !== "data") {
+      throw new Error("Expected data result.");
+    }
+
+    expect(result.data).toEqual({ count: 9007199254740995n });
+  });
+
   test("renders a managed route fault when a lazy route module rejects during navigation", async () => {
     loadBrokenRoute.mockImplementationOnce(async () => Promise.reject(new Error("Chunk 404")));
     clientModule = await import("../src/client/index");
