@@ -1215,7 +1215,7 @@ function createUnhandledBatchedLoaderFault(): BatchedLoaderResponseEntry {
     status: 500,
     body: {
       kind: "fault",
-      message: "Route request failed.",
+      message: "Internal server error.",
     },
   };
 }
