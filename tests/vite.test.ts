@@ -1968,17 +1968,25 @@ describe("dev server abort signal lifecycle", () => {
 
   test("uses GET handlers for HEAD API requests without returning a body", async () => {
     let method = "";
+    let cancelled = false;
     const server = createMockViteDevServer(async () => ({
       api: {
         methods: {
           GET({ request }: { request: Request }) {
             method = request.method;
 
-            return new Response("ready", {
-              headers: {
-                "x-status": "ready",
+            return new Response(
+              new ReadableStream({
+                cancel() {
+                  cancelled = true;
+                },
+              }),
+              {
+                headers: {
+                  "x-status": "ready",
+                },
               },
-            });
+            );
           },
         },
       },
@@ -2002,6 +2010,7 @@ describe("dev server abort signal lifecycle", () => {
     expect(response.getHeaderValue("x-status")).toBe("ready");
     expect(response.getBody()).toBe("");
     expect(method).toBe("HEAD");
+    expect(cancelled).toBe(true);
   });
 
   test("includes Allow headers on API method-not-allowed responses", async () => {
