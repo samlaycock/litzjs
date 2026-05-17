@@ -1,5 +1,12 @@
 # litzjs
 
+## 0.7.0
+
+### Minor Changes
+
+- dc9be2c: Remove the Nitro adapter path and make the Litz Vite plugin emit the canonical client build plus optional fetch-compatible server bundle directly.
+- a468a0d: Link Vite-emitted CSS assets from production document responses, resolve the browser entry from Vite's `index.html` module script, and remove the `clientEntry` plugin option.
+
 ## 0.6.0
 
 ### Minor Changes
