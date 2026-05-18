@@ -3442,6 +3442,59 @@ describe("manifest discovery", () => {
       }
     });
 
+    test("discovers an exported route that uses a namespace import", async () => {
+      const root = createTempProject();
+
+      try {
+        const file = path.join(root, "src", "routes", "namespace-route.tsx");
+
+        writeFileSync(
+          file,
+          `import * as litz from "litzjs";\nexport const route = litz.defineRoute("/namespace", { component: Namespace });`,
+        );
+
+        const result = await discoverRouteFromFile(root, file);
+
+        expect(result).toEqual({
+          id: "/namespace",
+          path: "/namespace",
+          modulePath: "src/routes/namespace-route.tsx",
+          clientModulePath: null,
+        });
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("warns when a namespace route uses an unsupported dynamic path", async () => {
+      const root = createTempProject();
+      const warnings: string[] = [];
+      const originalWarn = console.warn;
+      console.warn = (message?: unknown) => {
+        warnings.push(String(message));
+      };
+
+      try {
+        const file = path.join(root, "src", "routes", "namespace-dynamic-path.tsx");
+
+        writeFileSync(
+          file,
+          `import * as litz from "litzjs";\nconst path = "/dynamic";\nexport const route = litz.defineRoute(path, { component: Dynamic });`,
+        );
+
+        const result = await discoverRouteFromFile(root, file);
+
+        expect(result).toBeNull();
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain(
+          `exports "route", but the path could not be read from a static defineRoute call`,
+        );
+      } finally {
+        console.warn = originalWarn;
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
     test("warns when an exported route uses an unsupported dynamic path", async () => {
       const root = createTempProject();
       const warnings: string[] = [];
@@ -3537,6 +3590,30 @@ describe("manifest discovery", () => {
           id: "/app",
           path: "/app",
           modulePath: "src/routes/app-layout.tsx",
+          clientModulePath: null,
+        });
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("discovers an exported layout that uses a namespace import", async () => {
+      const root = createTempProject();
+
+      try {
+        const file = path.join(root, "src", "routes", "namespace-layout.tsx");
+
+        writeFileSync(
+          file,
+          `import * as litz from "litzjs";\nexport const layout = litz.defineLayout("/namespace-layout", { component: NamespaceLayout });`,
+        );
+
+        const result = await discoverLayoutFromFile(root, file);
+
+        expect(result).toEqual({
+          id: "/namespace-layout",
+          path: "/namespace-layout",
+          modulePath: "src/routes/namespace-layout.tsx",
           clientModulePath: null,
         });
       } finally {
@@ -3668,6 +3745,39 @@ describe("manifest discovery", () => {
         rmSync(root, { force: true, recursive: true });
       }
     });
+
+    test("discovers a resource that uses an aliased namespace import", async () => {
+      const root = createTempProject();
+
+      try {
+        const file = path.join(root, "src", "routes", "resources", "namespace-resource.ts");
+
+        writeFileSync(
+          file,
+          [
+            `import * as framework from "litzjs";`,
+            `export const resource = framework.defineResource("/resource/namespace", {`,
+            `  loader: async () => {},`,
+            `  action: async () => {},`,
+            `  component: NamespaceResource,`,
+            `});`,
+          ].join("\n"),
+        );
+
+        const result = await discoverResourceFromFile(root, file);
+
+        expect(result).toEqual({
+          path: "/resource/namespace",
+          modulePath: "src/routes/resources/namespace-resource.ts",
+          clientModulePath: null,
+          hasLoader: true,
+          hasAction: true,
+          hasComponent: true,
+        });
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
   });
 
   describe("discoverApiRouteFromFile", () => {
@@ -3767,6 +3877,29 @@ describe("manifest discovery", () => {
         expect(result).toEqual({
           path: "/api/js-health",
           modulePath: "src/routes/api/health.mjs",
+          clientModulePath: null,
+        });
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("discovers an API route that uses an aliased namespace import", async () => {
+      const root = createTempProject();
+
+      try {
+        const file = path.join(root, "src", "routes", "api", "namespace-health.ts");
+
+        writeFileSync(
+          file,
+          `import * as framework from "litzjs";\nexport const api = framework.defineApiRoute("/api/namespace-health", { GET() { return Response.json({ ok: true }); } });`,
+        );
+
+        const result = await discoverApiRouteFromFile(root, file);
+
+        expect(result).toEqual({
+          path: "/api/namespace-health",
+          modulePath: "src/routes/api/namespace-health.ts",
           clientModulePath: null,
         });
       } finally {

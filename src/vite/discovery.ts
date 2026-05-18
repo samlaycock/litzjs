@@ -275,6 +275,7 @@ function resolveRouteLikeFactoryCall(
   expression: ts.Expression,
   bindings: ReadonlyMap<string, ts.Expression>,
   factoryNames: ReadonlySet<string>,
+  factoryNamespaceNames: ReadonlySet<string>,
   seenBindings: Set<string>,
 ): DiscoveredRouteLikeDefinition | null {
   const unwrapped = unwrapManifestExpression(expression);
@@ -292,13 +293,18 @@ function resolveRouteLikeFactoryCall(
 
     const nextSeenBindings = new Set(seenBindings);
     nextSeenBindings.add(unwrapped.text);
-    return resolveRouteLikeFactoryCall(binding, bindings, factoryNames, nextSeenBindings);
+    return resolveRouteLikeFactoryCall(
+      binding,
+      bindings,
+      factoryNames,
+      factoryNamespaceNames,
+      nextSeenBindings,
+    );
   }
 
   if (
     ts.isCallExpression(unwrapped) &&
-    ts.isIdentifier(unwrapped.expression) &&
-    factoryNames.has(unwrapped.expression.text)
+    isRouteLikeFactoryCallee(unwrapped.expression, factoryNames, factoryNamespaceNames)
   ) {
     const routeLikePath = getStringLiteralValue(unwrapped.arguments[0]);
 
@@ -323,6 +329,7 @@ function resolveRouteLikeFactoryCall(
       child,
       bindings,
       factoryNames,
+      factoryNamespaceNames,
       new Set(seenBindings),
     );
 
@@ -330,6 +337,27 @@ function resolveRouteLikeFactoryCall(
   });
 
   return discoveredDefinition;
+}
+
+function isRouteLikeFactoryCallee(
+  expression: ts.Expression,
+  factoryNames: ReadonlySet<string>,
+  factoryNamespaceNames: ReadonlySet<string>,
+): boolean {
+  if (ts.isIdentifier(expression)) {
+    return factoryNames.has(expression.text);
+  }
+
+  if (
+    ts.isPropertyAccessExpression(expression) &&
+    ts.isIdentifier(expression.expression) &&
+    factoryNamespaceNames.has(expression.expression.text) &&
+    factoryNames.has(expression.name.text)
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function discoverExportedRouteLikeDefinition(
@@ -342,8 +370,9 @@ function discoverExportedRouteLikeDefinition(
   const bindings = new Map<string, ts.Expression>();
   const exportedBindings = new Map<string, string>();
   const importedFactoryNames = getImportedLitzFactoryNames(sourceFile, factoryName);
+  const importedFactoryNamespaceNames = getImportedLitzFactoryNamespaceNames(sourceFile);
   const factoryNames = new Set([factoryName, ...importedFactoryNames]);
-  const importsFactory = importedFactoryNames.size > 0;
+  const importsFactory = importedFactoryNames.size > 0 || importedFactoryNamespaceNames.size > 0;
 
   for (const statement of sourceFile.statements) {
     if (ts.isVariableStatement(statement)) {
@@ -390,6 +419,7 @@ function discoverExportedRouteLikeDefinition(
     ts.factory.createIdentifier(exportedBinding),
     bindings,
     factoryNames,
+    importedFactoryNamespaceNames,
     new Set(),
   );
 
@@ -398,6 +428,30 @@ function discoverExportedRouteLikeDefinition(
   }
 
   return definition;
+}
+
+function getImportedLitzFactoryNamespaceNames(sourceFile: ts.SourceFile): Set<string> {
+  const factoryNamespaceNames = new Set<string>();
+
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      statement.moduleSpecifier.text !== "litzjs"
+    ) {
+      continue;
+    }
+
+    const namedBindings = statement.importClause?.namedBindings;
+
+    if (!namedBindings || !ts.isNamespaceImport(namedBindings)) {
+      continue;
+    }
+
+    factoryNamespaceNames.add(namedBindings.name.text);
+  }
+
+  return factoryNamespaceNames;
 }
 
 function getImportedLitzFactoryNames(sourceFile: ts.SourceFile, factoryName: string): Set<string> {
