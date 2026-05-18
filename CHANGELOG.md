@@ -1,5 +1,24 @@
 # litzjs
 
+## 0.8.0
+
+### Minor Changes
+
+- f06d380: Add app-level custom data serializers for `data(...)` result transport across route loaders, route actions, resources, and batched loader responses.
+
+### Patch Changes
+
+- 7fca99d: Coalesce intent link prefetches and abort in-flight data prefetches when intent ends.
+- 104531b: Preserve dynamic API route params for base-prefixed requests in the Vite dev middleware.
+- c80adb8: Restore Vite dev middleware parity with production server context and internal request validation.
+- 4d8c252: Fail manifest discovery when routes, resources, or API routes define duplicate paths, including the files involved in the diagnostic.
+- 955c8f5: Add HEAD fallback for API GET handlers and include Allow headers on method-not-allowed responses.
+- bd3eeb3: Return safe 400 fault responses for malformed internal JSON bodies and request metadata headers.
+- 07d1ffd: Support namespace imports when discovering route, layout, resource, and API route definitions.
+- c7dda74: Avoid rerunning successful sibling route loaders when a batched loader request partially fails.
+- 58099f7: Apply the configured client base URL to resource action redirects.
+- 10cd563: Revalidate resource loader data after successful resource actions when submit options or action response headers request it.
+
 ## 0.7.0
 
 ### Minor Changes
