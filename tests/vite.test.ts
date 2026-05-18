@@ -1026,6 +1026,101 @@ describe("dev server hot updates", () => {
     }
   });
 
+  test("dev watcher reports duplicate layout paths introduced by file changes", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-duplicate-layout-watch-"));
+    const errors: string[] = [];
+    const originalError = console.error;
+    console.error = (message?: unknown, error?: unknown) => {
+      errors.push(
+        [message, error instanceof Error ? error.message : error].filter(Boolean).join(" "),
+      );
+    };
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      mkdirSync(path.join(root, "src", "routes"), { recursive: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "first-layout.tsx"),
+        'import { defineLayout } from "litzjs";\nexport const layout = defineLayout("/app", { component() { return null; } });\n',
+        "utf8",
+      );
+      const secondLayoutFile = path.join(root, "src", "routes", "second-layout.tsx");
+      writeFileSync(
+        secondLayoutFile,
+        'import { defineLayout } from "litzjs";\nexport const layout = defineLayout("/settings", { component() { return null; } });\n',
+        "utf8",
+      );
+
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.configureServer) {
+        throw new Error("Expected litzjs/vite dev-server hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const configureServer =
+        typeof plugin.configureServer === "function"
+          ? plugin.configureServer
+          : plugin.configureServer.handler;
+      const watcherHandlers = new Map<string, (file: string) => void>();
+
+      await configResolved.call(
+        {} as never,
+        {
+          root,
+          command: "serve",
+          build: {
+            outDir: "dist",
+          },
+        } as never,
+      );
+
+      await configureServer.call(
+        {} as never,
+        {
+          watcher: {
+            on(event: string, handler: (file: string) => void) {
+              watcherHandlers.set(event, handler);
+            },
+          },
+          middlewares: {
+            use() {},
+          },
+          moduleGraph: {
+            getModuleById() {
+              return undefined;
+            },
+            invalidateModule() {},
+          },
+          ws: {
+            send() {},
+          },
+        } as never,
+      );
+
+      writeFileSync(
+        secondLayoutFile,
+        'import { defineLayout } from "litzjs";\nexport const layout = defineLayout("/app", { component() { return null; } });\n',
+        "utf8",
+      );
+
+      watcherHandlers.get("change")?.(secondLayoutFile);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+
+      expect(errors.join("\n")).toContain("[litzjs] error refreshing file manifest:");
+      expect(errors.join("\n")).toContain("Duplicate layout paths discovered");
+      expect(errors.join("\n")).toContain("src/routes/first-layout.tsx");
+      expect(errors.join("\n")).toContain("src/routes/second-layout.tsx");
+    } finally {
+      console.error = originalError;
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("returns client modules for projected route updates in the client environment", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-hot-update-"));
 
@@ -3746,6 +3841,49 @@ describe("manifest discovery", () => {
             "  /duplicate",
             "    - src/routes/first.tsx",
             "    - src/routes/second.tsx",
+          ].join("\n"),
+        );
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("rejects duplicate layout paths with the files involved", async () => {
+      const root = createTempProject();
+
+      try {
+        writeFileSync(
+          path.join(root, "src", "routes", "first-layout.tsx"),
+          `import { defineLayout } from "litzjs";\nexport const layout = defineLayout("/duplicate-layout", { component: FirstLayout });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "routes", "second-layout.tsx"),
+          `import { defineLayout } from "litzjs";\nexport const layout = defineLayout("/duplicate-layout", { component: SecondLayout });`,
+        );
+        let error: unknown;
+
+        try {
+          await discoverAllManifests(
+            root,
+            [
+              "src/routes/**/*.{ts,tsx}",
+              "!src/routes/api/**/*.{ts,tsx}",
+              "!src/routes/resources/**/*.{ts,tsx}",
+            ],
+            ["src/routes/resources/**/*.{ts,tsx}"],
+            ["src/routes/api/**/*.{ts,tsx}"],
+          );
+        } catch (caughtError) {
+          error = caughtError;
+        }
+
+        expect(error).toBeInstanceOf(Error);
+        expect(error instanceof Error ? error.message : "").toContain(
+          [
+            "Duplicate layout paths discovered:",
+            "  /duplicate-layout",
+            "    - src/routes/first-layout.tsx",
+            "    - src/routes/second-layout.tsx",
           ].join("\n"),
         );
       } finally {
