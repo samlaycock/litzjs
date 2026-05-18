@@ -485,13 +485,26 @@ export async function renderView(node, metadata = {}) {
           response,
           next,
           configuredBase,
+          { serverEntryPath },
         );
       });
       server.middlewares.use((request, response, next) => {
-        void handleLitzRouteRequest(server, routeManifest, request, response, next, configuredBase);
+        void handleLitzRouteRequest(
+          server,
+          routeManifest,
+          request,
+          response,
+          next,
+          configuredBase,
+          {
+            serverEntryPath,
+          },
+        );
       });
       server.middlewares.use((request, response, next) => {
-        void handleLitzApiRequest(server, apiManifest, request, response, next, configuredBase);
+        void handleLitzApiRequest(server, apiManifest, request, response, next, configuredBase, {
+          serverEntryPath,
+        });
       });
       server.middlewares.use((request, response, next) => {
         void handleLitzDocumentRequest(server, request, response, next, configuredBase);

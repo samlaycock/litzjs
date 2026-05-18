@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 
+import { createServer } from "../src/server";
 import {
   buildLitzApp,
   discoverAllManifests,
@@ -1964,6 +1965,212 @@ describe("dev server abort signal lifecycle", () => {
     expect(response.getBody()).toBe(JSON.stringify({ params: { id: "42" } }));
     expect(capturedParams).toEqual({ id: "42" });
     expect(next).not.toHaveBeenCalled();
+  });
+
+  test("passes configured server context to dev API handlers", async () => {
+    let capturedContext: unknown;
+    const server = createMockViteDevServer(async () => ({
+      api: {
+        methods: {
+          GET({ context }: { context: unknown }) {
+            capturedContext = context;
+            return Response.json({ ok: true });
+          },
+        },
+      },
+    }));
+    const request = createMockRequest({
+      url: "/api/context",
+      method: "GET",
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzApiRequest(
+      server,
+      [{ path: "/api/context", modulePath: "src/api/context.ts" }],
+      request,
+      response,
+      next,
+      "/",
+      {
+        createContext() {
+          return { sessionId: "session-123" };
+        },
+      },
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(capturedContext).toEqual({ sessionId: "session-123" });
+  });
+
+  test("loads configured server entry context for dev API handlers", async () => {
+    let capturedContext: unknown;
+    const litzServer = createServer({
+      createContext() {
+        return { sessionId: "session-456" };
+      },
+    });
+    const importModule = async (id: string) => {
+      if (id?.endsWith("/src/server.ts")) {
+        return { default: litzServer };
+      }
+
+      return {
+        api: {
+          methods: {
+            GET({ context }: { context: unknown }) {
+              capturedContext = context;
+              return Response.json({ ok: true });
+            },
+          },
+        },
+      };
+    };
+    const server = {
+      ...createMockViteDevServer(importModule),
+      environments: {
+        rsc: {
+          pluginContainer: {
+            resolveId: async (id: string) => ({ id }),
+          },
+          runner: {
+            import: importModule,
+          },
+        },
+      },
+    } as unknown as ViteDevServer;
+    const request = createMockRequest({
+      url: "/api/context",
+      method: "GET",
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzApiRequest(
+      server,
+      [{ path: "/api/context", modulePath: "src/api/context.ts" }],
+      request,
+      response,
+      next,
+      "/",
+      { serverEntryPath: "src/server.ts" },
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(capturedContext).toEqual({ sessionId: "session-456" });
+  });
+
+  test("validates dev route internal requests with configured server context", async () => {
+    let loaderCalls = 0;
+    const server = createMockViteDevServer(async () => ({
+      route: {
+        id: "projects.show",
+        path: "/projects/:id",
+        loader({ context }: { context: { sessionId: string } }) {
+          loaderCalls += 1;
+          return {
+            kind: "data",
+            data: { sessionId: context.sessionId },
+          };
+        },
+      },
+    }));
+    const request = createMockRequest({
+      url: "/_litzjs/route",
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        path: "/projects/:id",
+        target: "projects.show",
+        operation: "loader",
+        request: {
+          params: { id: "42" },
+        },
+      }),
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzRouteRequest(
+      server,
+      [{ id: "projects.show", path: "/projects/:id", modulePath: "src/routes/projects.ts" }],
+      request,
+      response,
+      next,
+      "/",
+      {
+        createContext() {
+          return { sessionId: "session-123" };
+        },
+        validateInternalRequest({ context }) {
+          if ((context as { sessionId?: string } | undefined)?.sessionId !== "session-123") {
+            return new Response("Forbidden", { status: 403 });
+          }
+        },
+      },
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.getBody()).toBe(
+      JSON.stringify({ kind: "data", data: { sessionId: "session-123" }, revalidate: [] }),
+    );
+    expect(loaderCalls).toBe(1);
+  });
+
+  test("can reject dev resource internal requests with configured validation", async () => {
+    let loaderCalls = 0;
+    const server = createMockViteDevServer(async () => ({
+      resource: {
+        loader() {
+          loaderCalls += 1;
+          return {
+            kind: "data",
+            data: { ok: true },
+          };
+        },
+      },
+    }));
+    const request = createMockRequest({
+      url: "/_litzjs/resource",
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        path: "/resources/projects/:id",
+        operation: "loader",
+        request: {
+          params: { id: "42" },
+        },
+      }),
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzResourceRequest(
+      server,
+      [
+        {
+          path: "/resources/projects/:id",
+          modulePath: "src/routes/resources/projects.ts",
+          hasLoader: true,
+          hasAction: false,
+          hasComponent: false,
+        },
+      ],
+      request,
+      response,
+      next,
+      "/",
+      {
+        validateInternalRequest() {
+          return new Response("Forbidden", { status: 403 });
+        },
+      },
+    );
+
+    expect(response.statusCode).toBe(403);
+    expect(response.getBody()).toBe("Forbidden");
+    expect(loaderCalls).toBe(0);
   });
 
   test("uses GET handlers for HEAD API requests without returning a body", async () => {

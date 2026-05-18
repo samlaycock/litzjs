@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { ApiRouteMethod } from "../index";
+import type { CreateServerOptions, LitzRuntimeServer } from "../server";
 import type { DiscoveredApiRoute, DiscoveredResource, DiscoveredRoute } from "./types";
 
 import { resolveBasePathname } from "../base-path";
@@ -74,6 +75,12 @@ interface BatchedLoaderResponseEntry {
   };
 }
 
+interface DevServerRuntimeOptions<TContext = unknown> {
+  readonly serverEntryPath?: string | null;
+  readonly createContext?: CreateServerOptions<TContext>["createContext"];
+  readonly validateInternalRequest?: CreateServerOptions<TContext>["validateInternalRequest"];
+}
+
 function hasRunnableRscEnvironment(server: ViteDevServer): boolean {
   const env = server.environments.rsc as unknown as
     | {
@@ -84,6 +91,21 @@ function hasRunnableRscEnvironment(server: ViteDevServer): boolean {
   return typeof env?.runner === "object" && env.runner !== null;
 }
 
+async function loadDevServerRuntimeOptions<TContext>(
+  server: ViteDevServer,
+  options: DevServerRuntimeOptions<TContext>,
+): Promise<DevServerRuntimeOptions<TContext>> {
+  if (options.createContext || options.validateInternalRequest || !options.serverEntryPath) {
+    return options;
+  }
+
+  const module = await loadLitzServerModule<{
+    default?: LitzRuntimeServer<TContext>;
+  }>(server, toImportSpecifier(server.config.root, options.serverEntryPath));
+
+  return module.default?.__litzjsCreateServerOptions ?? {};
+}
+
 export async function handleLitzResourceRequest(
   server: ViteDevServer,
   manifest: DiscoveredResource[],
@@ -91,6 +113,7 @@ export async function handleLitzResourceRequest(
   response: ServerResponse,
   next: Connect.NextFunction,
   base = "/",
+  runtimeOptions: DevServerRuntimeOptions = {},
 ): Promise<void> {
   let viewId = "litzjs#view";
   const requestUrl = request.url ? new URL(request.url, "http://litzjs.local") : null;
@@ -119,6 +142,24 @@ export async function handleLitzResourceRequest(
 
     const resourcePath = body.path;
     const operation = body.operation ?? "loader";
+    const serverOptions = await loadDevServerRuntimeOptions(server, runtimeOptions);
+    const context = serverOptions.createContext
+      ? await serverOptions.createContext(internalRequest)
+      : undefined;
+    const validationResponse = await serverOptions.validateInternalRequest?.({
+      request: internalRequest,
+      kind: "resource",
+      operation,
+      path: resourcePath,
+      body,
+      context,
+    });
+
+    if (validationResponse) {
+      await writeFetchResponseToNode(response, validationResponse);
+      return;
+    }
+
     const entry = manifest.find((resource) => resource.path === resourcePath);
 
     if (!resourcePath || !entry) {
@@ -176,7 +217,7 @@ export async function handleLitzResourceRequest(
       request: normalizedRequest.request,
       params: normalizedRequest.params,
       signal,
-      context: undefined,
+      context,
       async execute(nextContext) {
         const input = await resolveValidatedInput({
           validation: resource.input,
@@ -224,6 +265,7 @@ export async function handleLitzRouteRequest(
   response: ServerResponse,
   next: Connect.NextFunction,
   base = "/",
+  runtimeOptions: DevServerRuntimeOptions = {},
 ): Promise<void> {
   let viewId = "litzjs#view";
   const requestUrl = request.url ? new URL(request.url, "http://litzjs.local") : null;
@@ -254,6 +296,24 @@ export async function handleLitzRouteRequest(
     const targetId = body.target;
     const targetIds = body.targets?.filter((value): value is string => typeof value === "string");
     const operation = body.operation ?? (pathname === "/_litzjs/action" ? "action" : "loader");
+    const serverOptions = await loadDevServerRuntimeOptions(server, runtimeOptions);
+    const context = serverOptions.createContext
+      ? await serverOptions.createContext(internalRequest)
+      : undefined;
+    const validationResponse = await serverOptions.validateInternalRequest?.({
+      request: internalRequest,
+      kind: "route",
+      operation,
+      path: routePath,
+      body,
+      context,
+    });
+
+    if (validationResponse) {
+      await writeFetchResponseToNode(response, validationResponse);
+      return;
+    }
+
     const entry = manifest.find((route) => route.path === routePath);
 
     if (!routePath || !entry) {
@@ -361,6 +421,7 @@ export async function handleLitzRouteRequest(
             target: batchTarget,
             normalizedRequest,
             signal,
+            context,
           }),
         ),
       );
@@ -397,6 +458,7 @@ export async function handleLitzRouteRequest(
       target,
       normalizedRequest,
       signal,
+      context,
     });
 
     await sendServerResult(server, response, result, viewId);
@@ -496,6 +558,7 @@ export async function handleLitzApiRequest(
   response: ServerResponse,
   next: Connect.NextFunction,
   base = "/",
+  runtimeOptions: DevServerRuntimeOptions = {},
 ): Promise<void> {
   const runnable = hasRunnableRscEnvironment(server);
 
@@ -571,6 +634,10 @@ export async function handleLitzApiRequest(
     }
 
     const apiRequest = await createNodeRequest(request, requestUrl);
+    const serverOptions = await loadDevServerRuntimeOptions(server, runtimeOptions);
+    const context = serverOptions.createContext
+      ? await serverOptions.createContext(apiRequest)
+      : undefined;
 
     const controller = new AbortController();
     request.once("close", () => controller.abort());
@@ -580,7 +647,7 @@ export async function handleLitzApiRequest(
       request: apiRequest,
       params: matchedParams ?? {},
       signal,
-      context: undefined,
+      context,
       async execute(nextContext) {
         const input = await resolveValidatedInput({
           validation: api?.input,
@@ -1087,6 +1154,7 @@ async function executeDevRouteTarget(options: {
     params: Record<string, string>;
   };
   signal: AbortSignal;
+  context: unknown;
 }): Promise<unknown> {
   const targetIndex = options.chain.findIndex((candidate) => candidate.id === options.target.id);
   const handler =
@@ -1119,7 +1187,7 @@ async function executeDevRouteTarget(options: {
     request: options.normalizedRequest.request,
     params,
     signal: options.signal,
-    context: undefined,
+    context: options.context,
     async execute(nextContext) {
       const input = await resolveValidatedInput({
         validation,
