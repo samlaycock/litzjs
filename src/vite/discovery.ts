@@ -33,6 +33,7 @@ export async function discoverAllManifests(
     ]);
 
   assertNoDuplicateManifestPaths("route", nextRouteManifest);
+  assertNoDuplicateManifestPaths("layout", nextLayoutManifest);
   assertNoDuplicateManifestPaths("resource", nextResourceManifest);
   assertNoDuplicateManifestPaths("API route", nextApiManifest);
 

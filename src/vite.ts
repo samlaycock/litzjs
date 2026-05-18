@@ -388,6 +388,7 @@ export async function renderView(node, metadata = {}) {
           if (manifestGeneration !== generation) return;
 
           const layoutResult = updateManifestEntry(layoutManifest, layoutEntry, file);
+          assertNoDuplicateManifestPaths("layout", layoutResult.manifest);
           layoutManifest = layoutResult.manifest;
           changed = changed || layoutResult.changed;
         }
