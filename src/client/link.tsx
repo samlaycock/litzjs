@@ -34,14 +34,27 @@ export function createLinkComponent(dependencies: {
       prefetchData = false,
       onClick,
       onMouseEnter,
+      onMouseLeave,
       onFocus,
+      onBlur,
       onTouchStart,
+      onTouchEnd,
+      onTouchCancel,
       target,
       download,
       rel,
       ...rest
     } = props;
     const browserHref = resolveClientHref(href);
+    const intentPrefetchRef = React.useRef<{
+      readonly key: string;
+      readonly controller: AbortController;
+    } | null>(null);
+    const intentStateRef = React.useRef({
+      hover: false,
+      focus: false,
+      touch: false,
+    });
 
     React.useEffect(() => {
       if (prefetch !== "render") {
@@ -62,6 +75,52 @@ export function createLinkComponent(dependencies: {
       };
     }, [browserHref, dependencies, download, prefetch, prefetchData, target]);
 
+    React.useEffect(() => {
+      return () => {
+        intentPrefetchRef.current?.controller.abort();
+        intentPrefetchRef.current = null;
+      };
+    }, [browserHref, download, prefetch, prefetchData, target]);
+
+    function abortIntentPrefetchIfIdle(): void {
+      const intentState = intentStateRef.current;
+
+      if (intentState.hover || intentState.focus || intentState.touch) {
+        return;
+      }
+
+      intentPrefetchRef.current?.controller.abort();
+      intentPrefetchRef.current = null;
+    }
+
+    function startIntentPrefetch(): void {
+      if (prefetch !== "intent") {
+        return;
+      }
+
+      const key = JSON.stringify([browserHref, target ?? null, download ?? null, prefetchData]);
+      const currentPrefetch = intentPrefetchRef.current;
+
+      if (currentPrefetch?.key === key && !currentPrefetch.controller.signal.aborted) {
+        return;
+      }
+
+      currentPrefetch?.controller.abort();
+
+      const controller = new AbortController();
+      intentPrefetchRef.current = {
+        key,
+        controller,
+      };
+
+      dependencies.prefetchRouteForHref(browserHref, {
+        target,
+        download,
+        includeData: prefetchData,
+        signal: controller.signal,
+      });
+    }
+
     return React.createElement("a", {
       ...rest,
       href: browserHref,
@@ -75,15 +134,13 @@ export function createLinkComponent(dependencies: {
           return;
         }
 
-        if (prefetch !== "intent") {
-          return;
-        }
-
-        dependencies.prefetchRouteForHref(browserHref, {
-          target,
-          download,
-          includeData: prefetchData,
-        });
+        intentStateRef.current.hover = true;
+        startIntentPrefetch();
+      },
+      onMouseLeave(event: React.MouseEvent<HTMLAnchorElement>) {
+        onMouseLeave?.(event);
+        intentStateRef.current.hover = false;
+        abortIntentPrefetchIfIdle();
       },
       onFocus(event: React.FocusEvent<HTMLAnchorElement>) {
         onFocus?.(event);
@@ -92,15 +149,13 @@ export function createLinkComponent(dependencies: {
           return;
         }
 
-        if (prefetch !== "intent") {
-          return;
-        }
-
-        dependencies.prefetchRouteForHref(browserHref, {
-          target,
-          download,
-          includeData: prefetchData,
-        });
+        intentStateRef.current.focus = true;
+        startIntentPrefetch();
+      },
+      onBlur(event: React.FocusEvent<HTMLAnchorElement>) {
+        onBlur?.(event);
+        intentStateRef.current.focus = false;
+        abortIntentPrefetchIfIdle();
       },
       onTouchStart(event: React.TouchEvent<HTMLAnchorElement>) {
         onTouchStart?.(event);
@@ -109,15 +164,18 @@ export function createLinkComponent(dependencies: {
           return;
         }
 
-        if (prefetch !== "intent") {
-          return;
-        }
-
-        dependencies.prefetchRouteForHref(browserHref, {
-          target,
-          download,
-          includeData: prefetchData,
-        });
+        intentStateRef.current.touch = true;
+        startIntentPrefetch();
+      },
+      onTouchEnd(event: React.TouchEvent<HTMLAnchorElement>) {
+        onTouchEnd?.(event);
+        intentStateRef.current.touch = false;
+        abortIntentPrefetchIfIdle();
+      },
+      onTouchCancel(event: React.TouchEvent<HTMLAnchorElement>) {
+        onTouchCancel?.(event);
+        intentStateRef.current.touch = false;
+        abortIntentPrefetchIfIdle();
       },
       onClick(event: React.MouseEvent<HTMLAnchorElement>) {
         onClick?.(event);

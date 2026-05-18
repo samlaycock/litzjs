@@ -38,8 +38,9 @@ describe("link runtime", () => {
     root = null;
   });
 
-  test("prefetch intent warms same-origin routes without navigating", async () => {
+  test("prefetch intent coalesces duplicate events for the same route", async () => {
     const prefetchCalls: string[] = [];
+    const receivedSignals: AbortSignal[] = [];
 
     function App() {
       const RuntimeLink = React.useMemo(
@@ -63,6 +64,9 @@ describe("link runtime", () => {
                 })
               ) {
                 prefetchCalls.push(href);
+                if (options?.signal) {
+                  receivedSignals.push(options.signal);
+                }
               }
             },
           }),
@@ -86,8 +90,69 @@ describe("link runtime", () => {
       await flushDom();
     });
 
-    expect(prefetchCalls).toEqual(["/next", "/next", "/next"]);
+    expect(prefetchCalls).toEqual(["/next"]);
+    expect(receivedSignals).toHaveLength(1);
+    expect(receivedSignals[0]?.aborted).toBe(false);
     expect(window.location.href).toBe("https://example.com/current");
+  });
+
+  test("prefetch intent aborts in-flight data work when hover and focus end", async () => {
+    const receivedSignals: AbortSignal[] = [];
+
+    function App() {
+      const RuntimeLink = React.useMemo(
+        () =>
+          createLinkComponent({
+            useNavigate() {
+              return () => {
+                throw new Error("Intent prefetch should not navigate.");
+              };
+            },
+            prefetchRouteForHref(_href, options) {
+              if (options?.signal) {
+                receivedSignals.push(options.signal);
+              }
+            },
+          }),
+        [],
+      );
+
+      return (
+        <RuntimeLink href="/next" prefetchData>
+          Open next route
+        </RuntimeLink>
+      );
+    }
+
+    await act(async () => {
+      root?.render(<App />);
+      await flushDom();
+    });
+
+    const link = container?.getElementsByTagName("a")[0] ?? null;
+
+    await act(async () => {
+      link?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      link?.dispatchEvent(new Event("focusin", { bubbles: true }));
+      await flushDom();
+    });
+
+    expect(receivedSignals).toHaveLength(1);
+    expect(receivedSignals[0]?.aborted).toBe(false);
+
+    await act(async () => {
+      link?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+      await flushDom();
+    });
+
+    expect(receivedSignals[0]?.aborted).toBe(false);
+
+    await act(async () => {
+      link?.dispatchEvent(new Event("focusout", { bubbles: true }));
+      await flushDom();
+    });
+
+    expect(receivedSignals[0]?.aborted).toBe(true);
   });
 
   test("external links do not prefetch or navigate through the client runtime", async () => {
