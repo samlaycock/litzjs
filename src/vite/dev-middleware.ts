@@ -95,7 +95,7 @@ async function loadDevServerRuntimeOptions<TContext>(
   server: ViteDevServer,
   options: DevServerRuntimeOptions<TContext>,
 ): Promise<DevServerRuntimeOptions<TContext>> {
-  if (options.createContext || options.validateInternalRequest || !options.serverEntryPath) {
+  if (!options.serverEntryPath) {
     return options;
   }
 
@@ -103,7 +103,15 @@ async function loadDevServerRuntimeOptions<TContext>(
     default?: LitzRuntimeServer<TContext>;
   }>(server, toImportSpecifier(server.config.root, options.serverEntryPath));
 
-  return module.default?.__litzjsCreateServerOptions ?? {};
+  const serverOptions = module.default?.__litzjsCreateServerOptions;
+  const createContext = serverOptions?.createContext?.bind(serverOptions);
+  const validateInternalRequest = serverOptions?.validateInternalRequest?.bind(serverOptions);
+
+  return {
+    serverEntryPath: options.serverEntryPath,
+    createContext: options.createContext ?? createContext,
+    validateInternalRequest: options.validateInternalRequest ?? validateInternalRequest,
+  };
 }
 
 export async function handleLitzResourceRequest(

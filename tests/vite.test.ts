@@ -2061,6 +2061,85 @@ describe("dev server abort signal lifecycle", () => {
     expect(capturedContext).toEqual({ sessionId: "session-456" });
   });
 
+  test("merges inline dev validation with configured server entry context", async () => {
+    let loaderCalls = 0;
+    const litzServer = createServer({
+      createContext() {
+        return { sessionId: "session-789" };
+      },
+    });
+    const importModule = async (id: string) => {
+      if (id?.endsWith("/src/server.ts")) {
+        return { default: litzServer };
+      }
+
+      return {
+        route: {
+          id: "projects.show",
+          path: "/projects/:id",
+          loader({ context }: { context: { sessionId: string } }) {
+            loaderCalls += 1;
+            return {
+              kind: "data",
+              data: { sessionId: context.sessionId },
+            };
+          },
+        },
+      };
+    };
+    const server = {
+      ...createMockViteDevServer(importModule),
+      environments: {
+        rsc: {
+          pluginContainer: {
+            resolveId: async (id: string) => ({ id }),
+          },
+          runner: {
+            import: importModule,
+          },
+        },
+      },
+    } as unknown as ViteDevServer;
+    const request = createMockRequest({
+      url: "/_litzjs/route",
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        path: "/projects/:id",
+        target: "projects.show",
+        operation: "loader",
+        request: {
+          params: { id: "42" },
+        },
+      }),
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzRouteRequest(
+      server,
+      [{ id: "projects.show", path: "/projects/:id", modulePath: "src/routes/projects.ts" }],
+      request,
+      response,
+      next,
+      "/",
+      {
+        serverEntryPath: "src/server.ts",
+        validateInternalRequest({ context }) {
+          if ((context as { sessionId?: string } | undefined)?.sessionId !== "session-789") {
+            return new Response("Forbidden", { status: 403 });
+          }
+        },
+      },
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.getBody()).toBe(
+      JSON.stringify({ kind: "data", data: { sessionId: "session-789" }, revalidate: [] }),
+    );
+    expect(loaderCalls).toBe(1);
+  });
+
   test("validates dev route internal requests with configured server context", async () => {
     let loaderCalls = 0;
     const server = createMockViteDevServer(async () => ({
