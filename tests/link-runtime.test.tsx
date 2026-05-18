@@ -155,6 +155,70 @@ describe("link runtime", () => {
     expect(receivedSignals[0]?.aborted).toBe(true);
   });
 
+  test("prefetch intent restarts active intent work when the href changes", async () => {
+    const prefetchCalls: string[] = [];
+    const receivedSignals: AbortSignal[] = [];
+
+    function App() {
+      const [href, setHref] = React.useState("/next");
+      const RuntimeLink = React.useMemo(
+        () =>
+          createLinkComponent({
+            useNavigate() {
+              return () => {
+                throw new Error("Intent prefetch should not navigate.");
+              };
+            },
+            prefetchRouteForHref(nextHref, options) {
+              prefetchCalls.push(nextHref);
+
+              if (options?.signal) {
+                receivedSignals.push(options.signal);
+              }
+            },
+          }),
+        [],
+      );
+
+      return (
+        <>
+          <button id="change-href" onClick={() => setHref("/updated")} type="button">
+            Change href
+          </button>
+          <RuntimeLink href={href} prefetchData>
+            Open next route
+          </RuntimeLink>
+        </>
+      );
+    }
+
+    await act(async () => {
+      root?.render(<App />);
+      await flushDom();
+    });
+
+    const link = container?.getElementsByTagName("a")[0] ?? null;
+
+    await act(async () => {
+      link?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      await flushDom();
+    });
+
+    expect(prefetchCalls).toEqual(["/next"]);
+    expect(receivedSignals).toHaveLength(1);
+    expect(receivedSignals[0]?.aborted).toBe(false);
+
+    await act(async () => {
+      (document.getElementById("change-href") as HTMLButtonElement | null)?.click();
+      await flushDom();
+    });
+
+    expect(prefetchCalls).toEqual(["/next", "/updated"]);
+    expect(receivedSignals).toHaveLength(2);
+    expect(receivedSignals[0]?.aborted).toBe(true);
+    expect(receivedSignals[1]?.aborted).toBe(false);
+  });
+
   test("external links do not prefetch or navigate through the client runtime", async () => {
     function App() {
       const [prefetchCalls, setPrefetchCalls] = React.useState<string[]>([]);
