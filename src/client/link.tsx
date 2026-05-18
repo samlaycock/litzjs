@@ -46,6 +46,12 @@ export function createLinkComponent(dependencies: {
       ...rest
     } = props;
     const browserHref = resolveClientHref(href);
+    const intentPrefetchKey = JSON.stringify([
+      browserHref,
+      target ?? null,
+      download ?? null,
+      prefetchData,
+    ]);
     const intentPrefetchRef = React.useRef<{
       readonly key: string;
       readonly controller: AbortController;
@@ -75,13 +81,6 @@ export function createLinkComponent(dependencies: {
       };
     }, [browserHref, dependencies, download, prefetch, prefetchData, target]);
 
-    React.useEffect(() => {
-      return () => {
-        intentPrefetchRef.current?.controller.abort();
-        intentPrefetchRef.current = null;
-      };
-    }, [browserHref, download, prefetch, prefetchData, target]);
-
     function abortIntentPrefetchIfIdle(): void {
       const intentState = intentStateRef.current;
 
@@ -98,10 +97,12 @@ export function createLinkComponent(dependencies: {
         return;
       }
 
-      const key = JSON.stringify([browserHref, target ?? null, download ?? null, prefetchData]);
       const currentPrefetch = intentPrefetchRef.current;
 
-      if (currentPrefetch?.key === key && !currentPrefetch.controller.signal.aborted) {
+      if (
+        currentPrefetch?.key === intentPrefetchKey &&
+        !currentPrefetch.controller.signal.aborted
+      ) {
         return;
       }
 
@@ -109,7 +110,7 @@ export function createLinkComponent(dependencies: {
 
       const controller = new AbortController();
       intentPrefetchRef.current = {
-        key,
+        key: intentPrefetchKey,
         controller,
       };
 
@@ -120,6 +121,19 @@ export function createLinkComponent(dependencies: {
         signal: controller.signal,
       });
     }
+
+    React.useEffect(() => {
+      const intentState = intentStateRef.current;
+
+      if (intentState.hover || intentState.focus || intentState.touch) {
+        startIntentPrefetch();
+      }
+
+      return () => {
+        intentPrefetchRef.current?.controller.abort();
+        intentPrefetchRef.current = null;
+      };
+    }, [intentPrefetchKey, prefetch]);
 
     return React.createElement("a", {
       ...rest,
