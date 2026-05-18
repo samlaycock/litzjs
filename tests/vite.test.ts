@@ -3495,6 +3495,39 @@ describe("manifest discovery", () => {
       }
     });
 
+    test("does not treat named import aliases as namespace export names", async () => {
+      const root = createTempProject();
+      const warnings: string[] = [];
+      const originalWarn = console.warn;
+      console.warn = (message?: unknown) => {
+        warnings.push(String(message));
+      };
+
+      try {
+        const file = path.join(root, "src", "routes", "namespace-alias-property.tsx");
+
+        writeFileSync(
+          file,
+          [
+            `import * as litz from "litzjs";`,
+            `import { defineRoute as makeRoute } from "litzjs";`,
+            `export const route = litz.makeRoute("/invalid-namespace-alias", { component: Invalid });`,
+          ].join("\n"),
+        );
+
+        const result = await discoverRouteFromFile(root, file);
+
+        expect(result).toBeNull();
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain(
+          `exports "route", but the path could not be read from a static defineRoute call`,
+        );
+      } finally {
+        console.warn = originalWarn;
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
     test("warns when an exported route uses an unsupported dynamic path", async () => {
       const root = createTempProject();
       const warnings: string[] = [];

@@ -274,6 +274,7 @@ function hasObjectProperty(
 function resolveRouteLikeFactoryCall(
   expression: ts.Expression,
   bindings: ReadonlyMap<string, ts.Expression>,
+  factoryName: string,
   factoryNames: ReadonlySet<string>,
   factoryNamespaceNames: ReadonlySet<string>,
   seenBindings: Set<string>,
@@ -296,6 +297,7 @@ function resolveRouteLikeFactoryCall(
     return resolveRouteLikeFactoryCall(
       binding,
       bindings,
+      factoryName,
       factoryNames,
       factoryNamespaceNames,
       nextSeenBindings,
@@ -304,7 +306,7 @@ function resolveRouteLikeFactoryCall(
 
   if (
     ts.isCallExpression(unwrapped) &&
-    isRouteLikeFactoryCallee(unwrapped.expression, factoryNames, factoryNamespaceNames)
+    isRouteLikeFactoryCallee(unwrapped.expression, factoryName, factoryNames, factoryNamespaceNames)
   ) {
     const routeLikePath = getStringLiteralValue(unwrapped.arguments[0]);
 
@@ -328,6 +330,7 @@ function resolveRouteLikeFactoryCall(
     discoveredDefinition = resolveRouteLikeFactoryCall(
       child,
       bindings,
+      factoryName,
       factoryNames,
       factoryNamespaceNames,
       new Set(seenBindings),
@@ -341,6 +344,7 @@ function resolveRouteLikeFactoryCall(
 
 function isRouteLikeFactoryCallee(
   expression: ts.Expression,
+  factoryName: string,
   factoryNames: ReadonlySet<string>,
   factoryNamespaceNames: ReadonlySet<string>,
 ): boolean {
@@ -352,7 +356,7 @@ function isRouteLikeFactoryCallee(
     ts.isPropertyAccessExpression(expression) &&
     ts.isIdentifier(expression.expression) &&
     factoryNamespaceNames.has(expression.expression.text) &&
-    factoryNames.has(expression.name.text)
+    expression.name.text === factoryName
   ) {
     return true;
   }
@@ -418,6 +422,7 @@ function discoverExportedRouteLikeDefinition(
   const definition = resolveRouteLikeFactoryCall(
     ts.factory.createIdentifier(exportedBinding),
     bindings,
+    factoryName,
     factoryNames,
     importedFactoryNamespaceNames,
     new Set(),
