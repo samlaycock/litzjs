@@ -931,6 +931,101 @@ describe("dev server hot updates", () => {
     }
   });
 
+  test("dev watcher reports duplicate route paths introduced by file changes", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-duplicate-route-watch-"));
+    const errors: string[] = [];
+    const originalError = console.error;
+    console.error = (message?: unknown, error?: unknown) => {
+      errors.push(
+        [message, error instanceof Error ? error.message : error].filter(Boolean).join(" "),
+      );
+    };
+
+    try {
+      mkdirSync(path.join(root, "src"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+      mkdirSync(path.join(root, "src", "routes"), { recursive: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "first.tsx"),
+        'import { defineRoute } from "litzjs";\nexport const route = defineRoute("/first", { component() { return null; } });\n',
+        "utf8",
+      );
+      const secondRouteFile = path.join(root, "src", "routes", "second.tsx");
+      writeFileSync(
+        secondRouteFile,
+        'import { defineRoute } from "litzjs";\nexport const route = defineRoute("/second", { component() { return null; } });\n',
+        "utf8",
+      );
+
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.configureServer) {
+        throw new Error("Expected litzjs/vite dev-server hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const configureServer =
+        typeof plugin.configureServer === "function"
+          ? plugin.configureServer
+          : plugin.configureServer.handler;
+      const watcherHandlers = new Map<string, (file: string) => void>();
+
+      await configResolved.call(
+        {} as never,
+        {
+          root,
+          command: "serve",
+          build: {
+            outDir: "dist",
+          },
+        } as never,
+      );
+
+      await configureServer.call(
+        {} as never,
+        {
+          watcher: {
+            on(event: string, handler: (file: string) => void) {
+              watcherHandlers.set(event, handler);
+            },
+          },
+          middlewares: {
+            use() {},
+          },
+          moduleGraph: {
+            getModuleById() {
+              return undefined;
+            },
+            invalidateModule() {},
+          },
+          ws: {
+            send() {},
+          },
+        } as never,
+      );
+
+      writeFileSync(
+        secondRouteFile,
+        'import { defineRoute } from "litzjs";\nexport const route = defineRoute("/first", { component() { return null; } });\n',
+        "utf8",
+      );
+
+      watcherHandlers.get("change")?.(secondRouteFile);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+
+      expect(errors.join("\n")).toContain("[litzjs] error refreshing file manifest:");
+      expect(errors.join("\n")).toContain("Duplicate route paths discovered");
+      expect(errors.join("\n")).toContain("src/routes/first.tsx");
+      expect(errors.join("\n")).toContain("src/routes/second.tsx");
+    } finally {
+      console.error = originalError;
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   test("returns client modules for projected route updates in the client environment", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-hot-update-"));
 
@@ -3615,6 +3710,137 @@ describe("manifest discovery", () => {
   });
 
   describe("discoverAllManifests", () => {
+    test("rejects duplicate route paths with the files involved", async () => {
+      const root = createTempProject();
+
+      try {
+        writeFileSync(
+          path.join(root, "src", "routes", "first.tsx"),
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/duplicate", { component: First });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "routes", "second.tsx"),
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/duplicate", { component: Second });`,
+        );
+        let error: unknown;
+
+        try {
+          await discoverAllManifests(
+            root,
+            [
+              "src/routes/**/*.{ts,tsx}",
+              "!src/routes/api/**/*.{ts,tsx}",
+              "!src/routes/resources/**/*.{ts,tsx}",
+            ],
+            ["src/routes/resources/**/*.{ts,tsx}"],
+            ["src/routes/api/**/*.{ts,tsx}"],
+          );
+        } catch (caughtError) {
+          error = caughtError;
+        }
+
+        expect(error).toBeInstanceOf(Error);
+        expect(error instanceof Error ? error.message : "").toContain(
+          [
+            "Duplicate route paths discovered:",
+            "  /duplicate",
+            "    - src/routes/first.tsx",
+            "    - src/routes/second.tsx",
+          ].join("\n"),
+        );
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("rejects duplicate resource paths with the files involved", async () => {
+      const root = createTempProject();
+
+      try {
+        writeFileSync(
+          path.join(root, "src", "routes", "resources", "first.ts"),
+          `import { defineResource } from "litzjs";\nexport const resource = defineResource("/resource/duplicate", { loader: async () => {} });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "routes", "resources", "second.ts"),
+          `import { defineResource } from "litzjs";\nexport const resource = defineResource("/resource/duplicate", { loader: async () => {} });`,
+        );
+
+        let error: unknown;
+
+        try {
+          await discoverAllManifests(
+            root,
+            [
+              "src/routes/**/*.{ts,tsx}",
+              "!src/routes/api/**/*.{ts,tsx}",
+              "!src/routes/resources/**/*.{ts,tsx}",
+            ],
+            ["src/routes/resources/**/*.{ts,tsx}"],
+            ["src/routes/api/**/*.{ts,tsx}"],
+          );
+        } catch (caughtError) {
+          error = caughtError;
+        }
+
+        expect(error).toBeInstanceOf(Error);
+        expect(error instanceof Error ? error.message : "").toContain(
+          [
+            "Duplicate resource paths discovered:",
+            "  /resource/duplicate",
+            "    - src/routes/resources/first.ts",
+            "    - src/routes/resources/second.ts",
+          ].join("\n"),
+        );
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("rejects duplicate API route paths with the files involved", async () => {
+      const root = createTempProject();
+
+      try {
+        writeFileSync(
+          path.join(root, "src", "routes", "api", "first.ts"),
+          `import { defineApiRoute } from "litzjs";\nexport const api = defineApiRoute("/api/duplicate", { GET() { return Response.json({ ok: true }); } });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "routes", "api", "second.ts"),
+          `import { defineApiRoute } from "litzjs";\nexport const api = defineApiRoute("/api/duplicate", { GET() { return Response.json({ ok: true }); } });`,
+        );
+
+        let error: unknown;
+
+        try {
+          await discoverAllManifests(
+            root,
+            [
+              "src/routes/**/*.{ts,tsx}",
+              "!src/routes/api/**/*.{ts,tsx}",
+              "!src/routes/resources/**/*.{ts,tsx}",
+            ],
+            ["src/routes/resources/**/*.{ts,tsx}"],
+            ["src/routes/api/**/*.{ts,tsx}"],
+          );
+        } catch (caughtError) {
+          error = caughtError;
+        }
+
+        expect(error).toBeInstanceOf(Error);
+        expect(error instanceof Error ? error.message : "").toContain(
+          [
+            "Duplicate API route paths discovered:",
+            "  /api/duplicate",
+            "    - src/routes/api/first.ts",
+            "    - src/routes/api/second.ts",
+          ].join("\n"),
+        );
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
     test("discovers .js and .jsx route-like modules with the default patterns", async () => {
       const root = createTempProject();
 

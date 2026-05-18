@@ -32,6 +32,7 @@ import {
   handleLitzRouteRequest,
 } from "./vite/dev-middleware";
 import {
+  assertNoDuplicateManifestPaths,
   discoverAllManifests,
   discoverApiRouteFromFile,
   discoverLayoutFromFile,
@@ -379,6 +380,7 @@ export async function renderView(node, metadata = {}) {
           const result = updateManifestEntry(routeManifest, entry, file, (items) =>
             sortByPathSpecificity(items),
           );
+          assertNoDuplicateManifestPaths("route", result.manifest);
           routeManifest = result.manifest;
           changed = changed || result.changed;
 
@@ -395,6 +397,7 @@ export async function renderView(node, metadata = {}) {
           if (manifestGeneration !== generation) return;
 
           const result = updateManifestEntry(resourceManifest, entry, file);
+          assertNoDuplicateManifestPaths("resource", result.manifest);
           resourceManifest = result.manifest;
           changed = changed || result.changed;
         }
@@ -406,6 +409,7 @@ export async function renderView(node, metadata = {}) {
           const result = updateManifestEntry(apiManifest, entry, file, (items) =>
             sortByPathSpecificity(items),
           );
+          assertNoDuplicateManifestPaths("API route", result.manifest);
           apiManifest = result.manifest;
           changed = changed || result.changed;
         }

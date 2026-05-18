@@ -32,6 +32,10 @@ export async function discoverAllManifests(
       discoverApiRoutes(root, apiPatterns),
     ]);
 
+  assertNoDuplicateManifestPaths("route", nextRouteManifest);
+  assertNoDuplicateManifestPaths("resource", nextResourceManifest);
+  assertNoDuplicateManifestPaths("API route", nextApiManifest);
+
   return {
     routeManifest: sortByPathSpecificity(nextRouteManifest),
     layoutManifest: nextLayoutManifest,
@@ -46,6 +50,44 @@ export function isClientBoundaryModule(file: string): boolean {
 
 export function isRouteLikeModuleFile(file: string): boolean {
   return /\.(ts|tsx|js|jsx)$/.test(file);
+}
+
+export function assertNoDuplicateManifestPaths(
+  kind: string,
+  entries: readonly { readonly path: string; readonly modulePath: string }[],
+): void {
+  const entriesByPath = new Map<string, string[]>();
+
+  for (const entry of entries) {
+    const modulePaths = entriesByPath.get(entry.path);
+
+    if (modulePaths) {
+      modulePaths.push(entry.modulePath);
+    } else {
+      entriesByPath.set(entry.path, [entry.modulePath]);
+    }
+  }
+
+  const duplicates = [...entriesByPath.entries()].filter(
+    ([, modulePaths]) => modulePaths.length > 1,
+  );
+
+  if (duplicates.length === 0) {
+    return;
+  }
+
+  const details = duplicates
+    .map(([manifestPath, modulePaths]) => {
+      const files = [...modulePaths]
+        .sort((a, b) => a.localeCompare(b))
+        .map((modulePath) => `    - ${modulePath}`)
+        .join("\n");
+
+      return `  ${manifestPath}\n${files}`;
+    })
+    .join("\n");
+
+  throw new Error(`[litzjs] Duplicate ${kind} paths discovered:\n${details}`);
 }
 
 function resolveClientBoundaryModule(root: string, file: string): string | null {
