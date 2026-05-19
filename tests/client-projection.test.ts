@@ -252,6 +252,25 @@ export const route = defineRoute("/", {
     expect(projected).toContain('kind: "route"');
     expect(projected).toContain("definition: mod.route");
   });
+
+  test("parses JSX route modules with JSX syntax", () => {
+    const source = `
+import { defineRoute } from "litzjs";
+
+function Page() {
+  return <main><h1>Home</h1></main>;
+}
+
+export const route = defineRoute("/", {
+  component: Page,
+});
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/home.jsx", source);
+
+    expect(projected).toContain("<h1>Home</h1>");
+    expect(projected).not.toContain("< /h1>");
+  });
 });
 
 describe("server projection", () => {
@@ -307,5 +326,24 @@ function HomePage() {
     expect(projected).toContain("component: Widget");
     expect(projected).toContain("uiConfig.component.name");
     expect(projected).not.toContain("HomePage");
+  });
+
+  test("parses JSX route modules with JSX syntax", () => {
+    const source = `
+import { defineRoute } from "litzjs";
+
+const metadata = {
+  title: <span>Home</span>,
+};
+
+export const route = defineRoute("/", {
+  loader: () => metadata.title,
+});
+`;
+
+    const projected = createServerModuleProjection("/virtual/routes/home.jsx", source);
+
+    expect(projected).toContain("<span>Home</span>");
+    expect(projected).not.toContain("< /span>");
   });
 });
