@@ -13,7 +13,7 @@ It gives you:
 
 ## Status
 
-Litz is currently a production candidate.
+Litz 1.0.0 is the stable release line for client-first React applications on Vite.
 
 The core route, resource, API route, and RSC runtime now has deterministic route matching,
 multipart-safe internal actions, and a release gate via `bun run check`.

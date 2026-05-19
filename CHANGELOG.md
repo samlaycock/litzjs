@@ -1,5 +1,44 @@
 # litzjs
 
+## 1.0.0
+
+### Major Changes
+
+- Prepare the package metadata and release notes for the 1.0.0 stable release.
+
+  Litz 1.0.0 establishes the stable release posture for the client-first React framework on Vite,
+  with explicit `defineApp(...)` registration, server boundaries, route loaders and actions,
+  reusable resources, raw API routes, and RSC-powered `view(...)` responses.
+
+  The release includes the pending serializer, discovery, dev middleware, resource action, API
+  method handling, internal request safety, JSX projection, loader batching, and prefetch
+  improvements listed below. The publish gate now requires the local check suite plus Playwright e2e
+  coverage before creating a release PR or publishing.
+
+  Known limitations remain around the current single-client-entry production model and the need to
+  install Playwright browsers locally before running `bun run test:e2e`.
+
+### Minor Changes
+
+- f06d380: Add app-level custom data serializers for `data(...)` result transport across route loaders, route actions, resources, and batched loader responses.
+
+### Patch Changes
+
+- 7fca99d: Coalesce intent link prefetches and abort in-flight data prefetches when intent ends.
+- 104531b: Preserve dynamic API route params for base-prefixed requests in the Vite dev middleware.
+- c80adb8: Restore Vite dev middleware parity with production server context and internal request validation.
+- 4d8c252: Fail manifest discovery when routes, resources, or API routes define duplicate paths, including the files involved in the diagnostic.
+- 945918a: Derive Vite route, resource, and API manifests from explicit `defineApp(...)` registration so registered modules work outside route folders and unregistered files are not enrolled by placement.
+- 955c8f5: Add HEAD fallback for API GET handlers and include Allow headers on method-not-allowed responses.
+- 661696f: Parse `.jsx` route-like modules as JSX during client and server projection.
+- bd3eeb3: Return safe 400 fault responses for malformed internal JSON bodies and request metadata headers.
+- 07d1ffd: Support namespace imports when discovering route, layout, resource, and API route definitions.
+- c7dda74: Avoid rerunning successful sibling route loaders when a batched loader request partially fails.
+- 7f14666: Replace the stale project plan with focused implementation documentation covering discovery, server handlers, RSC view responses, Vite build behavior, and deployment/runtime details.
+- 7d90c18: Require the publish workflow to pass Playwright e2e coverage before creating a release PR or publishing.
+- 58099f7: Apply the configured client base URL to resource action redirects.
+- 10cd563: Revalidate resource loader data after successful resource actions when submit options or action response headers request it.
+
 ## 0.7.0
 
 ### Minor Changes
