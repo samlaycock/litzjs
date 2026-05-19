@@ -57,7 +57,18 @@ describe("getting started docs flow", () => {
 describe("docs package names", () => {
   test("repo guidance matches the current framework and Bun package guidance", () => {
     const agentsDoc = normalizeWhitespace(readDoc("AGENTS.md"));
-    const projectDoc = normalizeWhitespace(readDoc("PROJECT.md"));
+    const implementationDocs = normalizeWhitespace(
+      [
+        "docs/README.md",
+        "docs/app-and-route-discovery.md",
+        "docs/server-handlers.md",
+        "docs/view-rsc-and-flight.md",
+        "docs/vite-plugin-and-build.md",
+        "docs/runtime-deployment-and-errors.md",
+      ]
+        .map(readDoc)
+        .join("\n"),
+    );
 
     expect(agentsDoc).toContain("client-first React framework for Vite");
     expect(agentsDoc).toContain("route loaders and actions");
@@ -66,9 +77,9 @@ describe("docs package names", () => {
     expect(agentsDoc).not.toContain("Object Document Mapper");
     expect(agentsDoc).not.toContain("NoSQL");
 
-    expect(projectDoc).toContain("bun add litzjs react react-dom");
-    expect(projectDoc).toContain("bun add -d vite typescript");
-    expect(projectDoc).not.toMatch(/npm install litz(?!js)/);
+    expect(implementationDocs).toContain("defineApp");
+    expect(implementationDocs).toContain("dist/server/index.mjs");
+    expect(implementationDocs).not.toMatch(/npm install litz(?!js)/);
   });
 
   test("installation docs use the published package name in every install command", () => {
