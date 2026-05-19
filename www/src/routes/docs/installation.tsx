@@ -133,7 +133,9 @@ pnpm add -D vite typescript`}
           The <code className="text-sky-400">litz()</code> plugin can build client-only apps. Add{" "}
           <code className="text-sky-400">server: "src/server.ts"</code> when you need the React
           Server Components integration used by <code className="text-sky-400">view(...)</code>,
-          route loaders and actions, resources, or API routes.
+          route loaders and actions, resources, or API routes. Route-like modules are projected from
+          the explicit <code className="text-sky-400">defineApp(...)</code> graph, so file placement
+          is only organization.
         </p>
 
         <h3 className="text-xl font-medium text-neutral-100 mb-3">Runtime compatibility notes</h3>

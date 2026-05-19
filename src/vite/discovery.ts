@@ -45,6 +45,87 @@ export async function discoverAllManifests(
   };
 }
 
+export async function discoverAppManifests(
+  root: string,
+  appEntryPath: string,
+): Promise<{
+  routeManifest: DiscoveredRoute[];
+  layoutManifest: DiscoveredLayout[];
+  resourceManifest: DiscoveredResource[];
+  apiManifest: DiscoveredApiRoute[];
+}> {
+  const appFile = path.resolve(root, appEntryPath);
+  const source = await readFile(appFile, "utf8");
+  const sourceFile = createModuleSourceFile(appFile, source);
+  const registrations = discoverAppRegistrationImports(root, appFile, sourceFile);
+  const [nextRouteManifest, nextResourceManifest, nextApiManifest] = await Promise.all([
+    Promise.all(registrations.routes.map((file) => discoverRouteFromFile(root, file))),
+    Promise.all(registrations.resources.map((file) => discoverResourceFromFile(root, file))),
+    Promise.all(registrations.apiRoutes.map((file) => discoverApiRouteFromFile(root, file))),
+  ]);
+  const routeManifest = nextRouteManifest.filter(
+    (entry): entry is DiscoveredRoute => entry !== null,
+  );
+  const resourceManifest = nextResourceManifest.filter(
+    (entry): entry is DiscoveredResource => entry !== null,
+  );
+  const apiManifest = nextApiManifest.filter(
+    (entry): entry is DiscoveredApiRoute => entry !== null,
+  );
+
+  assertNoDuplicateManifestPaths("route", routeManifest);
+  assertNoDuplicateManifestPaths("resource", resourceManifest);
+  assertNoDuplicateManifestPaths("API route", apiManifest);
+
+  return {
+    routeManifest: sortByPathSpecificity(routeManifest),
+    layoutManifest: [],
+    resourceManifest,
+    apiManifest: sortByPathSpecificity(apiManifest),
+  };
+}
+
+export async function discoverServerAppEntry(
+  root: string,
+  serverEntryPath: string,
+): Promise<string | null> {
+  const serverFile = path.resolve(root, serverEntryPath);
+  const source = await readFile(serverFile, "utf8");
+  const sourceFile = createModuleSourceFile(serverFile, source);
+  const importedApps = getImportedLocalBindings(root, serverFile, sourceFile);
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isExportAssignment(statement)) {
+      continue;
+    }
+
+    const createServerCall = findCreateServerCall(statement.expression);
+
+    if (!createServerCall) {
+      continue;
+    }
+
+    const options = createServerCall.arguments[0]
+      ? unwrapManifestExpression(createServerCall.arguments[0])
+      : null;
+
+    if (!options || !ts.isObjectLiteralExpression(options)) {
+      continue;
+    }
+
+    for (const property of options.properties) {
+      if (!ts.isShorthandPropertyAssignment(property) || property.name.text !== "app") {
+        continue;
+      }
+
+      const appEntry = importedApps.get(property.name.text);
+      return appEntry ? normalizeRelativePath(root, appEntry) : null;
+    }
+  }
+
+  return null;
+}
+
 export function isClientBoundaryModule(file: string): boolean {
   return /\.client\.(ts|tsx|js|jsx)$/.test(file);
 }
@@ -167,6 +248,174 @@ function createModuleSourceFile(filePath: string, source: string): ts.SourceFile
         : ts.ScriptKind.TS;
 
   return ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, scriptKind);
+}
+
+function discoverAppRegistrationImports(
+  root: string,
+  appFile: string,
+  sourceFile: ts.SourceFile,
+): {
+  readonly routes: string[];
+  readonly resources: string[];
+  readonly apiRoutes: string[];
+} {
+  const importedBindings = getImportedLocalBindings(root, appFile, sourceFile);
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement) || !hasExportModifier(statement.modifiers)) {
+      continue;
+    }
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name)) {
+        continue;
+      }
+
+      const appCall = findDefineAppCall(declaration.initializer);
+
+      if (!appCall) {
+        continue;
+      }
+
+      const options = appCall.arguments[0] ? unwrapManifestExpression(appCall.arguments[0]) : null;
+
+      if (!options || !ts.isObjectLiteralExpression(options)) {
+        continue;
+      }
+
+      return {
+        routes: getRegisteredModuleFiles(options, "routes", importedBindings),
+        resources: getRegisteredModuleFiles(options, "resources", importedBindings),
+        apiRoutes: getRegisteredModuleFiles(options, "apiRoutes", importedBindings),
+      };
+    }
+  }
+
+  return { routes: [], resources: [], apiRoutes: [] };
+}
+
+function getRegisteredModuleFiles(
+  options: ts.ObjectLiteralExpression,
+  propertyName: string,
+  importedBindings: ReadonlyMap<string, string>,
+): string[] {
+  for (const property of options.properties) {
+    if (
+      !ts.isPropertyAssignment(property) ||
+      getObjectPropertyName(property.name) !== propertyName
+    ) {
+      continue;
+    }
+
+    const initializer = unwrapManifestExpression(property.initializer);
+
+    if (!ts.isArrayLiteralExpression(initializer)) {
+      return [];
+    }
+
+    return initializer.elements.flatMap((element) => {
+      const unwrapped = unwrapManifestExpression(element);
+
+      if (!ts.isIdentifier(unwrapped)) {
+        return [];
+      }
+
+      const file = importedBindings.get(unwrapped.text);
+      return file ? [file] : [];
+    });
+  }
+
+  return [];
+}
+
+function getImportedLocalBindings(
+  root: string,
+  importerFile: string,
+  sourceFile: ts.SourceFile,
+): Map<string, string> {
+  const bindings = new Map<string, string>();
+
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      !statement.moduleSpecifier.text.startsWith(".")
+    ) {
+      continue;
+    }
+
+    const moduleFile = resolveLocalModuleFile(
+      path.dirname(importerFile),
+      statement.moduleSpecifier.text,
+    );
+
+    if (!moduleFile) {
+      continue;
+    }
+
+    const importClause = statement.importClause;
+
+    if (importClause?.name) {
+      bindings.set(importClause.name.text, moduleFile);
+    }
+
+    const namedBindings = importClause?.namedBindings;
+
+    if (!namedBindings || !ts.isNamedImports(namedBindings)) {
+      continue;
+    }
+
+    for (const element of namedBindings.elements) {
+      bindings.set(element.name.text, moduleFile);
+    }
+  }
+
+  return bindings;
+}
+
+function resolveLocalModuleFile(directory: string, specifier: string): string | null {
+  const base = path.resolve(directory, specifier);
+  const candidates = [
+    base,
+    `${base}.ts`,
+    `${base}.tsx`,
+    `${base}.js`,
+    `${base}.jsx`,
+    path.join(base, "index.ts"),
+    path.join(base, "index.tsx"),
+    path.join(base, "index.js"),
+    path.join(base, "index.jsx"),
+  ];
+
+  return candidates.find((candidate) => ts.sys.fileExists(candidate)) ?? null;
+}
+
+function findDefineAppCall(expression: ts.Expression | undefined): ts.CallExpression | null {
+  const unwrapped = expression ? unwrapManifestExpression(expression) : null;
+
+  if (!unwrapped || !ts.isCallExpression(unwrapped)) {
+    return null;
+  }
+
+  if (ts.isIdentifier(unwrapped.expression) && unwrapped.expression.text === "defineApp") {
+    return unwrapped;
+  }
+
+  return null;
+}
+
+function findCreateServerCall(expression: ts.Expression): ts.CallExpression | null {
+  const unwrapped = unwrapManifestExpression(expression);
+
+  if (ts.isCallExpression(unwrapped)) {
+    if (ts.isIdentifier(unwrapped.expression) && unwrapped.expression.text === "createServer") {
+      return unwrapped;
+    }
+
+    return findCreateServerCall(unwrapped.expression);
+  }
+
+  return null;
 }
 
 function hasExportModifier(modifiers: readonly ts.ModifierLike[] | undefined): boolean {

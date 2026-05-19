@@ -46,12 +46,13 @@ export default defineConfig({
 ```
 
 Pass `server` when your app uses route loaders, actions, resources, API routes, or `view(...)`
-responses:
+responses. Pass `app` when the app entry cannot be derived from `createServer({ app })`:
 
 ```ts
 export default defineConfig({
   plugins: [
     litz({
+      app: "src/app.ts",
       server: "src/server.ts",
     }),
   ],
@@ -60,7 +61,8 @@ export default defineConfig({
 
 Litz does not auto-discover a server entry. Keep standard Vite `index.html` behavior for the browser
 entry. During development, Vite serves explicit HTML documents such as `/about.html`; Litz only
-falls back to `index.html` for extensionless app routes when a server entry is configured.
+falls back to `index.html` for extensionless app routes when a server entry is configured. Route,
+resource, and API manifests come from the explicit app graph, not from filesystem placement.
 
 Register routes, resources, and API routes explicitly with `defineApp(...)`.
 
@@ -1157,6 +1159,7 @@ Middleware receives:
 - Server logic only exists at explicit framework boundaries.
 - `view(...)` uses RSC as a transport, not as the whole app architecture.
 - Routes, resources, and API routes are registered explicitly with `defineApp(...)`.
+- Filesystem layout is organizational only; folders do not enroll routes, resources, or API routes.
 - Paths are explicit and absolute.
 - `server(...)` is a declarative marker on a normal JavaScript function, not an isolation boundary
   or security boundary by itself.

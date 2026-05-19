@@ -37,7 +37,7 @@ export default defineConfig({
         <p className="text-neutral-400 mb-4">
           The <code className="text-sky-400">litz()</code> function keeps Vite&apos;s normal browser
           entry behavior. Put your client entry in <code className="text-sky-400">index.html</code>,
-          and omit <code className="text-sky-400">server</code> for a client-only build:
+          and add <code className="text-sky-400">server</code> when you need server-backed routes:
         </p>
         <CodeBlock
           language="ts"
@@ -47,6 +47,7 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
+      app: "src/app.ts",
       server: "src/server.ts",
     }),
   ],
@@ -59,7 +60,8 @@ export default defineConfig({
         <p className="text-neutral-400 mb-4">
           Routes, resources, and API routes are registered with{" "}
           <code className="text-sky-400">defineApp()</code>. File placement does not register
-          anything by itself.
+          anything by itself; the Vite plugin follows this explicit app graph for projection,
+          middleware, HMR, and builds.
         </p>
         <CodeBlock
           language="ts"
@@ -77,6 +79,18 @@ export const app = defineApp({
   apiRoutes: [healthApi],
 });`}
         />
+      </section>
+
+      <section className="mb-12">
+        <h3 className="text-xl font-medium text-neutral-100 mb-3">app</h3>
+        <p className="text-neutral-400 mb-4">
+          <strong>Type:</strong> <code className="text-sky-400">string</code>
+        </p>
+        <p className="text-neutral-400 mb-4">
+          Path to the app entry that exports <code className="text-sky-400">defineApp(...)</code>.
+          Configure this explicitly when your server entry does not directly call{" "}
+          <code className="text-sky-400">createServer({`{ app }`})</code>.
+        </p>
       </section>
 
       <section className="mb-12">
@@ -114,6 +128,8 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
+      // App entry used for explicit route/resource/API registration
+      app: "src/app.ts",
       // Server entry (optional; omitted means client-only)
       server: "src/server.ts",
     }),

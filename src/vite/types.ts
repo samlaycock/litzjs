@@ -32,6 +32,8 @@ export interface LitzRouteRule {
 }
 
 export interface LitzPluginOptions {
+  /** Path to the app entry that calls `defineApp(...)`. */
+  readonly app?: string;
   /** Path to a server entry file. Omit to skip the server build. */
   readonly server?: string;
   /** Options forwarded to `@vitejs/plugin-rsc`. */

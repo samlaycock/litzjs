@@ -22,10 +22,12 @@ import { createServer } from "../src/server";
 import {
   buildLitzApp,
   discoverAllManifests,
+  discoverAppManifests,
   discoverApiRouteFromFile,
   discoverLayoutFromFile,
   discoverResourceFromFile,
   discoverRouteFromFile,
+  discoverServerAppEntry,
   handleLitzApiRequest,
   handleLitzDocumentRequest,
   handleLitzResourceRequest,
@@ -3971,6 +3973,132 @@ describe("manifest discovery", () => {
   });
 
   describe("discoverAllManifests", () => {
+    test("discovers route-like modules registered in defineApp outside routes directories", async () => {
+      const root = createTempProject();
+
+      try {
+        mkdirSync(path.join(root, "features"), { recursive: true });
+        writeFileSync(
+          path.join(root, "src", "app.ts"),
+          [
+            `import { defineApp } from "litzjs";`,
+            `import { route as dashboardRoute } from "../features/dashboard";`,
+            `import { resource as accountResource } from "../features/account-resource";`,
+            `import { api as healthApi } from "../features/health-api";`,
+            ``,
+            `export const app = defineApp({`,
+            `  routes: [dashboardRoute],`,
+            `  resources: [accountResource],`,
+            `  apiRoutes: [healthApi],`,
+            `});`,
+          ].join("\n"),
+        );
+        writeFileSync(
+          path.join(root, "features", "dashboard.tsx"),
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/dashboard", { component: Dashboard });`,
+        );
+        writeFileSync(
+          path.join(root, "features", "account-resource.ts"),
+          `import { defineResource } from "litzjs";\nexport const resource = defineResource("/resources/account", { loader: async () => {} });`,
+        );
+        writeFileSync(
+          path.join(root, "features", "health-api.ts"),
+          `import { defineApiRoute } from "litzjs";\nexport const api = defineApiRoute("/api/health", { GET() { return Response.json({ ok: true }); } });`,
+        );
+
+        const result = await discoverAppManifests(root, "src/app.ts");
+
+        expect(result.routeManifest).toEqual([
+          {
+            id: "/dashboard",
+            path: "/dashboard",
+            modulePath: "features/dashboard.tsx",
+            clientModulePath: null,
+          },
+        ]);
+        expect(result.resourceManifest).toEqual([
+          {
+            path: "/resources/account",
+            modulePath: "features/account-resource.ts",
+            clientModulePath: null,
+            hasLoader: true,
+            hasAction: false,
+            hasComponent: false,
+          },
+        ]);
+        expect(result.apiManifest).toEqual([
+          { path: "/api/health", modulePath: "features/health-api.ts", clientModulePath: null },
+        ]);
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("ignores unregistered route-like files inside routes directories with defineApp discovery", async () => {
+      const root = createTempProject();
+
+      try {
+        writeFileSync(
+          path.join(root, "src", "app.ts"),
+          [
+            `import { defineApp } from "litzjs";`,
+            `import { route as registeredRoute } from "./features/registered";`,
+            ``,
+            `export const app = defineApp({ routes: [registeredRoute] });`,
+          ].join("\n"),
+        );
+        mkdirSync(path.join(root, "src", "features"), { recursive: true });
+        writeFileSync(
+          path.join(root, "src", "features", "registered.tsx"),
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/registered", { component: Registered });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "routes", "unregistered.tsx"),
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/unregistered", { component: Unregistered });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "routes", "resources", "unregistered.ts"),
+          `import { defineResource } from "litzjs";\nexport const resource = defineResource("/resources/unregistered", { loader: async () => {} });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "routes", "api", "unregistered.ts"),
+          `import { defineApiRoute } from "litzjs";\nexport const api = defineApiRoute("/api/unregistered", { GET() { return Response.json({ ok: true }); } });`,
+        );
+
+        const result = await discoverAppManifests(root, "src/app.ts");
+
+        expect(result.routeManifest.map((entry) => entry.path)).toEqual(["/registered"]);
+        expect(result.resourceManifest).toHaveLength(0);
+        expect(result.apiManifest).toHaveLength(0);
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("derives the app entry from a server entry using createServer({ app })", async () => {
+      const root = createTempProject();
+
+      try {
+        writeFileSync(
+          path.join(root, "src", "server.ts"),
+          [
+            `import { createServer } from "litzjs/server";`,
+            `import { app } from "./app";`,
+            ``,
+            `export default createServer({ app });`,
+          ].join("\n"),
+        );
+
+        writeFileSync(path.join(root, "src", "app.ts"), `export const app = null;\n`);
+
+        const appEntry = await discoverServerAppEntry(root, "src/server.ts");
+
+        expect(appEntry).toBe("src/app.ts");
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
     test("rejects duplicate route paths with the files involved", async () => {
       const root = createTempProject();
 
