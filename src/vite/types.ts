@@ -1,36 +1,5 @@
 import type { RscPluginOptions } from "@vitejs/plugin-rsc";
 
-export interface LitzRouteRule {
-  /** Response caching configuration, or `false` to disable. */
-  readonly cache?:
-    | false
-    | {
-        /** Time-to-live in seconds for cached responses. */
-        readonly maxAge?: number;
-        /** Enable stale-while-revalidate caching. */
-        readonly swr?: boolean;
-        /** Vary by these request headers. */
-        readonly varies?: string[];
-      };
-  /** Additional response headers applied to matching routes. */
-  readonly headers?: Readonly<Record<string, string>>;
-  /** Redirect matching routes to another path. */
-  readonly redirect?:
-    | string
-    | {
-        readonly to: string;
-        readonly status?: number;
-      };
-  /** Pre-render this route at build time. */
-  readonly prerender?: boolean;
-  /** Proxy matching routes to an upstream URL. */
-  readonly proxy?:
-    | string
-    | {
-        readonly to: string;
-      };
-}
-
 export interface LitzPluginOptions {
   /** Path to the app entry that calls `defineApp(...)`. */
   readonly app?: string;

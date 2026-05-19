@@ -19,7 +19,6 @@ import type {
   DiscoveredResource,
   DiscoveredRoute,
   LitzPluginOptions,
-  LitzRouteRule,
 } from "./vite/types";
 
 import { normalizeBasePath } from "./base-path";
@@ -71,7 +70,7 @@ import {
   normalizeViteModuleId,
 } from "./vite/virtual-modules";
 
-export type { LitzPluginOptions, LitzRouteRule };
+export type { LitzPluginOptions };
 export {
   discoverAllManifests,
   discoverAppManifests,
