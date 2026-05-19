@@ -27,7 +27,7 @@ function createProjectedModule(
   transformStatement: (statement: ts.Statement) => ts.Statement,
   includeHotAccept: boolean,
 ): string | null {
-  const scriptKind = filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const scriptKind = getScriptKind(filePath);
   const sourceFile = ts.createSourceFile(
     filePath,
     source,
@@ -116,6 +116,22 @@ function createProjectedModule(
   const hmrAcceptSource = includeHotAccept ? createProjectionHotAcceptSource(rootStatement) : "\n";
 
   return `${moduleSource}${hmrAcceptSource}\n`;
+}
+
+function getScriptKind(filePath: string): ts.ScriptKind {
+  if (filePath.endsWith(".tsx")) {
+    return ts.ScriptKind.TSX;
+  }
+
+  if (filePath.endsWith(".jsx")) {
+    return ts.ScriptKind.JSX;
+  }
+
+  if (filePath.endsWith(".js") || filePath.endsWith(".mjs") || filePath.endsWith(".cjs")) {
+    return ts.ScriptKind.JS;
+  }
+
+  return ts.ScriptKind.TS;
 }
 
 function findProjectionRootStatement(sourceFile: ts.SourceFile): ts.Statement | null {
