@@ -169,11 +169,17 @@ describe("docs package names", () => {
   });
 
   test("mountApp examples pass the registered app through options", () => {
+    const readme = normalizeWhitespace(readDoc("README.md"));
     const firstAppDoc = normalizeWhitespace(readDoc("www/src/routes/docs/first-app.tsx"));
     const quickStartDoc = normalizeWhitespace(readDoc("www/src/routes/docs/quick-start.tsx"));
     const configurationDoc = normalizeWhitespace(readDoc("www/src/routes/docs/configuration.tsx"));
     const apiReferenceDoc = normalizeWhitespace(readDoc("www/src/routes/docs/api-reference.tsx"));
 
+    expect(readme).toContain("mountApp(root, { app });");
+    expect(readme).toContain("mountApp(root, { app, component: StrictMode });");
+    expect(readme).toContain("mountApp(root, { app, component: AppProviders });");
+    expect(readme).toContain("mountApp(root, { app, notFound: NotFoundPage });");
+    expect(readme).toContain("app, scrollRestoration: false");
     expect(firstAppDoc).toContain("mountApp(root, { app });");
     expect(quickStartDoc).toContain("mountApp(root, { app });");
     expect(quickStartDoc).toContain("mountApp(root, { app, component: StrictMode });");

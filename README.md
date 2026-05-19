@@ -107,7 +107,9 @@ You can optionally provide a wrapper component around the app root:
 import { StrictMode } from "react";
 import { mountApp } from "litzjs/client";
 
-mountApp(root, { component: StrictMode });
+import { app } from "./app";
+
+mountApp(root, { app, component: StrictMode });
 ```
 
 For providers or wrappers with props, pass your component through the same options object:
@@ -115,11 +117,13 @@ For providers or wrappers with props, pass your component through the same optio
 ```tsx
 import { mountApp } from "litzjs/client";
 
+import { app } from "./app";
+
 function AppProviders({ children }: React.PropsWithChildren) {
   return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
 }
 
-mountApp(root, { component: AppProviders });
+mountApp(root, { app, component: AppProviders });
 ```
 
 You can also customize the unmatched client screen:
@@ -127,12 +131,14 @@ You can also customize the unmatched client screen:
 ```tsx
 import { mountApp, useLocation } from "litzjs/client";
 
+import { app } from "./app";
+
 function NotFoundPage() {
   const location = useLocation();
   return <h1>Missing: {location.pathname}</h1>;
 }
 
-mountApp(root, { notFound: NotFoundPage });
+mountApp(root, { app, notFound: NotFoundPage });
 ```
 
 By default, client navigations scroll to the top on pushes, restore saved scroll positions on back and forward, and move focus to the first `main` landmark after page-changing navigations render. You can opt out of either behavior when your app needs to manage navigation UX itself:
@@ -140,7 +146,10 @@ By default, client navigations scroll to the top on pushes, restore saved scroll
 ```tsx
 import { mountApp } from "litzjs/client";
 
+import { app } from "./app";
+
 mountApp(root, {
+  app,
   scrollRestoration: false,
   focusManagement: false,
 });
