@@ -34,10 +34,12 @@ import {
 import {
   assertNoDuplicateManifestPaths,
   discoverAllManifests,
+  discoverAppManifests,
   discoverApiRouteFromFile,
   discoverLayoutFromFile,
   discoverResourceFromFile,
   discoverRouteFromFile,
+  discoverServerAppEntry,
   isClientBoundaryModule,
   isRouteLikeModuleFile,
 } from "./vite/discovery";
@@ -72,10 +74,12 @@ import {
 export type { LitzPluginOptions, LitzRouteRule };
 export {
   discoverAllManifests,
+  discoverAppManifests,
   discoverApiRouteFromFile,
   discoverLayoutFromFile,
   discoverResourceFromFile,
   discoverRouteFromFile,
+  discoverServerAppEntry,
   handleLitzApiRequest,
   handleLitzDocumentRequest,
   handleLitzResourceRequest,
@@ -92,7 +96,9 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
   let configuredBase = "/";
   let baseOutDir = "dist";
   let browserEntryPath = "src/main.tsx";
+  const configuredAppEntryPath = options.app;
   const configuredServerEntryPath = options.server;
+  let appEntryPath: string | null = null;
   let serverEntryPath: string | null = null;
   let routeManifest: DiscoveredRoute[] = [];
   let layoutManifest: DiscoveredLayout[] = [];
@@ -161,9 +167,16 @@ export function litz(options: LitzPluginOptions = {}): PluginOption {
       configuredBase = normalizeBasePath(config.base);
       browserEntryPath = readBrowserEntryPath(root);
       serverEntryPath = resolveConfiguredServerEntry(root, configuredServerEntryPath);
+      appEntryPath = configuredAppEntryPath
+        ? resolveConfiguredAppEntry(root, configuredAppEntryPath)
+        : serverEntryPath
+          ? await discoverServerAppEntry(root, serverEntryPath)
+          : null;
 
       ({ routeManifest, layoutManifest, resourceManifest, apiManifest } =
-        await discoverAllManifests(root, routePatterns, resourcePatterns, apiPatterns));
+        appEntryPath === null
+          ? await discoverAllManifests(root, routePatterns, resourcePatterns, apiPatterns)
+          : await discoverAppManifests(root, appEntryPath));
       clientProjectedFiles = createClientProjectedFileSet(
         root,
         routeManifest,
@@ -296,7 +309,10 @@ export async function renderView(node, metadata = {}) {
         pendingFullDiscovery = false;
         manifestGeneration++;
         const generation = manifestGeneration;
-        const next = await discoverAllManifests(root, routePatterns, resourcePatterns, apiPatterns);
+        const next =
+          appEntryPath === null
+            ? await discoverAllManifests(root, routePatterns, resourcePatterns, apiPatterns)
+            : await discoverAppManifests(root, appEntryPath);
 
         if (manifestGeneration !== generation || pendingFullDiscovery) {
           return;
@@ -372,6 +388,12 @@ export async function renderView(node, metadata = {}) {
         const generation = manifestGeneration;
         const relativePath = normalizeRelativePath(root, file);
         let changed = false;
+
+        if (appEntryPath !== null) {
+          pendingFullDiscovery = true;
+          scheduleRefresh();
+          return;
+        }
 
         if (isRouteCandidate(relativePath)) {
           const entry = await discoverRouteFromFile(root, file);
@@ -451,7 +473,7 @@ export async function renderView(node, metadata = {}) {
 
         const relativePath = normalizeRelativePath(root, file);
 
-        if (!isManifestCandidate(relativePath)) {
+        if (appEntryPath === null && !isManifestCandidate(relativePath)) {
           return;
         }
 
@@ -466,7 +488,7 @@ export async function renderView(node, metadata = {}) {
 
         const relativePath = normalizeRelativePath(root, file);
 
-        if (!isManifestCandidate(relativePath)) {
+        if (appEntryPath === null && !isManifestCandidate(relativePath)) {
           return;
         }
 
@@ -579,6 +601,18 @@ function resolveConfiguredServerEntry(
   if (!existsSync(absolutePath)) {
     throw new Error(
       `[litzjs] Configured server entry "${configuredPath}" does not exist. Either create the file or omit litz({ server }) for a client-only build.`,
+    );
+  }
+
+  return normalizeRelativePath(root, absolutePath);
+}
+
+function resolveConfiguredAppEntry(root: string, configuredPath: string): string {
+  const absolutePath = path.resolve(root, configuredPath);
+
+  if (!existsSync(absolutePath)) {
+    throw new Error(
+      `[litzjs] Configured app entry "${configuredPath}" does not exist. Either create the file or omit litz({ app }).`,
     );
   }
 
