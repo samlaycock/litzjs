@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 
-function readDoc(relativePath: string) {
-  return readFileSync(path.join(process.cwd(), relativePath), "utf8");
-}
+import { readDoc } from "./helpers/read-doc";
 
 function normalizeWhitespace(value: string) {
   return value.replaceAll(/\s+/g, " ").trim();
