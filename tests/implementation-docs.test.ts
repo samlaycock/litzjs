@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
+
+import { readDoc } from "./helpers/read-doc";
 
 const docs = [
   "docs/README.md",
@@ -10,10 +12,6 @@ const docs = [
   "docs/vite-plugin-and-build.md",
   "docs/runtime-deployment-and-errors.md",
 ];
-
-function readDoc(relativePath: string) {
-  return readFileSync(path.join(process.cwd(), relativePath), "utf8");
-}
 
 function readImplementationDocs() {
   return docs.map(readDoc).join("\n");

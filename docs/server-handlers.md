@@ -21,7 +21,7 @@ Route hooks are source-aware. Loader hooks read loader state, action hooks read 
 
 ## Resources
 
-`defineResource(path, options)` creates reusable server-backed client state. A resource always has a `component`; each rendered `<resource.Component />` creates a scoped resource instance. The instance provides params, request-scoped search state, loader/action state, reload, submit, and `resource.Form`.
+`defineResource(path, options)` creates reusable server-backed client state. In the current API, `component` is required; each rendered `<resource.Component />` creates a scoped resource instance. The instance provides params, request-scoped search state, loader/action state, reload, submit, and `resource.Form`.
 
 Resources dispatch through `/_litzjs/resource` with an operation of `loader` or `action`. Resource search updates are local to the resource request and do not mutate browser history. Resource state is keyed by resource path and request identity so repeated instances can share runtime state when their inputs match.
 
@@ -37,4 +37,4 @@ API dispatch matches the request pathname against the sorted API manifest. `HEAD
 
 Routes, layouts, resources, and API routes can define `input` parsers for `params`, `search`, `headers`, and `body`. Parsers can return typed values or short-circuit by throwing Litz result helpers.
 
-Middleware runs in order before input validation and the final handler. Middleware receives `{ request, params, signal, context }` and `next(...)`. `next({ context })` replaces context for downstream middleware and the handler.
+Middleware runs in order before input validation and the final handler. Middleware receives `{ request, params, signal, context }` and `next(...)`. It does not receive parsed `input`; typed values are only available after input validation inside the handler. `next({ context })` replaces context for downstream middleware and the handler.
