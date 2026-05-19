@@ -58,13 +58,19 @@ export async function discoverAppManifests(
   const source = await readFile(appFile, "utf8");
   const sourceFile = createModuleSourceFile(appFile, source);
   const registrations = discoverAppRegistrationImports(root, appFile, sourceFile);
-  const [nextRouteManifest, nextResourceManifest, nextApiManifest] = await Promise.all([
-    Promise.all(registrations.routes.map((file) => discoverRouteFromFile(root, file))),
-    Promise.all(registrations.resources.map((file) => discoverResourceFromFile(root, file))),
-    Promise.all(registrations.apiRoutes.map((file) => discoverApiRouteFromFile(root, file))),
-  ]);
+  const layoutFiles = await discoverRegisteredLayoutFiles(root, registrations.routes);
+  const [nextRouteManifest, nextLayoutManifest, nextResourceManifest, nextApiManifest] =
+    await Promise.all([
+      Promise.all(registrations.routes.map((file) => discoverRouteFromFile(root, file))),
+      Promise.all(layoutFiles.map((file) => discoverLayoutFromFile(root, file))),
+      Promise.all(registrations.resources.map((file) => discoverResourceFromFile(root, file))),
+      Promise.all(registrations.apiRoutes.map((file) => discoverApiRouteFromFile(root, file))),
+    ]);
   const routeManifest = nextRouteManifest.filter(
     (entry): entry is DiscoveredRoute => entry !== null,
+  );
+  const layoutManifest = nextLayoutManifest.filter(
+    (entry): entry is DiscoveredLayout => entry !== null,
   );
   const resourceManifest = nextResourceManifest.filter(
     (entry): entry is DiscoveredResource => entry !== null,
@@ -74,12 +80,13 @@ export async function discoverAppManifests(
   );
 
   assertNoDuplicateManifestPaths("route", routeManifest);
+  assertNoDuplicateManifestPaths("layout", layoutManifest);
   assertNoDuplicateManifestPaths("resource", resourceManifest);
   assertNoDuplicateManifestPaths("API route", apiManifest);
 
   return {
     routeManifest: sortByPathSpecificity(routeManifest),
-    layoutManifest: [],
+    layoutManifest,
     resourceManifest,
     apiManifest: sortByPathSpecificity(apiManifest),
   };
@@ -114,16 +121,127 @@ export async function discoverServerAppEntry(
     }
 
     for (const property of options.properties) {
-      if (!ts.isShorthandPropertyAssignment(property) || property.name.text !== "app") {
+      const appEntry = resolveCreateServerAppEntry(property, importedApps);
+
+      if (!appEntry) {
         continue;
       }
 
-      const appEntry = importedApps.get(property.name.text);
       return appEntry ? normalizeRelativePath(root, appEntry) : null;
     }
   }
 
   return null;
+}
+
+async function discoverRegisteredLayoutFiles(
+  root: string,
+  routeFiles: readonly string[],
+): Promise<string[]> {
+  const discovered = new Set<string>();
+  const pending = routeFiles.map((file) => ({
+    exportName: "route",
+    factoryName: "defineRoute",
+    file,
+  }));
+
+  while (pending.length > 0) {
+    const item = pending.shift();
+
+    if (!item) {
+      continue;
+    }
+
+    const layoutFile = await discoverRouteLikeLayoutFile(
+      root,
+      item.file,
+      item.exportName,
+      item.factoryName,
+    );
+
+    if (!layoutFile || discovered.has(layoutFile)) {
+      continue;
+    }
+
+    discovered.add(layoutFile);
+    pending.push({
+      exportName: "layout",
+      factoryName: "defineLayout",
+      file: layoutFile,
+    });
+  }
+
+  return [...discovered];
+}
+
+async function discoverRouteLikeLayoutFile(
+  root: string,
+  file: string,
+  exportName: string,
+  factoryName: string,
+): Promise<string | null> {
+  const source = await readFile(file, "utf8");
+  const sourceFile = createModuleSourceFile(file, source);
+  const definition = discoverExportedRouteLikeDefinition(source, file, exportName, factoryName);
+
+  if (!definition?.options) {
+    return null;
+  }
+
+  const importedBindings = getImportedLocalBindings(root, file, sourceFile);
+  return getObjectPropertyIdentifierFile(definition.options, "layout", importedBindings);
+}
+
+function getObjectPropertyIdentifierFile(
+  expression: ts.Expression,
+  propertyName: string,
+  importedBindings: ReadonlyMap<string, string>,
+): string | null {
+  const options = unwrapManifestExpression(expression);
+
+  if (!ts.isObjectLiteralExpression(options)) {
+    return null;
+  }
+
+  for (const property of options.properties) {
+    if (
+      !ts.isPropertyAssignment(property) ||
+      getObjectPropertyName(property.name) !== propertyName
+    ) {
+      continue;
+    }
+
+    const value = unwrapManifestExpression(property.initializer);
+
+    if (!ts.isIdentifier(value)) {
+      return null;
+    }
+
+    return importedBindings.get(value.text) ?? null;
+  }
+
+  return null;
+}
+
+function resolveCreateServerAppEntry(
+  property: ts.ObjectLiteralElementLike,
+  importedApps: ReadonlyMap<string, string>,
+): string | null {
+  if (ts.isShorthandPropertyAssignment(property) && property.name.text === "app") {
+    return importedApps.get(property.name.text) ?? null;
+  }
+
+  if (!ts.isPropertyAssignment(property) || getObjectPropertyName(property.name) !== "app") {
+    return null;
+  }
+
+  const value = unwrapManifestExpression(property.initializer);
+
+  if (!ts.isIdentifier(value)) {
+    return null;
+  }
+
+  return importedApps.get(value.text) ?? null;
 }
 
 export function isClientBoundaryModule(file: string): boolean {

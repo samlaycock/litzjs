@@ -3995,7 +3995,19 @@ describe("manifest discovery", () => {
         );
         writeFileSync(
           path.join(root, "features", "dashboard.tsx"),
-          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/dashboard", { component: Dashboard });`,
+          [
+            `import { defineRoute } from "litzjs";`,
+            `import { layout as dashboardLayout } from "./dashboard-layout";`,
+            ``,
+            `export const route = defineRoute("/dashboard", {`,
+            `  component: Dashboard,`,
+            `  layout: dashboardLayout,`,
+            `});`,
+          ].join("\n"),
+        );
+        writeFileSync(
+          path.join(root, "features", "dashboard-layout.tsx"),
+          `import { defineLayout } from "litzjs";\nexport const layout = defineLayout("/dashboard", { component: DashboardLayout });`,
         );
         writeFileSync(
           path.join(root, "features", "account-resource.ts"),
@@ -4016,6 +4028,14 @@ describe("manifest discovery", () => {
             clientModulePath: null,
           },
         ]);
+        expect(result.layoutManifest).toEqual([
+          {
+            id: "/dashboard",
+            path: "/dashboard",
+            modulePath: "features/dashboard-layout.tsx",
+            clientModulePath: null,
+          },
+        ]);
         expect(result.resourceManifest).toEqual([
           {
             path: "/resources/account",
@@ -4028,6 +4048,60 @@ describe("manifest discovery", () => {
         ]);
         expect(result.apiManifest).toEqual([
           { path: "/api/health", modulePath: "features/health-api.ts", clientModulePath: null },
+        ]);
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("discovers nested layouts used by registered routes in defineApp discovery", async () => {
+      const root = createTempProject();
+
+      try {
+        mkdirSync(path.join(root, "features", "layouts"), { recursive: true });
+        writeFileSync(
+          path.join(root, "src", "app.ts"),
+          [
+            `import { defineApp } from "litzjs";`,
+            `import { route as settingsRoute } from "../features/settings";`,
+            ``,
+            `export const app = defineApp({ routes: [settingsRoute] });`,
+          ].join("\n"),
+        );
+        writeFileSync(
+          path.join(root, "features", "settings.tsx"),
+          [
+            `import { defineRoute } from "litzjs";`,
+            `import { layout as settingsLayout } from "./layouts/settings";`,
+            ``,
+            `export const route = defineRoute("/settings", {`,
+            `  component: Settings,`,
+            `  layout: settingsLayout,`,
+            `});`,
+          ].join("\n"),
+        );
+        writeFileSync(
+          path.join(root, "features", "layouts", "settings.tsx"),
+          [
+            `import { defineLayout } from "litzjs";`,
+            `import { layout as rootLayout } from "./root";`,
+            ``,
+            `export const layout = defineLayout("/settings", {`,
+            `  component: SettingsLayout,`,
+            `  layout: rootLayout,`,
+            `});`,
+          ].join("\n"),
+        );
+        writeFileSync(
+          path.join(root, "features", "layouts", "root.tsx"),
+          `import { defineLayout } from "litzjs";\nexport const layout = defineLayout("/", { component: RootLayout });`,
+        );
+
+        const result = await discoverAppManifests(root, "src/app.ts");
+
+        expect(result.layoutManifest.map((entry) => entry.modulePath)).toEqual([
+          "features/layouts/settings.tsx",
+          "features/layouts/root.tsx",
         ]);
       } finally {
         rmSync(root, { force: true, recursive: true });
@@ -4089,6 +4163,29 @@ describe("manifest discovery", () => {
           ].join("\n"),
         );
 
+        writeFileSync(path.join(root, "src", "app.ts"), `export const app = null;\n`);
+
+        const appEntry = await discoverServerAppEntry(root, "src/server.ts");
+
+        expect(appEntry).toBe("src/app.ts");
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    });
+
+    test("derives the app entry from a non-shorthand createServer app property", async () => {
+      const root = createTempProject();
+
+      try {
+        writeFileSync(
+          path.join(root, "src", "server.ts"),
+          [
+            `import { createServer } from "litzjs/server";`,
+            `import { app as myApp } from "./app";`,
+            ``,
+            `export default createServer({ app: myApp });`,
+          ].join("\n"),
+        );
         writeFileSync(path.join(root, "src", "app.ts"), `export const app = null;\n`);
 
         const appEntry = await discoverServerAppEntry(root, "src/server.ts");
