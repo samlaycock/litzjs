@@ -55,14 +55,37 @@ jobs:
       - name: Run unit test suite
         run: bun run test
 
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run Playwright suite
+        run: bun run test:e2e
+
   release:
     runs-on: ubuntu-latest
     # Required checks for publish gating:
     # - quality: lint + format + typecheck
     # - unit-tests: unit test suite
+    # - e2e: Playwright browser/runtime suite
     needs:
       - quality
       - unit-tests
+      - e2e
 
     steps:
       - name: Checkout repository

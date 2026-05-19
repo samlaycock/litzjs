@@ -18,6 +18,11 @@ Litz is currently a production candidate.
 The core route, resource, API route, and RSC runtime now has deterministic route matching,
 multipart-safe internal actions, and a release gate via `bun run check`.
 
+`bun run check` covers format, lint, type checking, unit tests, package build, and fixture build. It
+does not install Playwright browsers or run browser e2e locally. Before preparing a release, run
+`bunx playwright install --with-deps chromium` and `bun run test:e2e`; the publish workflow requires
+the same Playwright suite before creating a release PR or publishing.
+
 ## Installation
 
 Inside a React + Vite app:
