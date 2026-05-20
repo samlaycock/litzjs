@@ -7,10 +7,17 @@
 Current plugin options include:
 
 - `server`, the server entry used for server-backed routes, resources, API routes, and `view(...)` responses.
-- `app`, an explicit app entry when the app cannot be inferred from `createServer({ app })`.
+- `app`, an explicit app entry escape hatch when the app cannot be inferred from `createServer({ app })`.
 - `rsc`, options forwarded to `@vitejs/plugin-rsc`.
 
 The browser entry is the standard Vite `index.html` module script. Litz reads it and creates a virtual browser entry that imports the app entry and calls `configureClientRuntime({ baseUrl })`.
+
+For most server-backed apps, configure only `server`. During config resolution, Litz reads the
+server entry and looks for a default export that directly calls `createServer({ app })` or
+`createServer({ app: importedApp })`. The referenced local app import becomes the app entry used for
+manifest discovery, client/server projection, development middleware, HMR, and production builds.
+Configure `app` only when that static inference cannot see your app, such as when the server is
+created through an intermediate factory or exported indirectly.
 
 ## Virtual Modules
 

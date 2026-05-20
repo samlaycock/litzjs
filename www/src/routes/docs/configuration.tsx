@@ -47,7 +47,6 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
-      app: "src/app.ts",
       server: "src/server.ts",
     }),
   ],
@@ -88,8 +87,15 @@ export const app = defineApp({
         </p>
         <p className="text-neutral-400 mb-4">
           Path to the app entry that exports <code className="text-sky-400">defineApp(...)</code>.
-          Configure this explicitly when your server entry does not directly call{" "}
-          <code className="text-sky-400">createServer({`{ app }`})</code>.
+          Most apps do not need this option. When <code className="text-sky-400">server</code> is
+          configured, Litz reads the server entry and infers the app entry from a direct{" "}
+          <code className="text-sky-400">createServer({`{ app }`})</code> or{" "}
+          <code className="text-sky-400">createServer({`{ app: importedApp }`})</code> export.
+        </p>
+        <p className="text-neutral-400 mb-4">
+          Configure <code className="text-sky-400">app</code> explicitly only when that static
+          inference cannot see your app, such as when the server is created through a wrapper
+          function or exported indirectly.
         </p>
       </section>
 
@@ -128,8 +134,6 @@ import { litz } from "litzjs/vite";
 export default defineConfig({
   plugins: [
     litz({
-      // App entry used for explicit route/resource/API registration
-      app: "src/app.ts",
       // Server entry (optional; omitted means client-only)
       server: "src/server.ts",
     }),

@@ -1,7 +1,7 @@
 import type { RscPluginOptions } from "@vitejs/plugin-rsc";
 
 export interface LitzPluginOptions {
-  /** Path to the app entry that calls `defineApp(...)`. */
+  /** Path to the app entry when it cannot be inferred from the server entry. */
   readonly app?: string;
   /** Path to a server entry file. Omit to skip the server build. */
   readonly server?: string;

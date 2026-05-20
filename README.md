@@ -155,23 +155,24 @@ bun run dev
 ```
 
 Pass `server` to the plugin when your app uses route loaders, actions, resources, API routes, or
-`view(...)` responses. Pass `app` when the app entry cannot be derived from `createServer({ app })`:
+`view(...)` responses:
 
 ```ts
 export default defineConfig({
   plugins: [
     litz({
-      app: "src/app.ts",
       server: "src/server.ts",
     }),
   ],
 });
 ```
 
-Litz does not auto-discover a server entry. Keep standard Vite `index.html` behavior for the browser
-entry. During development, Vite serves explicit HTML documents such as `/about.html`; Litz only
-falls back to `index.html` for extensionless app routes when a server entry is configured. Route,
-resource, and API manifests come from the explicit app graph, not from filesystem placement.
+Litz does not auto-discover a server entry. When the server entry directly exports
+`createServer({ app })`, the Vite plugin infers the app entry from that import and uses it for
+route, resource, and API discovery. Keep standard Vite `index.html` behavior for the browser entry.
+During development, Vite serves explicit HTML documents such as `/about.html`; Litz only falls back
+to `index.html` for extensionless app routes when a server entry is configured. Route, resource, and
+API manifests come from the explicit app graph, not from filesystem placement.
 
 You can optionally provide a wrapper component around the app root:
 

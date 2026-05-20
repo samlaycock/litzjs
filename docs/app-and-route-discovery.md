@@ -21,7 +21,9 @@ mountApp(root, { app });
 export default createServer({ app });
 ```
 
-When `litz({ server })` is configured, the Vite plugin can infer the app entry from a server entry that exports `createServer({ app })`. `litz({ app })` is available when inference is not possible. The discovery code parses local imports and `defineApp(...)` arrays so the route, resource, and API manifests come from the explicit app graph instead of folder placement.
+When `litz({ server })` is configured, the Vite plugin can infer the app entry from a server entry that exports `createServer({ app })` or `createServer({ app: importedApp })`. The discovered app entry is build-time metadata; the client and server entries still import the runtime `app` object themselves.
+
+`litz({ app })` is available as an escape hatch when inference is not possible, such as when the server entry wraps `createServer(...)` in a helper, exports the server indirectly, or otherwise hides the local app import from static discovery. The discovery code parses local imports and `defineApp(...)` arrays so the route, resource, and API manifests come from the explicit app graph instead of folder placement.
 
 `defineApp(...)` rejects duplicate route, resource, and API paths. The Vite discovery layer also checks duplicate manifest paths after parsing.
 

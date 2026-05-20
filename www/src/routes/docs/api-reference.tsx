@@ -1066,12 +1066,16 @@ const viteGroups: readonly ReferenceGroupSpec[] = [
       {
         name: "LitzPluginOptions",
         signature: `type LitzPluginOptions = {
+  app?: string;
   server?: string;
   rsc?: Omit<RscPluginOptions, "entries" | "serverHandler">;
 };`,
         summary:
           "Options accepted by the main Vite plugin factory. Omit `server` for a client-only build.",
-        details: ["The browser entry comes from Vite's standard `index.html` module script."],
+        details: [
+          "The browser entry comes from Vite's standard `index.html` module script.",
+          "`app` is an escape hatch for build-time app discovery. Most server-backed apps should omit it and let Litz infer the app entry from a direct `createServer({ app })` export in the configured server entry.",
+        ],
       },
       {
         name: "litz",
