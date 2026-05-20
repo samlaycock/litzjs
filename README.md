@@ -1,8 +1,15 @@
 # Litz
 
-Litz is a client-first React framework for Vite.
+[![npm version](https://img.shields.io/npm/v/litzjs.svg)](https://www.npmjs.com/package/litzjs)
+[![npm downloads](https://img.shields.io/npm/dm/litzjs.svg)](https://www.npmjs.com/package/litzjs)
+[![license](https://img.shields.io/npm/l/litzjs.svg)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-ready-3178c6.svg)](https://www.typescriptlang.org/)
 
-It gives you:
+Litz is a client-first React framework for Vite. It gives React apps explicit server boundaries,
+route loaders and actions, reusable server-backed resources, raw API routes, and React Server
+Components / Flight powered `view(...)` responses without switching away from Vite.
+
+Use Litz when you want:
 
 - client-side navigation by default
 - explicit server boundaries with `server(...)`
@@ -37,7 +44,31 @@ does not ask applications to install or compose those Vite plugins directly.
 
 ## Quick Start
 
-Add the Litz Vite plugin. Without a server entry, Litz produces a client-only build.
+This is the smallest useful Litz app. It creates a client-only Vite app with one route.
+
+`package.json`
+
+```json
+{
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "litzjs": "^0.7.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0",
+    "vite": "^8.0.0"
+  }
+}
+```
+
+Add the Litz Vite plugin.
 
 `vite.config.ts`
 
@@ -50,26 +81,7 @@ export default defineConfig({
 });
 ```
 
-Pass `server` when your app uses route loaders, actions, resources, API routes, or `view(...)`
-responses. Pass `app` when the app entry cannot be derived from `createServer({ app })`:
-
-```ts
-export default defineConfig({
-  plugins: [
-    litz({
-      app: "src/app.ts",
-      server: "src/server.ts",
-    }),
-  ],
-});
-```
-
-Litz does not auto-discover a server entry. Keep standard Vite `index.html` behavior for the browser
-entry. During development, Vite serves explicit HTML documents such as `/about.html`; Litz only
-falls back to `index.html` for extensionless app routes when a server entry is configured. Route,
-resource, and API manifests come from the explicit app graph, not from filesystem placement.
-
-Register routes, resources, and API routes explicitly with `defineApp(...)`.
+Define the app and its routes.
 
 `src/app.ts`
 
@@ -83,7 +95,7 @@ export const app = defineApp({
 });
 ```
 
-Mount the Litz app from your browser entry.
+Mount the app from your browser entry.
 
 `src/main.tsx`
 
@@ -100,6 +112,66 @@ if (!root) {
 
 mountApp(root, { app });
 ```
+
+Add the HTML entry Vite serves in development and builds for production.
+
+`index.html`
+
+```html
+<!doctype html>
+<html lang="en">
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+```
+
+Create the first route.
+
+`src/routes/index.tsx`
+
+```tsx
+import { defineRoute } from "litzjs";
+
+export const route = defineRoute("/", {
+  component: HomePage,
+});
+
+function HomePage() {
+  return (
+    <main>
+      <h1>Hello, world!</h1>
+      <p>Your app is running on Litz.</p>
+    </main>
+  );
+}
+```
+
+Start Vite:
+
+```bash
+bun run dev
+```
+
+Pass `server` to the plugin when your app uses route loaders, actions, resources, API routes, or
+`view(...)` responses. Pass `app` when the app entry cannot be derived from `createServer({ app })`:
+
+```ts
+export default defineConfig({
+  plugins: [
+    litz({
+      app: "src/app.ts",
+      server: "src/server.ts",
+    }),
+  ],
+});
+```
+
+Litz does not auto-discover a server entry. Keep standard Vite `index.html` behavior for the browser
+entry. During development, Vite serves explicit HTML documents such as `/about.html`; Litz only
+falls back to `index.html` for extensionless app routes when a server entry is configured. Route,
+resource, and API manifests come from the explicit app graph, not from filesystem placement.
 
 You can optionally provide a wrapper component around the app root:
 
@@ -153,39 +225,6 @@ mountApp(root, {
   scrollRestoration: false,
   focusManagement: false,
 });
-```
-
-`index.html`
-
-```html
-<!doctype html>
-<html lang="en">
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
-```
-
-Create your first route.
-
-`src/routes/index.tsx`
-
-```tsx
-import { defineRoute } from "litzjs";
-
-export const route = defineRoute("/", {
-  component: HomePage,
-});
-
-function HomePage() {
-  return (
-    <main>
-      <h1>Welcome</h1>
-      <p>Your app is running on Litz.</p>
-    </main>
-  );
-}
 ```
 
 ## Routes
@@ -1188,9 +1227,25 @@ bun run fixture:dev
 
 Then open [http://127.0.0.1:4173/](http://127.0.0.1:4173/).
 
+## Contributing
+
+Contributions are welcome. This repository uses Bun for package management and scripts; do not use
+`npm` or `yarn` when working in the repo.
+
+Before opening a pull request:
+
+- run `bun install`
+- run `bun run check`
+- run `bunx playwright install --with-deps chromium` and `bun run test:e2e` when browser behavior is affected
+- include a changeset for user-visible changes with `bun changeset`
+- describe the change, tests, and any compatibility impact in the pull request
+
+See [`conventions/`](./conventions) for the project rules around code style, testing, TypeScript,
+bug fixes, and Git.
+
 ## License
 
-MIT
+Litz is released under the [MIT License](./LICENSE).
 
 ---
 
