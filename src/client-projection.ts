@@ -12,7 +12,7 @@ export function createClientModuleProjection(filePath: string, source: string): 
     source,
     shouldSkipClientProjectionSubtree,
     transformClientProjectionStatement,
-    true,
+    { includeHotAccept: true, narrowExports: true },
   );
 }
 
@@ -22,8 +22,19 @@ export function createServerModuleProjection(filePath: string, source: string): 
     source,
     shouldSkipServerProjectionSubtree,
     transformServerProjectionStatement,
-    false,
+    { includeHotAccept: false, narrowExports: false },
   );
+}
+
+// A unit of module code that projection keeps or drops: a whole statement, or a single
+// declaration of a variable statement so unused siblings can be dropped independently.
+type ProjectionUnit = ts.Statement | ts.VariableDeclaration;
+
+interface ProjectionOptions {
+  includeHotAccept: boolean;
+  // Client output keeps only definition exports so sibling exports, and whatever only they
+  // reference, never reach the browser. Server output keeps every sibling export.
+  narrowExports: boolean;
 }
 
 function createProjectedModule(
@@ -31,7 +42,7 @@ function createProjectedModule(
   source: string,
   createShouldSkipSubtree: (resolveCallee: LitzCalleeResolver) => (node: ts.Node) => boolean,
   transformStatement: (statement: ts.Statement, resolveCallee: LitzCalleeResolver) => ts.Statement,
-  includeHotAccept: boolean,
+  options: ProjectionOptions,
 ): string | null {
   const scriptKind = getScriptKind(filePath);
   const sourceFile = ts.createSourceFile(
@@ -47,25 +58,25 @@ function createProjectedModule(
   const importBindings = collectImportBindings(importStatements);
   const resolveCallee = createLitzCalleeResolver(importStatements);
   const shouldSkipSubtree = createShouldSkipSubtree(resolveCallee);
-  const root = findProjectionRoot(sourceFile);
+  const roots = findProjectionRoots(sourceFile, options.narrowExports);
 
-  if (!root) {
+  if (roots.exportNames.length === 0) {
     return null;
   }
 
-  const requiredStatements = new Set<ts.Statement>([root.statement]);
+  const requiredUnits = new Set<ProjectionUnit>(roots.units);
   const referencedImports = new Set<string>();
-  const queue: ts.Statement[] = [root.projectedStatement];
+  const queue: ProjectionUnit[] = [...roots.units];
 
   while (queue.length > 0) {
-    const statement = queue.pop();
+    const unit = queue.pop();
 
-    if (!statement) {
+    if (!unit) {
       continue;
     }
 
     const referencedNames = collectReferencedNames(
-      statement,
+      roots.projectedStatements.get(unit) ?? unit,
       topLevelNames,
       importBindings,
       shouldSkipSubtree,
@@ -76,23 +87,25 @@ function createProjectedModule(
     }
 
     for (const declarationName of referencedNames.locals) {
-      const declarationStatement = topLevelDeclarations.get(declarationName);
+      const declarationUnit = topLevelDeclarations.get(declarationName);
 
-      if (!declarationStatement || requiredStatements.has(declarationStatement)) {
+      if (!declarationUnit || requiredUnits.has(declarationUnit)) {
         continue;
       }
 
-      requiredStatements.add(declarationStatement);
-      queue.push(declarationStatement);
+      requiredUnits.add(declarationUnit);
+      queue.push(declarationUnit);
     }
   }
 
   const printedImports = importStatements
     .map((statement) => projectImportStatement(statement, referencedImports))
     .filter((statement): statement is ts.ImportDeclaration => statement !== null);
-  const projectionStatements = sourceFile.statements
-    .filter((statement) => requiredStatements.has(statement))
-    .map((statement) => (statement === root.statement ? root.projectedStatement : statement));
+  const projectionStatements = sourceFile.statements.flatMap((statement) => {
+    const projected = projectRequiredStatement(statement, requiredUnits, roots);
+
+    return projected ? [projected] : [];
+  });
   const transformedStatements = projectionStatements.map((statement) =>
     transformStatement(statement, resolveCallee),
   );
@@ -119,11 +132,40 @@ function createProjectedModule(
   const moduleSource = [...printedImports, ...placeholder, ...transformedStatements]
     .map((statement) => printer.printNode(ts.EmitHint.Unspecified, statement, sourceFile))
     .join("\n\n");
-  const hmrAcceptSource = includeHotAccept
-    ? createProjectionHotAcceptSource(root.exportName)
+  const hmrAcceptSource = options.includeHotAccept
+    ? createProjectionHotAcceptSource(roots.exportNames)
     : "\n";
 
   return `${moduleSource}${hmrAcceptSource}\n`;
+}
+
+function projectRequiredStatement(
+  statement: ts.Statement,
+  requiredUnits: ReadonlySet<ProjectionUnit>,
+  roots: ProjectionRoots,
+): ts.Statement | null {
+  if (!ts.isVariableStatement(statement)) {
+    return requiredUnits.has(statement)
+      ? (roots.projectedStatements.get(statement) ?? statement)
+      : null;
+  }
+
+  const declarations = statement.declarationList.declarations;
+  const requiredDeclarations = declarations.filter((declaration) => requiredUnits.has(declaration));
+
+  if (requiredDeclarations.length === 0) {
+    return null;
+  }
+
+  if (requiredDeclarations.length === declarations.length) {
+    return statement;
+  }
+
+  return ts.factory.updateVariableStatement(
+    statement,
+    statement.modifiers,
+    ts.factory.updateVariableDeclarationList(statement.declarationList, requiredDeclarations),
+  );
 }
 
 function getScriptKind(filePath: string): ts.ScriptKind {
@@ -144,31 +186,45 @@ function getScriptKind(filePath: string): ts.ScriptKind {
 
 const projectionExportNames = new Set(["route", "layout", "resource", "api"]);
 
-interface ProjectionRoot {
-  // The module statement that exports the definition.
-  statement: ts.Statement;
-  // What gets emitted for that statement: export clauses are narrowed to the definition
-  // specifier so sibling exports are not dragged into client output.
-  projectedStatement: ts.Statement;
-  exportName: string;
+interface ProjectionRoots {
+  // Units that export a definition (or, without narrowing, a whole exported statement).
+  units: ProjectionUnit[];
+  // Export clauses emitted in a different form than they were written, narrowed to their
+  // definition specifiers.
+  projectedStatements: Map<ProjectionUnit, ts.Statement>;
+  exportNames: string[];
+}
+
+function hasExportModifier(statement: ts.VariableStatement): boolean {
+  return (
+    statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false
+  );
 }
 
 // Mirrors the export forms discovery accepts (any declaration in an exported variable statement,
-// or a local export clause), so every discovered definition has a projection root.
-function findProjectionRoot(sourceFile: ts.SourceFile): ProjectionRoot | null {
+// or a local export clause), so every discovered definition has a projection root. A module can
+// export several definitions (for example a route and a resource), so all of them are kept.
+function findProjectionRoots(sourceFile: ts.SourceFile, narrowExports: boolean): ProjectionRoots {
+  const roots: ProjectionRoots = { units: [], projectedStatements: new Map(), exportNames: [] };
+
   for (const statement of sourceFile.statements) {
-    if (
-      ts.isVariableStatement(statement) &&
-      statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
-    ) {
-      for (const declaration of statement.declarationList.declarations) {
-        if (
+    if (ts.isVariableStatement(statement) && hasExportModifier(statement)) {
+      const declarations = statement.declarationList.declarations;
+      const definitionDeclarations = declarations.filter(
+        (declaration) =>
           ts.isIdentifier(declaration.name) &&
           declaration.initializer &&
-          projectionExportNames.has(declaration.name.text)
-        ) {
-          return { statement, projectedStatement: statement, exportName: declaration.name.text };
-        }
+          projectionExportNames.has(declaration.name.text),
+      );
+
+      if (definitionDeclarations.length === 0) {
+        continue;
+      }
+
+      roots.units.push(...(narrowExports ? definitionDeclarations : declarations));
+
+      for (const declaration of definitionDeclarations) {
+        roots.exportNames.push((declaration.name as ts.Identifier).text);
       }
 
       continue;
@@ -184,47 +240,59 @@ function findProjectionRoot(sourceFile: ts.SourceFile): ProjectionRoot | null {
       continue;
     }
 
-    for (const element of statement.exportClause.elements) {
-      if (element.isTypeOnly || !projectionExportNames.has(element.name.text)) {
-        continue;
-      }
+    const definitionElements = statement.exportClause.elements.filter(
+      (element) => !element.isTypeOnly && projectionExportNames.has(element.name.text),
+    );
 
-      return {
+    if (definitionElements.length === 0) {
+      continue;
+    }
+
+    roots.units.push(statement);
+    roots.exportNames.push(...definitionElements.map((element) => element.name.text));
+
+    if (narrowExports && definitionElements.length !== statement.exportClause.elements.length) {
+      roots.projectedStatements.set(
         statement,
-        projectedStatement: ts.factory.updateExportDeclaration(
+        ts.factory.updateExportDeclaration(
           statement,
           statement.modifiers,
           false,
-          ts.factory.updateNamedExports(statement.exportClause, [element]),
+          ts.factory.updateNamedExports(statement.exportClause, definitionElements),
           undefined,
           statement.attributes,
         ),
-        exportName: element.name.text,
-      };
+      );
     }
   }
 
-  return null;
+  return roots;
 }
 
-function createProjectionHotAcceptSource(exportName: string): string {
-  return `
-
-if (import.meta.hot) {
-  import.meta.hot.accept((mod) => {
-    if (mod?.${exportName}) {
+function createProjectionHotAcceptSource(exportNames: readonly string[]): string {
+  const handlers = exportNames
+    .map(
+      (exportName) => `    if (mod?.${exportName}) {
       globalThis.__litzjsHandleClientDefinitionHotUpdate?.({
         kind: ${JSON.stringify(exportName)},
         definition: mod.${exportName},
       });
-    }
+    }`,
+    )
+    .join("\n");
+
+  return `
+
+if (import.meta.hot) {
+  import.meta.hot.accept((mod) => {
+${handlers}
   });
 }
 `;
 }
 
-function collectTopLevelDeclarations(sourceFile: ts.SourceFile): Map<string, ts.Statement> {
-  const declarations = new Map<string, ts.Statement>();
+function collectTopLevelDeclarations(sourceFile: ts.SourceFile): Map<string, ProjectionUnit> {
+  const declarations = new Map<string, ProjectionUnit>();
 
   for (const statement of sourceFile.statements) {
     if (ts.isFunctionDeclaration(statement) && statement.name) {
@@ -239,8 +307,12 @@ function collectTopLevelDeclarations(sourceFile: ts.SourceFile): Map<string, ts.
 
     if (ts.isVariableStatement(statement)) {
       for (const declaration of statement.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name)) {
-          declarations.set(declaration.name.text, statement);
+        const names = new Set<string>();
+
+        collectBindingNames(declaration.name, names);
+
+        for (const name of names) {
+          declarations.set(name, declaration);
         }
       }
     }
@@ -360,7 +432,7 @@ function isShadowedByEnclosingScope(identifier: ts.Identifier): boolean {
 }
 
 function collectReferencedNames(
-  statement: ts.Statement,
+  unit: ts.Node,
   topLevelNames: Set<string>,
   importBindings: Set<string>,
   shouldSkipSubtree: (node: ts.Node) => boolean,
@@ -403,7 +475,7 @@ function collectReferencedNames(
     ts.forEachChild(node, (child) => visit(child, nextScopes));
   }
 
-  visit(statement, []);
+  visit(unit, []);
   return { locals, imports };
 }
 
