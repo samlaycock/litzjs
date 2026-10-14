@@ -3046,7 +3046,11 @@ describe("dev server error masking", () => {
 
   describe("batched route loader targets", () => {
     async function requestDevBatch(targets: unknown) {
-      const calls = { route: 0, layout: 0 };
+      const calls = { route: 0, layout: 0, middleware: 0 };
+      const countMiddleware = (_context: unknown, next: () => Promise<unknown>) => {
+        calls.middleware += 1;
+        return next();
+      };
       const server = createMockViteDevServer(async () => ({
         route: {
           async loader() {
@@ -3054,10 +3058,12 @@ describe("dev server error masking", () => {
             return { kind: "data", data: "route" };
           },
           options: {
+            middleware: [countMiddleware],
             layout: {
               id: "projects.layout",
               path: "/projects",
               options: {
+                middleware: [countMiddleware],
                 async loader() {
                   calls.layout += 1;
                   return { kind: "data", data: "layout" };
@@ -3099,14 +3105,14 @@ describe("dev server error masking", () => {
 
       expect(response.statusCode).toBe(400);
       expect(response.getBody()).toContain("Malformed internal request.");
-      expect(calls).toEqual({ route: 0, layout: 0 });
+      expect(calls).toEqual({ route: 0, layout: 0, middleware: 0 });
     });
 
     test("rejects large repeated target arrays without amplifying loader work", async () => {
       const { calls, response } = await requestDevBatch(Array(1000).fill("projects.show"));
 
       expect(response.statusCode).toBe(400);
-      expect(calls).toEqual({ route: 0, layout: 0 });
+      expect(calls).toEqual({ route: 0, layout: 0, middleware: 0 });
     });
 
     test("rejects more targets than the route match chain contains", async () => {
@@ -3117,17 +3123,28 @@ describe("dev server error masking", () => {
       ]);
 
       expect(response.statusCode).toBe(400);
-      expect(calls).toEqual({ route: 0, layout: 0 });
+      expect(calls).toEqual({ route: 0, layout: 0, middleware: 0 });
     });
 
     test("rejects non-array and non-string targets as malformed", async () => {
       const nonArray = await requestDevBatch("projects.show");
+      const nullTargets = await requestDevBatch(null);
       const nonString = await requestDevBatch(["projects.show", 42]);
 
       expect(nonArray.response.statusCode).toBe(400);
+      expect(nullTargets.response.statusCode).toBe(400);
       expect(nonString.response.statusCode).toBe(400);
-      expect(nonArray.calls).toEqual({ route: 0, layout: 0 });
-      expect(nonString.calls).toEqual({ route: 0, layout: 0 });
+      expect(nonArray.calls).toEqual({ route: 0, layout: 0, middleware: 0 });
+      expect(nullTargets.calls).toEqual({ route: 0, layout: 0, middleware: 0 });
+      expect(nonString.calls).toEqual({ route: 0, layout: 0, middleware: 0 });
+    });
+
+    test("runs each distinct target in the match chain exactly once", async () => {
+      const { calls, response } = await requestDevBatch(["projects.layout", "projects.show"]);
+
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.getBody()).results).toHaveLength(2);
+      expect(calls).toEqual({ route: 1, layout: 1, middleware: 3 });
     });
   });
 
