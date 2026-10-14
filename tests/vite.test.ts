@@ -581,6 +581,94 @@ describe("vite production server helpers", () => {
     }
   }, 60000);
 
+  test("production client assets do not contain handlers from aliased or namespace Litz imports", async () => {
+    const repoRoot = process.cwd();
+    const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
+    const root = mkdtempSync(path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-aliases-"));
+    const canaries = ["ALIAS_LOADER_CANARY", "NAMESPACE_LOADER_CANARY", "NAMESPACE_ACTION_CANARY"];
+
+    function readAllFiles(directory: string): string {
+      return readdirSync(directory, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => readFileSync(path.join(entry.parentPath, entry.name), "utf8"))
+        .join("\n");
+    }
+
+    try {
+      cpSync(path.join(sourceFixtureRoot, "."), root, { recursive: true });
+      rmSync(path.join(root, "dist"), { recursive: true, force: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "features", "aliased-imports.tsx"),
+        [
+          'import { data, defineRoute as make, server as mark } from "litzjs";',
+          "",
+          'export const route = make("/features/aliased-imports", {',
+          "  component: AliasedImportsPage,",
+          '  loader: mark(async () => data({ secret: "ALIAS_LOADER_CANARY" })),',
+          "});",
+          "",
+          "function AliasedImportsPage() {",
+          "  return <main>Aliased imports</main>;",
+          "}",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(root, "src", "routes", "features", "namespace-imports.tsx"),
+        [
+          'import * as litz from "litzjs";',
+          "",
+          'export const route = litz.defineRoute("/features/namespace-imports", {',
+          "  component: NamespaceImportsPage,",
+          '  loader: litz.server(async () => litz.data({ secret: "NAMESPACE_LOADER_CANARY" })),',
+          '  action: litz.server(async () => litz.data({ secret: "NAMESPACE_ACTION_CANARY" })),',
+          "});",
+          "",
+          "function NamespaceImportsPage() {",
+          "  return <main>Namespace imports</main>;",
+          "}",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const appPath = path.join(root, "src", "app.ts");
+      const appSource = readFileSync(appPath, "utf8");
+
+      writeFileSync(
+        appPath,
+        [
+          'import { route as aliasedImportsRoute } from "./routes/features/aliased-imports";',
+          'import { route as namespaceImportsRoute } from "./routes/features/namespace-imports";',
+          appSource.replace(
+            "  routes: [\n",
+            "  routes: [\n    aliasedImportsRoute,\n    namespaceImportsRoute,\n",
+          ),
+        ].join("\n"),
+        "utf8",
+      );
+
+      await buildLitzApp({
+        configFile: path.join(root, "vite.config.ts"),
+        root,
+      });
+
+      const clientAssets = readAllFiles(path.join(root, "dist", "client"));
+      const serverAssets = readAllFiles(path.join(root, "dist", "server"));
+
+      expect(clientAssets).toContain("/features/aliased-imports");
+      expect(clientAssets).toContain("/features/namespace-imports");
+
+      for (const canary of canaries) {
+        expect(serverAssets).toContain(canary);
+        expect(clientAssets).not.toContain(canary);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 60000);
+
   test("built smoke fixture serves document and API routes", async () => {
     const repoRoot = process.cwd();
     const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
