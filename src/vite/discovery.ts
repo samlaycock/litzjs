@@ -368,6 +368,15 @@ function createModuleSourceFile(filePath: string, source: string): ts.SourceFile
   return ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, scriptKind);
 }
 
+type AppRegistrationKey = "routes" | "resources" | "apiRoutes";
+
+const APP_REGISTRATION_KEYS: readonly AppRegistrationKey[] = ["routes", "resources", "apiRoutes"];
+
+interface AppRegistrationScope {
+  readonly importedBindings: ReadonlyMap<string, string>;
+  readonly constBindings: ReadonlyMap<string, ts.Expression>;
+}
+
 function discoverAppRegistrationImports(
   root: string,
   appFile: string,
@@ -377,7 +386,10 @@ function discoverAppRegistrationImports(
   readonly resources: string[];
   readonly apiRoutes: string[];
 } {
-  const importedBindings = getImportedLocalBindings(root, appFile, sourceFile);
+  const scope: AppRegistrationScope = {
+    importedBindings: getImportedLocalBindings(root, appFile, sourceFile),
+    constBindings: getTopLevelConstBindings(sourceFile),
+  };
 
   for (const statement of sourceFile.statements) {
     if (!ts.isVariableStatement(statement) || !hasExportModifier(statement.modifiers)) {
@@ -395,16 +407,12 @@ function discoverAppRegistrationImports(
         continue;
       }
 
-      const options = appCall.arguments[0] ? unwrapManifestExpression(appCall.arguments[0]) : null;
-
-      if (!options || !ts.isObjectLiteralExpression(options)) {
-        continue;
-      }
+      const registrations = collectAppRegistrationExpressions(appCall, scope);
 
       return {
-        routes: getRegisteredModuleFiles(options, "routes", importedBindings),
-        resources: getRegisteredModuleFiles(options, "resources", importedBindings),
-        apiRoutes: getRegisteredModuleFiles(options, "apiRoutes", importedBindings),
+        routes: resolveRegisteredModuleFiles(registrations.get("routes"), "routes", scope),
+        resources: resolveRegisteredModuleFiles(registrations.get("resources"), "resources", scope),
+        apiRoutes: resolveRegisteredModuleFiles(registrations.get("apiRoutes"), "apiRoutes", scope),
       };
     }
   }
@@ -412,38 +420,220 @@ function discoverAppRegistrationImports(
   return { routes: [], resources: [], apiRoutes: [] };
 }
 
-function getRegisteredModuleFiles(
-  options: ts.ObjectLiteralExpression,
-  propertyName: string,
-  importedBindings: ReadonlyMap<string, string>,
-): string[] {
-  for (const property of options.properties) {
+function getTopLevelConstBindings(sourceFile: ts.SourceFile): Map<string, ts.Expression> {
+  const bindings = new Map<string, ts.Expression>();
+
+  for (const statement of sourceFile.statements) {
     if (
-      !ts.isPropertyAssignment(property) ||
-      getObjectPropertyName(property.name) !== propertyName
+      !ts.isVariableStatement(statement) ||
+      !(statement.declarationList.flags & ts.NodeFlags.Const)
     ) {
       continue;
     }
 
-    const initializer = unwrapManifestExpression(property.initializer);
-
-    if (!ts.isArrayLiteralExpression(initializer)) {
-      return [];
-    }
-
-    return initializer.elements.flatMap((element) => {
-      const unwrapped = unwrapManifestExpression(element);
-
-      if (!ts.isIdentifier(unwrapped)) {
-        return [];
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name) && declaration.initializer) {
+        bindings.set(declaration.name.text, declaration.initializer);
       }
-
-      const file = importedBindings.get(unwrapped.text);
-      return file ? [file] : [];
-    });
+    }
   }
 
-  return [];
+  return bindings;
+}
+
+function collectAppRegistrationExpressions(
+  appCall: ts.CallExpression,
+  scope: AppRegistrationScope,
+): Map<AppRegistrationKey, ts.Expression> {
+  const registrations = new Map<AppRegistrationKey, ts.Expression>();
+  const options = appCall.arguments[0];
+
+  if (options) {
+    collectAppOptionRegistrations(options, scope, registrations, new Set());
+  }
+
+  return registrations;
+}
+
+function collectAppOptionRegistrations(
+  expression: ts.Expression,
+  scope: AppRegistrationScope,
+  registrations: Map<AppRegistrationKey, ts.Expression>,
+  seenBindings: ReadonlySet<string>,
+): void {
+  const options = resolveConstBinding(expression, scope, seenBindings);
+
+  if (!options || !ts.isObjectLiteralExpression(options.expression)) {
+    throwUnresolvableAppRegistration("options", expression, "options must be an object literal");
+  }
+
+  for (const property of options.expression.properties) {
+    if (ts.isSpreadAssignment(property)) {
+      if (!resolveConstBinding(property.expression, scope, options.seenBindings)) {
+        throwUnresolvableAppRegistration(
+          "options",
+          property,
+          "spreads must reference object literals or top-level const objects",
+        );
+      }
+
+      collectAppOptionRegistrations(
+        property.expression,
+        scope,
+        registrations,
+        options.seenBindings,
+      );
+      continue;
+    }
+
+    const name = getAppOptionPropertyName(property);
+
+    if (name === null) {
+      throwUnresolvableAppRegistration("options", property, "option names must be static");
+    }
+
+    if (!isAppRegistrationKey(name)) {
+      continue;
+    }
+
+    if (ts.isPropertyAssignment(property)) {
+      registrations.set(name, property.initializer);
+    } else if (ts.isShorthandPropertyAssignment(property)) {
+      registrations.set(name, property.name);
+    } else {
+      throwUnresolvableAppRegistration(name, property, `${name} must be an array value`);
+    }
+  }
+}
+
+function getAppOptionPropertyName(property: ts.ObjectLiteralElementLike): string | null {
+  if (!property.name) {
+    return null;
+  }
+
+  if (ts.isComputedPropertyName(property.name)) {
+    return getStringLiteralValue(property.name.expression);
+  }
+
+  return getObjectPropertyName(property.name);
+}
+
+function isAppRegistrationKey(name: string): name is AppRegistrationKey {
+  return (APP_REGISTRATION_KEYS as readonly string[]).includes(name);
+}
+
+function resolveRegisteredModuleFiles(
+  expression: ts.Expression | undefined,
+  registration: AppRegistrationKey,
+  scope: AppRegistrationScope,
+): string[] {
+  if (!expression) {
+    return [];
+  }
+
+  return [...new Set(resolveRegistrationList(expression, registration, scope, new Set()))];
+}
+
+function resolveRegistrationList(
+  expression: ts.Expression,
+  registration: AppRegistrationKey,
+  scope: AppRegistrationScope,
+  seenBindings: ReadonlySet<string>,
+): string[] {
+  const list = resolveConstBinding(expression, scope, seenBindings);
+
+  if (!list || !ts.isArrayLiteralExpression(list.expression)) {
+    throwUnresolvableAppRegistration(
+      registration,
+      expression,
+      `${registration} must be an array literal or a top-level const array`,
+    );
+  }
+
+  return list.expression.elements.flatMap((element) => {
+    if (ts.isSpreadElement(element)) {
+      const spread = resolveConstBinding(element.expression, scope, list.seenBindings);
+
+      if (!spread || !ts.isArrayLiteralExpression(spread.expression)) {
+        throwUnresolvableAppRegistration(
+          registration,
+          element,
+          "spreads must reference array literals or top-level const arrays",
+        );
+      }
+
+      return resolveRegistrationList(element.expression, registration, scope, list.seenBindings);
+    }
+
+    return [resolveRegisteredDefinitionFile(element, registration, scope, list.seenBindings)];
+  });
+}
+
+function resolveRegisteredDefinitionFile(
+  expression: ts.Expression,
+  registration: AppRegistrationKey,
+  scope: AppRegistrationScope,
+  seenBindings: ReadonlySet<string>,
+): string {
+  const unwrapped = unwrapManifestExpression(expression);
+
+  if (ts.isIdentifier(unwrapped) && !seenBindings.has(unwrapped.text)) {
+    const file = scope.importedBindings.get(unwrapped.text);
+
+    if (file) {
+      return file;
+    }
+
+    const binding = scope.constBindings.get(unwrapped.text);
+
+    if (binding && ts.isIdentifier(unwrapManifestExpression(binding))) {
+      return resolveRegisteredDefinitionFile(
+        binding,
+        registration,
+        scope,
+        new Set([...seenBindings, unwrapped.text]),
+      );
+    }
+  }
+
+  throwUnresolvableAppRegistration(
+    registration,
+    expression,
+    "registered definitions must be bindings imported from their definition modules",
+  );
+}
+
+function resolveConstBinding(
+  expression: ts.Expression,
+  scope: AppRegistrationScope,
+  seenBindings: ReadonlySet<string>,
+): { readonly expression: ts.Expression; readonly seenBindings: ReadonlySet<string> } | null {
+  const unwrapped = unwrapManifestExpression(expression);
+
+  if (!ts.isIdentifier(unwrapped)) {
+    return { expression: unwrapped, seenBindings };
+  }
+
+  const binding = scope.constBindings.get(unwrapped.text);
+
+  if (!binding || seenBindings.has(unwrapped.text)) {
+    return null;
+  }
+
+  return resolveConstBinding(binding, scope, new Set([...seenBindings, unwrapped.text]));
+}
+
+function throwUnresolvableAppRegistration(
+  registration: AppRegistrationKey | "options",
+  node: ts.Node,
+  reason: string,
+): never {
+  throw new Error(
+    `Litz cannot statically resolve defineApp ${registration} registration \`${node.getText()}\` in ` +
+      `${node.getSourceFile().fileName}: ${reason}. ` +
+      "Register definitions in defineApp as identifiers imported from their modules, " +
+      "optionally grouped in top-level const arrays and spreads, so Litz can strip server code from client builds.",
+  );
 }
 
 function getImportedLocalBindings(
