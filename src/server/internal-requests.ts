@@ -80,7 +80,7 @@ export function parseInternalRouteTargets(
   targets: unknown,
   maxTargets: number,
 ): string[] | undefined {
-  if (targets === undefined || targets === null) {
+  if (targets === undefined) {
     return undefined;
   }
 

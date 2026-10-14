@@ -1334,7 +1334,11 @@ describe("server security", () => {
 
   describe("batched route loader targets", () => {
     function createBatchServer() {
-      const calls = { route: 0, layout: 0 };
+      const calls = { route: 0, layout: 0, middleware: 0 };
+      const countMiddleware = (_context: unknown, next: () => Promise<unknown>) => {
+        calls.middleware += 1;
+        return next();
+      };
       const server = createServer({
         manifest: {
           routes: [
@@ -1347,10 +1351,12 @@ describe("server security", () => {
                   return { kind: "data", data: "route" };
                 },
                 options: {
+                  middleware: [countMiddleware],
                   layout: {
                     id: "projects.layout",
                     path: "/projects",
                     options: {
+                      middleware: [countMiddleware],
                       loader() {
                         calls.layout += 1;
                         return { kind: "data", data: "layout" };
@@ -1391,7 +1397,7 @@ describe("server security", () => {
 
       expect(response.status).toBe(400);
       expect(body).toEqual({ kind: "fault", message: "Malformed internal request." });
-      expect(calls).toEqual({ route: 0, layout: 0 });
+      expect(calls).toEqual({ route: 0, layout: 0, middleware: 0 });
     });
 
     test("rejects large repeated target arrays without amplifying loader work", async () => {
@@ -1399,7 +1405,7 @@ describe("server security", () => {
       const response = await requestBatch(server, Array(1000).fill("projects.show"));
 
       expect(response.status).toBe(400);
-      expect(calls).toEqual({ route: 0, layout: 0 });
+      expect(calls).toEqual({ route: 0, layout: 0, middleware: 0 });
     });
 
     test("rejects more targets than the route match chain contains", async () => {
@@ -1411,17 +1417,19 @@ describe("server security", () => {
       ]);
 
       expect(response.status).toBe(400);
-      expect(calls).toEqual({ route: 0, layout: 0 });
+      expect(calls).toEqual({ route: 0, layout: 0, middleware: 0 });
     });
 
     test("rejects non-array and non-string targets as malformed", async () => {
       const { calls, server } = createBatchServer();
       const nonArrayResponse = await requestBatch(server, "projects.show");
+      const nullResponse = await requestBatch(server, null);
       const nonStringResponse = await requestBatch(server, ["projects.show", 42]);
 
       expect(nonArrayResponse.status).toBe(400);
+      expect(nullResponse.status).toBe(400);
       expect(nonStringResponse.status).toBe(400);
-      expect(calls).toEqual({ route: 0, layout: 0 });
+      expect(calls).toEqual({ route: 0, layout: 0, middleware: 0 });
     });
 
     test("runs each distinct target in the match chain exactly once", async () => {
@@ -1432,7 +1440,7 @@ describe("server security", () => {
       expect(response.status).toBe(200);
       expect(body.kind).toBe("batch");
       expect(body.results).toHaveLength(2);
-      expect(calls).toEqual({ route: 1, layout: 1 });
+      expect(calls).toEqual({ route: 1, layout: 1, middleware: 3 });
     });
   });
 
