@@ -623,6 +623,100 @@ function Page() {
     ).toThrow('Litz cannot safely project litz.defineLayout("/y") in /virtual/routes/y.tsx');
   });
 
+  test("does not strip local bindings that shadow aliased or namespace Litz imports", () => {
+    const source = `
+import { defineRoute, server as mark } from "litzjs";
+import * as litz from "litzjs";
+
+export const route = defineRoute("/x", {
+  component: Page,
+});
+
+function Page() {
+  const items = [1, 2].map((mark) => mark + 1);
+  const label = ((litz) => litz.server("KEEP_NAMESPACE_CALL"))({ server: String });
+  const format = (mark: (value: string) => string) => mark("KEEP_ALIAS_CALL");
+
+  return <main>{items.join(",")}{label}{format(String)}</main>;
+}
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/x.tsx", source);
+
+    expect(projected).toContain('litz.server("KEEP_NAMESPACE_CALL")');
+    expect(projected).toContain('mark("KEEP_ALIAS_CALL")');
+    expect(projected).not.toContain("__litz_server_placeholder__ = {}");
+  });
+
+  test.each([
+    ["aliased", 'import { data, defineRoute as make } from "litzjs";', "make"],
+    ["namespaced", 'import * as litz from "litzjs";\nconst { data } = litz;', "litz.defineRoute"],
+    ["unaliased", 'import { data, defineRoute } from "litzjs";', "defineRoute"],
+  ])(
+    "declares the placeholder for plain %s loader and action handlers",
+    (_label, imports, factory) => {
+      const source = `
+${imports}
+
+export const route = ${factory}("/x", {
+  component: Page,
+  loader: () => data("PLAIN_LOADER_CANARY"),
+  action: async () => data("PLAIN_ACTION_CANARY"),
+});
+
+function Page() {
+  return <main>Page</main>;
+}
+`;
+
+      const projected = createClientModuleProjection("/virtual/routes/x.tsx", source);
+
+      expect(projected).toContain("const __litz_server_placeholder__ = {}");
+      expect(projected).toContain("loader: __litz_server_placeholder__");
+      expect(projected).toContain("action: __litz_server_placeholder__");
+      expect(projected).not.toContain("PLAIN_LOADER_CANARY");
+      expect(projected).not.toContain("PLAIN_ACTION_CANARY");
+    },
+  );
+
+  test.each([
+    ["aliased", 'import { data, defineRoute as make } from "litzjs";', "make"],
+    [
+      "namespaced",
+      'import * as litz from "litzjs";\nimport { data } from "litzjs";',
+      "litz.defineResource",
+    ],
+    ["unaliased", 'import { data, defineRoute } from "litzjs";', "defineRoute"],
+  ])("replaces %s method-style loader and action handlers", (_label, imports, factory) => {
+    const source = `
+${imports}
+import { readSecret } from "./secret.server";
+
+export const route = ${factory}("/x", {
+  component: Page,
+  loader() {
+    return data(readSecret("METHOD_LOADER_CANARY"));
+  },
+  async action() {
+    return data("METHOD_ACTION_CANARY");
+  },
+});
+
+function Page() {
+  return <main>Page</main>;
+}
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/x.tsx", source);
+
+    expect(projected).toContain("const __litz_server_placeholder__ = {}");
+    expect(projected).toContain("loader: __litz_server_placeholder__");
+    expect(projected).toContain("action: __litz_server_placeholder__");
+    expect(projected).not.toContain("METHOD_LOADER_CANARY");
+    expect(projected).not.toContain("METHOD_ACTION_CANARY");
+    expect(projected).not.toContain("readSecret");
+  });
+
   test("does not treat same-named imports from other modules as Litz factories", () => {
     const source = `
 import { defineRoute } from "litzjs";
