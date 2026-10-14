@@ -25,6 +25,8 @@ When `litz({ server })` is configured, the Vite plugin can infer the app entry f
 
 `litz({ app })` is available as an escape hatch when inference is not possible, such as when the server entry wraps `createServer(...)` in a helper, exports the server indirectly, or otherwise hides the local app import from static discovery. The discovery code parses local imports and `defineApp(...)` arrays so the route, resource, and API manifests come from the explicit app graph instead of folder placement.
 
+Registered definitions must be statically resolvable: each `routes`, `resources`, and `apiRoutes` entry must be an identifier imported from its definition module (or a top-level `const` alias of one). Lists may be built from top-level `const` arrays, spreads of those arrays (`routes: [...featureRoutes, homeRoute]`), shorthand properties (`defineApp({ routes })`), and spreads of top-level `const` option objects. The build fails with an error naming the offending expression when a registration cannot be resolved, such as a function call, conditional, `let` binding, or definition declared in the app file, because an unresolved registration would ship its server handlers to the client.
+
 `defineApp(...)` rejects duplicate route, resource, and API paths. The Vite discovery layer also checks duplicate manifest paths after parsing.
 
 ## Routes and Layouts

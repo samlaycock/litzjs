@@ -734,6 +734,132 @@ describe("vite production server helpers", () => {
     }
   }, 60000);
 
+  test("production client assets do not contain handlers from spread app registrations", async () => {
+    const repoRoot = process.cwd();
+    const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
+    const root = mkdtempSync(
+      path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-spread-registration-"),
+    );
+
+    function readAllFiles(directory: string): string {
+      return readdirSync(directory, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => readFileSync(path.join(entry.parentPath, entry.name), "utf8"))
+        .join("\n");
+    }
+
+    try {
+      cpSync(path.join(sourceFixtureRoot, "."), root, { recursive: true });
+      rmSync(path.join(root, "dist"), { recursive: true, force: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "features", "spread-registration.tsx"),
+        [
+          'import { data, defineRoute, server } from "litzjs";',
+          "",
+          'export const route = defineRoute("/features/spread-registration", {',
+          "  component: SpreadRegistrationPage,",
+          '  loader: server(async () => data({ secret: "SPREAD_CANARY" })),',
+          "});",
+          "",
+          "function SpreadRegistrationPage() {",
+          "  return <main>Spread registration</main>;",
+          "}",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const appPath = path.join(root, "src", "app.ts");
+      const appSource = readFileSync(appPath, "utf8");
+
+      writeFileSync(
+        appPath,
+        appSource
+          .replace(
+            'import { defineApp } from "litzjs";\n',
+            [
+              'import { defineApp } from "litzjs";',
+              'import { route as spreadRegistrationRoute } from "./routes/features/spread-registration";',
+              "",
+            ].join("\n"),
+          )
+          .replace(
+            "export const app = defineApp({\n  routes: [\n",
+            [
+              "const spreadRoutes = [spreadRegistrationRoute];",
+              "",
+              "export const app = defineApp({",
+              "  routes: [",
+              "    ...spreadRoutes,",
+              "",
+            ].join("\n"),
+          ),
+        "utf8",
+      );
+
+      await buildLitzApp({
+        configFile: path.join(root, "vite.config.ts"),
+        root,
+      });
+
+      const clientAssets = readAllFiles(path.join(root, "dist", "client"));
+      const serverAssets = readAllFiles(path.join(root, "dist", "server"));
+
+      expect(clientAssets).toContain("/features/spread-registration");
+      expect(serverAssets).toContain("/features/spread-registration");
+      expect(serverAssets).toContain("SPREAD_CANARY");
+      expect(clientAssets).not.toContain("SPREAD_CANARY");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 60000);
+
+  test("production builds reject app registrations that cannot be resolved statically", async () => {
+    const repoRoot = process.cwd();
+    const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
+    const root = mkdtempSync(
+      path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-dynamic-registration-"),
+    );
+
+    try {
+      cpSync(path.join(sourceFixtureRoot, "."), root, { recursive: true });
+      rmSync(path.join(root, "dist"), { recursive: true, force: true });
+
+      const appPath = path.join(root, "src", "app.ts");
+      const appSource = readFileSync(appPath, "utf8");
+
+      writeFileSync(
+        appPath,
+        appSource
+          .replace(
+            "export const app = defineApp({\n  routes: [\n",
+            [
+              "const getRoutes = () => [homeRoute];",
+              "",
+              "export const app = defineApp({",
+              "  routes: [",
+              "    ...getRoutes(),",
+              "",
+            ].join("\n"),
+          )
+          .replace("    homeRoute,\n", ""),
+        "utf8",
+      );
+
+      const error = await buildLitzApp({
+        configFile: path.join(root, "vite.config.ts"),
+        root,
+      }).catch((reason: unknown) => reason);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain(
+        "Litz cannot statically resolve defineApp routes registration `...getRoutes()`",
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 60000);
+
   test("built smoke fixture serves document and API routes", async () => {
     const repoRoot = process.cwd();
     const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
@@ -4659,6 +4785,194 @@ describe("manifest discovery", () => {
       } finally {
         rmSync(root, { force: true, recursive: true });
       }
+    });
+
+    describe("defineApp registration expressions", () => {
+      function writeRegisteredModules(root: string): void {
+        mkdirSync(path.join(root, "src", "features"), { recursive: true });
+        writeFileSync(
+          path.join(root, "src", "features", "first.tsx"),
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/first", { component: First });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "features", "second.tsx"),
+          `import { defineRoute } from "litzjs";\nexport const route = defineRoute("/second", { component: Second });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "features", "account.ts"),
+          `import { defineResource } from "litzjs";\nexport const resource = defineResource("/resources/account", { loader: async () => {} });`,
+        );
+        writeFileSync(
+          path.join(root, "src", "features", "health.ts"),
+          `import { defineApiRoute } from "litzjs";\nexport const api = defineApiRoute("/api/health", { GET() { return Response.json({ ok: true }); } });`,
+        );
+      }
+
+      const registrationImports = [
+        `import { defineApp } from "litzjs";`,
+        `import { route as firstRoute } from "./features/first";`,
+        `import { route as secondRoute } from "./features/second";`,
+        `import { resource as accountResource } from "./features/account";`,
+        `import { api as healthApi } from "./features/health";`,
+        ``,
+      ];
+
+      async function discoverRegisteredPaths(root: string, appSource: readonly string[]) {
+        writeRegisteredModules(root);
+        writeFileSync(
+          path.join(root, "src", "app.ts"),
+          [...registrationImports, ...appSource].join("\n"),
+        );
+
+        const result = await discoverAppManifests(root, "src/app.ts");
+
+        return {
+          routes: result.routeManifest.map((entry) => entry.path).sort(),
+          resources: result.resourceManifest.map((entry) => entry.path),
+          apiRoutes: result.apiManifest.map((entry) => entry.path),
+        };
+      }
+
+      test("resolves spreads of top-level const arrays", async () => {
+        const root = createTempProject();
+
+        try {
+          const result = await discoverRegisteredPaths(root, [
+            `const routes = [firstRoute];`,
+            `const moreRoutes = [...routes, secondRoute];`,
+            `const resources = [accountResource] as const;`,
+            ``,
+            `export const app = defineApp({`,
+            `  routes: [...moreRoutes],`,
+            `  resources: [...resources],`,
+            `  apiRoutes: [...[healthApi]],`,
+            `});`,
+          ]);
+
+          expect(result).toEqual({
+            routes: ["/first", "/second"],
+            resources: ["/resources/account"],
+            apiRoutes: ["/api/health"],
+          });
+        } finally {
+          rmSync(root, { force: true, recursive: true });
+        }
+      });
+
+      test("resolves const array bindings, shorthand properties and aliased definitions", async () => {
+        const root = createTempProject();
+
+        try {
+          const result = await discoverRegisteredPaths(root, [
+            `const aliasedSecondRoute = secondRoute;`,
+            `const routes = [firstRoute, aliasedSecondRoute];`,
+            `const sharedOptions = { apiRoutes: [healthApi] };`,
+            `const resourceList = [accountResource];`,
+            ``,
+            `export const app = defineApp({`,
+            `  ...sharedOptions,`,
+            `  routes,`,
+            `  resources: resourceList,`,
+            `});`,
+          ]);
+
+          expect(result).toEqual({
+            routes: ["/first", "/second"],
+            resources: ["/resources/account"],
+            apiRoutes: ["/api/health"],
+          });
+        } finally {
+          rmSync(root, { force: true, recursive: true });
+        }
+      });
+
+      test("resolves a const options object passed to defineApp", async () => {
+        const root = createTempProject();
+
+        try {
+          const result = await discoverRegisteredPaths(root, [
+            `const options = { routes: [firstRoute] };`,
+            ``,
+            `export const app = defineApp(options);`,
+          ]);
+
+          expect(result.routes).toEqual(["/first"]);
+        } finally {
+          rmSync(root, { force: true, recursive: true });
+        }
+      });
+
+      test.each([
+        {
+          name: "spreads of mutable bindings",
+          source: [
+            `let routes = [firstRoute];`,
+            `export const app = defineApp({ routes: [...routes] });`,
+          ],
+          registration: "routes",
+          expression: "...routes",
+        },
+        {
+          name: "spreads of function results",
+          source: [
+            `const getRoutes = () => [firstRoute];`,
+            `export const app = defineApp({ routes: [...getRoutes()] });`,
+          ],
+          registration: "routes",
+          expression: "...getRoutes()",
+        },
+        {
+          name: "definitions declared outside an imported module",
+          source: [
+            `const localRoute = defineRoute("/local", { component: Local });`,
+            `export const app = defineApp({ routes: [firstRoute, localRoute] });`,
+          ],
+          registration: "routes",
+          expression: "localRoute",
+        },
+        {
+          name: "conditional registrations",
+          source: [`export const app = defineApp({ routes: [flag ? firstRoute : secondRoute] });`],
+          registration: "routes",
+          expression: "flag ? firstRoute : secondRoute",
+        },
+        {
+          name: "non-array registration lists",
+          source: [`export const app = defineApp({ resources: createResources() });`],
+          registration: "resources",
+          expression: "createResources()",
+        },
+        {
+          name: "unresolvable option spreads",
+          source: [
+            `import { sharedOptions } from "./shared";`,
+            `export const app = defineApp({ ...sharedOptions, routes: [firstRoute] });`,
+          ],
+          registration: "options",
+          expression: "...sharedOptions",
+        },
+        {
+          name: "computed registration keys",
+          source: [`export const app = defineApp({ ["api" + "Routes"]: [healthApi] });`],
+          registration: "options",
+          expression: `["api" + "Routes"]: [healthApi]`,
+        },
+      ])("rejects $name with an actionable error", async ({ source, registration, expression }) => {
+        const root = createTempProject();
+
+        try {
+          const error = await discoverRegisteredPaths(root, source).catch(
+            (reason: unknown) => reason,
+          );
+
+          expect(error).toBeInstanceOf(Error);
+          expect((error as Error).message).toContain(
+            `Litz cannot statically resolve defineApp ${registration} registration \`${expression}\` in ${path.join(root, "src", "app.ts")}`,
+          );
+        } finally {
+          rmSync(root, { force: true, recursive: true });
+        }
+      });
     });
 
     test("derives the app entry from a server entry using createServer({ app })", async () => {
