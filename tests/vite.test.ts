@@ -669,6 +669,69 @@ describe("vite production server helpers", () => {
     }
   }, 60000);
 
+  test("production client assets do not contain handlers from export clause definitions", async () => {
+    const repoRoot = process.cwd();
+    const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
+    const root = mkdtempSync(path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-export-clause-"));
+
+    function readAllFiles(directory: string): string {
+      return readdirSync(directory, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => readFileSync(path.join(entry.parentPath, entry.name), "utf8"))
+        .join("\n");
+    }
+
+    try {
+      cpSync(path.join(sourceFixtureRoot, "."), root, { recursive: true });
+      rmSync(path.join(root, "dist"), { recursive: true, force: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "features", "export-clause.tsx"),
+        [
+          'import { data, defineRoute, server } from "litzjs";',
+          "",
+          'const r = defineRoute("/features/export-clause", {',
+          "  component: ExportClausePage,",
+          '  loader: server(async () => data({ secret: "EXPORT_CANARY" })),',
+          "});",
+          "",
+          "function ExportClausePage() {",
+          "  return <main>Export clause</main>;",
+          "}",
+          "",
+          "export { r as route };",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const appPath = path.join(root, "src", "app.ts");
+      const appSource = readFileSync(appPath, "utf8");
+
+      writeFileSync(
+        appPath,
+        [
+          'import { route as exportClauseRoute } from "./routes/features/export-clause";',
+          appSource.replace("  routes: [\n", "  routes: [\n    exportClauseRoute,\n"),
+        ].join("\n"),
+        "utf8",
+      );
+
+      await buildLitzApp({
+        configFile: path.join(root, "vite.config.ts"),
+        root,
+      });
+
+      const clientAssets = readAllFiles(path.join(root, "dist", "client"));
+      const serverAssets = readAllFiles(path.join(root, "dist", "server"));
+
+      expect(clientAssets).toContain("/features/export-clause");
+      expect(serverAssets).toContain("EXPORT_CANARY");
+      expect(clientAssets).not.toContain("EXPORT_CANARY");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 60000);
+
   test("built smoke fixture serves document and API routes", async () => {
     const repoRoot = process.cwd();
     const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
@@ -850,6 +913,104 @@ describe("dev server hot updates", () => {
 
       expect(manifestSource).toContain("moduleFile:");
       expect(manifestSource).not.toContain("hotLoad:");
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  test("dev client transforms strip server code from export clause definitions and reject unprojectable modules", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "litz-export-clause-transform-"));
+
+    try {
+      mkdirSync(path.join(root, "src", "routes"), { recursive: true });
+      writeFileSync(path.join(root, "src", "main.tsx"), "export {};\n", "utf8");
+
+      const routeFile = path.join(root, "src", "routes", "index.tsx");
+
+      writeFileSync(
+        routeFile,
+        [
+          'import { data, defineRoute, server } from "litzjs";',
+          "",
+          "const r = defineRoute('/', {",
+          "  component: () => null,",
+          "  loader: server(() => data('EXPORT_CANARY')),",
+          "});",
+          "",
+          "export { r as route };",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const plugin = (litz() as Plugin[]).find((candidate) => candidate.name === "litzjs/vite");
+
+      if (!plugin?.configResolved || !plugin.transform) {
+        throw new Error("Expected litzjs/vite configResolved and transform hooks to be available.");
+      }
+
+      const configResolved =
+        typeof plugin.configResolved === "function"
+          ? plugin.configResolved
+          : plugin.configResolved.handler;
+      const transform =
+        typeof plugin.transform === "function" ? plugin.transform : plugin.transform.handler;
+
+      await configResolved.call(
+        {} as never,
+        {
+          root,
+          command: "serve",
+          build: {
+            outDir: "dist",
+          },
+          environments: {
+            client: {
+              build: {
+                outDir: path.join("dist", "client"),
+              },
+            },
+            rsc: {
+              build: {
+                outDir: path.join("dist", "server"),
+              },
+            },
+          },
+        } as never,
+      );
+
+      const clientContext = { environment: { name: "client" } } as never;
+      const transformResult = (await transform.call(
+        clientContext,
+        readFileSync(routeFile, "utf8"),
+        routeFile,
+      )) as { code: string } | null;
+
+      expect(transformResult?.code).toContain("loader: __litz_server_placeholder__");
+      expect(transformResult?.code).not.toContain("EXPORT_CANARY");
+
+      const unprojectableSource = [
+        'import { data, server } from "litzjs";',
+        "",
+        "export const loader = server(() => data('UNPROJECTABLE_CANARY'));",
+      ].join("\n");
+
+      let transformError: unknown;
+
+      try {
+        await transform.call(clientContext, unprojectableSource, routeFile);
+      } catch (error) {
+        transformError = error;
+      }
+
+      expect(String(transformError)).toContain("Litz cannot project");
+
+      const serverResult = await transform.call(
+        { environment: { name: "rsc" } } as never,
+        unprojectableSource,
+        routeFile,
+      );
+
+      expect(serverResult).toBeNull();
     } finally {
       rmSync(root, { force: true, recursive: true });
     }

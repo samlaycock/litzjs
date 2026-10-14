@@ -570,7 +570,16 @@ export async function renderView(node, metadata = {}) {
 
       const projected = createClientModuleProjection(cleanId, code);
 
-      return projected ? { code: projected, map: null } : null;
+      // Passing a discovered server module through untouched would ship its server code.
+      if (!projected) {
+        throw new Error(
+          `Litz cannot project ${cleanId} for the client: no exported route, layout, resource ` +
+            "or api definition was found. Export the definition with `export const` or a local " +
+            "`export { ... }` clause.",
+        );
+      }
+
+      return { code: projected, map: null };
     },
   };
 

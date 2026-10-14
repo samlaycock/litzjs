@@ -741,6 +741,163 @@ function Page() {
   });
 });
 
+describe("client projection of export clauses", () => {
+  test("strips server code from definitions exported through renamed export clauses", () => {
+    const source = `
+import { data, defineRoute, server } from "litzjs";
+
+const r = defineRoute("/x", {
+  component: Page,
+  loader: server(() => data("EXPORT_CANARY")),
+});
+
+function Page() {
+  return <main>Export clause</main>;
+}
+
+export { r as route };
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/x.tsx", source);
+
+    expect(projected).not.toBeNull();
+    expect(projected).toContain("loader: __litz_server_placeholder__");
+    expect(projected).toContain("export { r as route };");
+    expect(projected).toContain("definition: mod.route");
+    expect(projected).not.toContain("EXPORT_CANARY");
+  });
+
+  test.each([
+    ["route", "defineRoute", "/x"],
+    ["layout", "defineLayout", "/x"],
+    ["resource", "defineResource", "/resource/x"],
+  ])(
+    "strips server code from %s definitions exported through plain export clauses",
+    (exportName, factory, path) => {
+      const source = `
+import { data, ${factory}, server } from "litzjs";
+
+const ${exportName} = ${factory}("${path}", {
+  component: Page,
+  loader: server(() => data("EXPORT_CANARY")),
+});
+
+function Page() {
+  return <main>Export clause</main>;
+}
+
+export { ${exportName} };
+`;
+
+      const projected = createClientModuleProjection("/virtual/x.tsx", source);
+
+      expect(projected).not.toBeNull();
+      expect(projected).toContain("loader: __litz_server_placeholder__");
+      expect(projected).toContain(`kind: "${exportName}"`);
+      expect(projected).not.toContain("EXPORT_CANARY");
+    },
+  );
+
+  test("strips API handlers exported through export clauses", () => {
+    const source = `
+import { defineApiRoute } from "litzjs";
+
+const handlers = defineApiRoute("/api/x", {
+  GET() {
+    return Response.json({ secret: "EXPORT_CANARY" });
+  },
+});
+
+export { handlers as api };
+`;
+
+    const projected = createClientModuleProjection("/virtual/api/x.ts", source);
+
+    expect(projected).not.toBeNull();
+    expect(projected).toContain("GET: __litz_server_placeholder__");
+    expect(projected).not.toContain("EXPORT_CANARY");
+  });
+
+  test("only keeps the definition specifier from a shared export clause", () => {
+    const source = `
+import { defineRoute } from "litzjs";
+
+const secretHelper = () => "HELPER_CANARY";
+const r = defineRoute("/x", {
+  component: Page,
+});
+
+function Page() {
+  return <main>Export clause</main>;
+}
+
+export { secretHelper, r as route };
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/x.tsx", source);
+
+    expect(projected).toContain("export { r as route };");
+    expect(projected).not.toContain("secretHelper");
+    expect(projected).not.toContain("HELPER_CANARY");
+  });
+
+  test("does not pull in a local declaration that only shares the exported name", () => {
+    const source = `
+import { defineRoute } from "litzjs";
+
+const route = "UNRELATED_LOCAL_CANARY";
+const r = defineRoute("/x", {
+  component: Page,
+});
+
+function Page() {
+  return <main>Export clause</main>;
+}
+
+export { r as route };
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/x.tsx", source);
+
+    expect(projected).toContain("export { r as route };");
+    expect(projected).not.toContain("UNRELATED_LOCAL_CANARY");
+  });
+
+  test("ignores type-only export clauses", () => {
+    const source = `
+import { defineRoute } from "litzjs";
+
+type r = { secret: "TYPE_CANARY" };
+
+export type { r as route };
+`;
+
+    expect(createClientModuleProjection("/virtual/routes/x.tsx", source)).toBeNull();
+  });
+
+  test("projects definitions that are not the first declaration in an exported statement", () => {
+    const source = `
+import { data, defineRoute, server } from "litzjs";
+
+export const label = "x", route = defineRoute("/x", {
+  component: Page,
+  loader: server(() => data("EXPORT_CANARY")),
+});
+
+function Page() {
+  return <main>{label}</main>;
+}
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/x.tsx", source);
+
+    expect(projected).not.toBeNull();
+    expect(projected).toContain("loader: __litz_server_placeholder__");
+    expect(projected).toContain("definition: mod.route");
+    expect(projected).not.toContain("EXPORT_CANARY");
+  });
+});
+
 describe("server projection", () => {
   test("strips route component code from server output", () => {
     const source = `
