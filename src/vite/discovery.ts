@@ -375,6 +375,7 @@ const APP_REGISTRATION_KEYS: readonly AppRegistrationKey[] = ["routes", "resourc
 interface AppRegistrationScope {
   readonly importedBindings: ReadonlyMap<string, string>;
   readonly constBindings: ReadonlyMap<string, ts.Expression>;
+  readonly resolvedBindings: Set<string>;
 }
 
 function discoverAppRegistrationImports(
@@ -389,6 +390,7 @@ function discoverAppRegistrationImports(
   const scope: AppRegistrationScope = {
     importedBindings: getImportedLocalBindings(root, appFile, sourceFile),
     constBindings: getTopLevelConstBindings(sourceFile),
+    resolvedBindings: new Set(),
   };
 
   for (const statement of sourceFile.statements) {
@@ -408,12 +410,15 @@ function discoverAppRegistrationImports(
       }
 
       const registrations = collectAppRegistrationExpressions(appCall, scope);
-
-      return {
+      const files = {
         routes: resolveRegisteredModuleFiles(registrations.get("routes"), "routes", scope),
         resources: resolveRegisteredModuleFiles(registrations.get("resources"), "resources", scope),
         apiRoutes: resolveRegisteredModuleFiles(registrations.get("apiRoutes"), "apiRoutes", scope),
       };
+
+      assertResolvedBindingsUnchanged(sourceFile, appCall, scope);
+
+      return files;
     }
   }
 
@@ -620,7 +625,126 @@ function resolveConstBinding(
     return null;
   }
 
+  scope.resolvedBindings.add(unwrapped.text);
   return resolveConstBinding(binding, scope, new Set([...seenBindings, unwrapped.text]));
+}
+
+// Discovery reads the declared initializers of resolved const bindings, while
+// defineApp reads their contents when it runs. Any other use of those bindings
+// in the app file, or exporting them, could change what defineApp registers.
+function assertResolvedBindingsUnchanged(
+  sourceFile: ts.SourceFile,
+  appCall: ts.CallExpression,
+  scope: AppRegistrationScope,
+): void {
+  const resolvedDeclarations = new Set<ts.VariableDeclaration>();
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) {
+      continue;
+    }
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (
+        !ts.isIdentifier(declaration.name) ||
+        !scope.resolvedBindings.has(declaration.name.text)
+      ) {
+        continue;
+      }
+
+      if (hasExportModifier(statement.modifiers)) {
+        throwUnresolvableAppRegistration(
+          "options",
+          declaration,
+          "bindings used to build registrations cannot be exported, because other modules could change them",
+        );
+      }
+
+      resolvedDeclarations.add(declaration);
+    }
+  }
+
+  function visit(node: ts.Node): void {
+    if (
+      ts.isIdentifier(node) &&
+      scope.resolvedBindings.has(node.text) &&
+      isValueReference(node) &&
+      !isRegistrationCopy(node, appCall, resolvedDeclarations)
+    ) {
+      throwUnresolvableAppRegistration(
+        "options",
+        node.parent,
+        `\`${node.text}\` is used outside defineApp registrations, so its contents could change before defineApp runs`,
+      );
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+}
+
+function isValueReference(identifier: ts.Identifier): boolean {
+  const parent = identifier.parent;
+
+  if (
+    (ts.isVariableDeclaration(parent) && parent.name === identifier) ||
+    (ts.isPropertyAccessExpression(parent) && parent.name === identifier) ||
+    (ts.isPropertyAssignment(parent) && parent.name === identifier) ||
+    ts.isQualifiedName(parent)
+  ) {
+    return false;
+  }
+
+  for (let ancestor: ts.Node = parent; !ts.isSourceFile(ancestor); ancestor = ancestor.parent) {
+    if (ts.isTypeNode(ancestor)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function isRegistrationCopy(
+  identifier: ts.Identifier,
+  appCall: ts.CallExpression,
+  resolvedDeclarations: ReadonlySet<ts.VariableDeclaration>,
+): boolean {
+  let expression: ts.Node = identifier;
+
+  while (
+    ts.isParenthesizedExpression(expression.parent) ||
+    ts.isAsExpression(expression.parent) ||
+    ts.isSatisfiesExpression(expression.parent) ||
+    ts.isTypeAssertionExpression(expression.parent) ||
+    ts.isNonNullExpression(expression.parent)
+  ) {
+    expression = expression.parent;
+  }
+
+  const parent = expression.parent;
+  const isCopy =
+    ts.isSpreadElement(parent) ||
+    ts.isSpreadAssignment(parent) ||
+    ts.isShorthandPropertyAssignment(parent) ||
+    (ts.isPropertyAssignment(parent) && parent.initializer === expression) ||
+    (ts.isVariableDeclaration(parent) && parent.initializer === expression) ||
+    parent === appCall;
+
+  if (!isCopy) {
+    return false;
+  }
+
+  for (let ancestor: ts.Node = parent; !ts.isSourceFile(ancestor); ancestor = ancestor.parent) {
+    if (
+      ancestor === appCall ||
+      (ts.isVariableDeclaration(ancestor) && resolvedDeclarations.has(ancestor))
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function throwUnresolvableAppRegistration(

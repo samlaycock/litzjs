@@ -1307,9 +1307,11 @@ export function defineApp<
     ...(Object.prototype.hasOwnProperty.call(options, "dataSerializer")
       ? { dataSerializer: options.dataSerializer }
       : {}),
-    routes: options.routes ?? ([] as unknown as TRoutes),
-    resources: options.resources ?? ([] as unknown as TResources),
-    apiRoutes: options.apiRoutes ?? ([] as unknown as TApiRoutes),
+    // Snapshot registrations so later changes to the caller's arrays cannot
+    // register definitions that build-time discovery never saw.
+    routes: Object.freeze([...(options.routes ?? [])]) as unknown as TRoutes,
+    resources: Object.freeze([...(options.resources ?? [])]) as unknown as TResources,
+    apiRoutes: Object.freeze([...(options.apiRoutes ?? [])]) as unknown as TApiRoutes,
   };
 }
 

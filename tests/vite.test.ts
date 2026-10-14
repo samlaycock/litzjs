@@ -4952,6 +4952,78 @@ describe("manifest discovery", () => {
           expression: "...sharedOptions",
         },
         {
+          name: "property writes to const option objects",
+          source: [
+            `const options = { routes: [firstRoute] };`,
+            `options.routes = [secondRoute];`,
+            `export const app = defineApp(options);`,
+          ],
+          registration: "options",
+          expression: "options.routes",
+        },
+        {
+          name: "const option objects aliased outside registrations",
+          source: [
+            `const options = { routes: [firstRoute] };`,
+            `const alias = options;`,
+            `alias.routes = [secondRoute];`,
+            `export const app = defineApp(options);`,
+          ],
+          registration: "options",
+          expression: "alias = options",
+        },
+        {
+          name: "mutations of const registration arrays",
+          source: [
+            `const routes = [firstRoute];`,
+            `routes.push(secondRoute);`,
+            `export const app = defineApp({ routes });`,
+          ],
+          registration: "options",
+          expression: "routes.push",
+        },
+        {
+          name: "const registration arrays passed to functions",
+          source: [
+            `import { register } from "./register";`,
+            `const routes = [firstRoute];`,
+            `register(routes);`,
+            `export const app = defineApp({ routes: [...routes] });`,
+          ],
+          registration: "options",
+          expression: "register(routes)",
+        },
+        {
+          name: "mutations of registration arrays nested in const option objects",
+          source: [
+            `const routes = [firstRoute];`,
+            `const options = { routes };`,
+            `options.routes.push(secondRoute);`,
+            `export const app = defineApp(options);`,
+          ],
+          registration: "options",
+          expression: "options.routes",
+        },
+        {
+          name: "exported const registration arrays",
+          source: [
+            `export const routes = [firstRoute];`,
+            `export const app = defineApp({ routes });`,
+          ],
+          registration: "options",
+          expression: "routes = [firstRoute]",
+        },
+        {
+          name: "const registration arrays re-exported through export clauses",
+          source: [
+            `const routes = [firstRoute];`,
+            `export { routes };`,
+            `export const app = defineApp({ routes });`,
+          ],
+          registration: "options",
+          expression: "routes",
+        },
+        {
           name: "computed registration keys",
           source: [`export const app = defineApp({ ["api" + "Routes"]: [healthApi] });`],
           registration: "options",
