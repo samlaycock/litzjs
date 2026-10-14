@@ -47,15 +47,15 @@ function createProjectedModule(
   const importBindings = collectImportBindings(importStatements);
   const resolveCallee = createLitzCalleeResolver(importStatements);
   const shouldSkipSubtree = createShouldSkipSubtree(resolveCallee);
-  const rootStatement = findProjectionRootStatement(sourceFile);
+  const root = findProjectionRoot(sourceFile);
 
-  if (!rootStatement) {
+  if (!root) {
     return null;
   }
 
-  const requiredStatements = new Set<ts.Statement>([rootStatement]);
+  const requiredStatements = new Set<ts.Statement>([root.statement]);
   const referencedImports = new Set<string>();
-  const queue: ts.Statement[] = [rootStatement];
+  const queue: ts.Statement[] = [root.projectedStatement];
 
   while (queue.length > 0) {
     const statement = queue.pop();
@@ -90,9 +90,9 @@ function createProjectedModule(
   const printedImports = importStatements
     .map((statement) => projectImportStatement(statement, referencedImports))
     .filter((statement): statement is ts.ImportDeclaration => statement !== null);
-  const projectionStatements = sourceFile.statements.filter((statement) =>
-    requiredStatements.has(statement),
-  );
+  const projectionStatements = sourceFile.statements
+    .filter((statement) => requiredStatements.has(statement))
+    .map((statement) => (statement === root.statement ? root.projectedStatement : statement));
   const transformedStatements = projectionStatements.map((statement) =>
     transformStatement(statement, resolveCallee),
   );
@@ -119,7 +119,9 @@ function createProjectedModule(
   const moduleSource = [...printedImports, ...placeholder, ...transformedStatements]
     .map((statement) => printer.printNode(ts.EmitHint.Unspecified, statement, sourceFile))
     .join("\n\n");
-  const hmrAcceptSource = includeHotAccept ? createProjectionHotAcceptSource(rootStatement) : "\n";
+  const hmrAcceptSource = includeHotAccept
+    ? createProjectionHotAcceptSource(root.exportName)
+    : "\n";
 
   return `${moduleSource}${hmrAcceptSource}\n`;
 }
@@ -140,57 +142,72 @@ function getScriptKind(filePath: string): ts.ScriptKind {
   return ts.ScriptKind.TS;
 }
 
-function findProjectionRootStatement(sourceFile: ts.SourceFile): ts.Statement | null {
+const projectionExportNames = new Set(["route", "layout", "resource", "api"]);
+
+interface ProjectionRoot {
+  // The module statement that exports the definition.
+  statement: ts.Statement;
+  // What gets emitted for that statement: export clauses are narrowed to the definition
+  // specifier so sibling exports are not dragged into client output.
+  projectedStatement: ts.Statement;
+  exportName: string;
+}
+
+// Mirrors the export forms discovery accepts (any declaration in an exported variable statement,
+// or a local export clause), so every discovered definition has a projection root.
+function findProjectionRoot(sourceFile: ts.SourceFile): ProjectionRoot | null {
   for (const statement of sourceFile.statements) {
-    if (!ts.isVariableStatement(statement)) {
+    if (
+      ts.isVariableStatement(statement) &&
+      statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
+    ) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (
+          ts.isIdentifier(declaration.name) &&
+          declaration.initializer &&
+          projectionExportNames.has(declaration.name.text)
+        ) {
+          return { statement, projectedStatement: statement, exportName: declaration.name.text };
+        }
+      }
+
       continue;
     }
-
-    if (!statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
-      continue;
-    }
-
-    const declaration = statement.declarationList.declarations[0];
-
-    if (!declaration || !ts.isIdentifier(declaration.name) || !declaration.initializer) {
-      continue;
-    }
-
-    const exportName = declaration.name.text;
 
     if (
-      exportName !== "route" &&
-      exportName !== "layout" &&
-      exportName !== "resource" &&
-      exportName !== "api"
+      !ts.isExportDeclaration(statement) ||
+      statement.moduleSpecifier ||
+      statement.isTypeOnly ||
+      !statement.exportClause ||
+      !ts.isNamedExports(statement.exportClause)
     ) {
       continue;
     }
 
-    return statement;
+    for (const element of statement.exportClause.elements) {
+      if (element.isTypeOnly || !projectionExportNames.has(element.name.text)) {
+        continue;
+      }
+
+      return {
+        statement,
+        projectedStatement: ts.factory.updateExportDeclaration(
+          statement,
+          statement.modifiers,
+          false,
+          ts.factory.updateNamedExports(statement.exportClause, [element]),
+          undefined,
+          statement.attributes,
+        ),
+        exportName: element.name.text,
+      };
+    }
   }
 
   return null;
 }
 
-function createProjectionHotAcceptSource(rootStatement: ts.Statement): string {
-  if (!ts.isVariableStatement(rootStatement)) {
-    return "\n";
-  }
-
-  const declaration = rootStatement.declarationList.declarations[0];
-
-  if (!declaration || !ts.isIdentifier(declaration.name)) {
-    return "\n";
-  }
-
-  const exportName = declaration.name.text;
-  const supportedKinds = new Set(["route", "layout", "resource", "api"]);
-
-  if (!supportedKinds.has(exportName)) {
-    return "\n";
-  }
-
+function createProjectionHotAcceptSource(exportName: string): string {
   return `
 
 if (import.meta.hot) {
@@ -567,6 +584,11 @@ function isIgnoredIdentifierReference(node: ts.Identifier): boolean {
 
   if (ts.isImportClause(parent) || ts.isImportSpecifier(parent) || ts.isNamespaceImport(parent)) {
     return true;
+  }
+
+  // In `export { local as exported }` only `local` refers to a module binding.
+  if (ts.isExportSpecifier(parent)) {
+    return parent.propertyName !== undefined && parent.name === node;
   }
 
   if (
