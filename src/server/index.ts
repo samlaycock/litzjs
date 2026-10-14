@@ -22,6 +22,11 @@ import {
 import { cancelResponseBody } from "../response-body";
 import { createSearchParams, type SearchParamRecord } from "../search-params";
 import {
+  createBatchedResponseHeaders,
+  createBatchedResultEntryHeaders,
+  getSettledResultHeaders,
+} from "./batched-loader-headers";
+import {
   isMalformedInternalRequestError,
   MALFORMED_INTERNAL_REQUEST_MESSAGE,
   parseInternalRequestBody,
@@ -629,7 +634,7 @@ async function handleRouteRequest<TContext>(
           kind: "batch",
           results,
         },
-        undefined,
+        createBatchedResponseHeaders(batchResults.map(getSettledResultHeaders)),
         dataSerializer,
       );
     }
@@ -929,9 +934,7 @@ function createBatchedLoaderResponseEntry(result: unknown): BatchedLoaderRespons
   };
   const headers = new Headers(serverResult.headers);
   applyRevalidateHeader(headers, serverResult.revalidate);
-  const serializedHeaderEntries = Array.from(headers.entries());
-  const serializedHeaders =
-    serializedHeaderEntries.length > 0 ? serializedHeaderEntries : undefined;
+  const serializedHeaders = createBatchedResultEntryHeaders(headers);
 
   switch (serverResult.kind) {
     case "data":

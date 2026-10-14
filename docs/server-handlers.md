@@ -15,7 +15,7 @@ Server-backed behavior is explicit. Route loaders, route actions, layout loaders
 
 Handlers are normally wrapped in `server(...)`. The wrapper marks the function as a server handler for projection and typing. Loaders and actions receive `{ request, params, signal, context, input }`.
 
-The client runtime fetches route loaders through `/_litzjs/route` and route actions through `/_litzjs/action`. Loader requests can batch multiple route/layout targets. Batched route loaders support `data(...)`, `redirect(...)`, `error(...)`, and `fault` results; `view(...)` is intentionally not batched because Flight streams are independent transport responses.
+The client runtime fetches route loaders through `/_litzjs/route` and route actions through `/_litzjs/action`. Loader requests can batch multiple route/layout targets. Batched route loaders support `data(...)`, `redirect(...)`, `error(...)`, and `fault` results; `view(...)` is intentionally not batched because Flight streams are independent transport responses. Headers on batched loader results are handled separately: `Set-Cookie` values from every target are applied to the batch HTTP response (never the JSON body), the batch response gets `Cache-Control: no-store` if any target sets `no-store` (or `private, no-cache` if any target is `private`), and only public `x-litzjs-*` result headers are serialized per target.
 
 Route hooks are source-aware. Loader hooks read loader state, action hooks read action state, and merged hooks expose the latest settled data, view, or explicit error.
 

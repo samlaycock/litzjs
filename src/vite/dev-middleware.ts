@@ -27,6 +27,11 @@ import {
 import { cancelResponseBody } from "../response-body";
 import { createSearchParams, type SearchParamRecord } from "../search-params";
 import {
+  createBatchedResponseHeaders,
+  createBatchedResultEntryHeaders,
+  getSettledResultHeaders,
+} from "../server/batched-loader-headers";
+import {
   isMalformedInternalRequestError,
   MALFORMED_INTERNAL_REQUEST_MESSAGE,
   parseInternalRequestBody,
@@ -441,6 +446,10 @@ export async function handleLitzRouteRequest(
         results.push(serializedResult);
       }
 
+      applyBatchedResponseHeaders(
+        response,
+        createBatchedResponseHeaders(batchResults.map(getSettledResultHeaders)),
+      );
       sendLitzJson(response, 200, {
         kind: "batch",
         results,
@@ -976,6 +985,20 @@ function applyHeaders(response: ServerResponse, headers?: HeadersInit): void {
   });
 }
 
+function applyBatchedResponseHeaders(response: ServerResponse, headers: Headers): void {
+  const cookies = headers.getSetCookie();
+
+  if (cookies.length > 0) {
+    response.setHeader("set-cookie", cookies);
+  }
+
+  const cacheControl = headers.get("cache-control");
+
+  if (cacheControl) {
+    response.setHeader("cache-control", cacheControl);
+  }
+}
+
 function applyRevalidateHeader(response: ServerResponse, revalidate?: string[]): void {
   if (!revalidate?.length) {
     return;
@@ -1243,9 +1266,7 @@ function createDevBatchedLoaderResponseEntry(result: unknown): BatchedLoaderResp
   if (serverResult.revalidate?.length) {
     headers.set("x-litzjs-revalidate", serverResult.revalidate.join(","));
   }
-  const serializedHeaderEntries = Array.from(headers.entries());
-  const serializedHeaders =
-    serializedHeaderEntries.length > 0 ? serializedHeaderEntries : undefined;
+  const serializedHeaders = createBatchedResultEntryHeaders(headers);
 
   switch (serverResult.kind) {
     case "data":
