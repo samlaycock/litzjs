@@ -263,6 +263,33 @@ describe("explicit app registration", () => {
     });
   });
 
+  test("defineApp snapshots registration lists so later mutations cannot change them", () => {
+    const firstRoute = defineRoute("/first", {
+      component() {
+        return null;
+      },
+    });
+    const secondRoute = defineRoute("/second", {
+      component() {
+        return null;
+      },
+    });
+    const routes: (typeof firstRoute | typeof secondRoute)[] = [firstRoute];
+    const options = { routes, resources: [], apiRoutes: [] };
+    const app = defineApp(options);
+
+    routes.push(secondRoute);
+    options.routes = [secondRoute];
+
+    expect(app.routes).toEqual([firstRoute]);
+    expect(Object.isFrozen(app.routes)).toBe(true);
+    expect(Object.isFrozen(app.resources)).toBe(true);
+    expect(Object.isFrozen(app.apiRoutes)).toBe(true);
+    expect(() =>
+      (app.routes as (typeof firstRoute | typeof secondRoute)[]).push(secondRoute),
+    ).toThrow(TypeError);
+  });
+
   test("defineApp rejects duplicate registrations by path", () => {
     const first = defineRoute("/duplicate", {
       component() {
