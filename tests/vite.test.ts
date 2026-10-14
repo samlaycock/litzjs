@@ -3044,6 +3044,93 @@ describe("dev server error masking", () => {
     expect(response.getBody()).toContain("Route not found.");
   });
 
+  describe("batched route loader targets", () => {
+    async function requestDevBatch(targets: unknown) {
+      const calls = { route: 0, layout: 0 };
+      const server = createMockViteDevServer(async () => ({
+        route: {
+          async loader() {
+            calls.route += 1;
+            return { kind: "data", data: "route" };
+          },
+          options: {
+            layout: {
+              id: "projects.layout",
+              path: "/projects",
+              options: {
+                async loader() {
+                  calls.layout += 1;
+                  return { kind: "data", data: "layout" };
+                },
+              },
+            },
+          },
+        },
+      }));
+      const request = createMockRequest({
+        url: "/_litzjs/route",
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          path: "/projects/:id",
+          targets,
+          operation: "loader",
+          request: { params: { id: "42" } },
+        }),
+      });
+      const response = createMockResponse();
+      const next = mock(() => {});
+
+      await handleLitzRouteRequest(
+        server,
+        [{ id: "projects.show", path: "/projects/:id", modulePath: "src/routes/projects.ts" }],
+        request,
+        response,
+        next,
+      );
+
+      return { calls, response };
+    }
+
+    test("rejects duplicate targets without running any loaders", async () => {
+      const { calls, response } = await requestDevBatch(["projects.show", "projects.show"]);
+
+      expect(response.statusCode).toBe(400);
+      expect(response.getBody()).toContain("Malformed internal request.");
+      expect(calls).toEqual({ route: 0, layout: 0 });
+    });
+
+    test("rejects large repeated target arrays without amplifying loader work", async () => {
+      const { calls, response } = await requestDevBatch(Array(1000).fill("projects.show"));
+
+      expect(response.statusCode).toBe(400);
+      expect(calls).toEqual({ route: 0, layout: 0 });
+    });
+
+    test("rejects more targets than the route match chain contains", async () => {
+      const { calls, response } = await requestDevBatch([
+        "projects.layout",
+        "projects.show",
+        "projects.other",
+      ]);
+
+      expect(response.statusCode).toBe(400);
+      expect(calls).toEqual({ route: 0, layout: 0 });
+    });
+
+    test("rejects non-array and non-string targets as malformed", async () => {
+      const nonArray = await requestDevBatch("projects.show");
+      const nonString = await requestDevBatch(["projects.show", 42]);
+
+      expect(nonArray.response.statusCode).toBe(400);
+      expect(nonString.response.statusCode).toBe(400);
+      expect(nonArray.calls).toEqual({ route: 0, layout: 0 });
+      expect(nonString.calls).toEqual({ route: 0, layout: 0 });
+    });
+  });
+
   test("treats missing internal resource handlers as faults", async () => {
     const server = createMockViteDevServer(async () => ({
       resource: {

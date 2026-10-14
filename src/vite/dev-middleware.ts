@@ -35,6 +35,7 @@ import {
   isMalformedInternalRequestError,
   MALFORMED_INTERNAL_REQUEST_MESSAGE,
   parseInternalRequestBody,
+  parseInternalRouteTargets,
   type InternalRequestBody,
 } from "../server/internal-requests";
 import { createInternalHandlerHeaders } from "../server/request-headers";
@@ -307,7 +308,6 @@ export async function handleLitzRouteRequest(
 
     const routePath = body.path;
     const targetId = body.target;
-    const targetIds = body.targets?.filter((value): value is string => typeof value === "string");
     const operation = body.operation ?? (pathname === "/_litzjs/action" ? "action" : "loader");
     const serverOptions = await loadDevServerRuntimeOptions(server, runtimeOptions);
     const context = serverOptions.createContext
@@ -410,6 +410,8 @@ export async function handleLitzRouteRequest(
     const controller = new AbortController();
     request.once("close", () => controller.abort());
     const signal = controller.signal;
+
+    const targetIds = parseInternalRouteTargets(body.targets, chain.length);
 
     if (operation === "loader" && targetIds && targetIds.length > 0) {
       const batchTargets: DevRouteMatchEntry[] = [];

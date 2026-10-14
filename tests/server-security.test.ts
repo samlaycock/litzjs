@@ -1332,6 +1332,110 @@ describe("server security", () => {
     expect(body.message).toBe("Route not found.");
   });
 
+  describe("batched route loader targets", () => {
+    function createBatchServer() {
+      const calls = { route: 0, layout: 0 };
+      const server = createServer({
+        manifest: {
+          routes: [
+            {
+              id: "projects.show",
+              path: "/projects/:id",
+              route: {
+                loader() {
+                  calls.route += 1;
+                  return { kind: "data", data: "route" };
+                },
+                options: {
+                  layout: {
+                    id: "projects.layout",
+                    path: "/projects",
+                    options: {
+                      loader() {
+                        calls.layout += 1;
+                        return { kind: "data", data: "layout" };
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      return { calls, server };
+    }
+
+    function requestBatch(server: ReturnType<typeof createServer>, targets: unknown) {
+      return server.fetch(
+        new Request("https://app.example.com/_litzjs/route", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            path: "/projects/:id",
+            targets,
+            operation: "loader",
+            request: { params: { id: "42" } },
+          }),
+        }),
+      );
+    }
+
+    test("rejects duplicate targets without running any loaders", async () => {
+      const { calls, server } = createBatchServer();
+      const response = await requestBatch(server, ["projects.show", "projects.show"]);
+      const body = (await response.json()) as { kind: string; message: string };
+
+      expect(response.status).toBe(400);
+      expect(body).toEqual({ kind: "fault", message: "Malformed internal request." });
+      expect(calls).toEqual({ route: 0, layout: 0 });
+    });
+
+    test("rejects large repeated target arrays without amplifying loader work", async () => {
+      const { calls, server } = createBatchServer();
+      const response = await requestBatch(server, Array(1000).fill("projects.show"));
+
+      expect(response.status).toBe(400);
+      expect(calls).toEqual({ route: 0, layout: 0 });
+    });
+
+    test("rejects more targets than the route match chain contains", async () => {
+      const { calls, server } = createBatchServer();
+      const response = await requestBatch(server, [
+        "projects.layout",
+        "projects.show",
+        "projects.other",
+      ]);
+
+      expect(response.status).toBe(400);
+      expect(calls).toEqual({ route: 0, layout: 0 });
+    });
+
+    test("rejects non-array and non-string targets as malformed", async () => {
+      const { calls, server } = createBatchServer();
+      const nonArrayResponse = await requestBatch(server, "projects.show");
+      const nonStringResponse = await requestBatch(server, ["projects.show", 42]);
+
+      expect(nonArrayResponse.status).toBe(400);
+      expect(nonStringResponse.status).toBe(400);
+      expect(calls).toEqual({ route: 0, layout: 0 });
+    });
+
+    test("runs each distinct target in the match chain exactly once", async () => {
+      const { calls, server } = createBatchServer();
+      const response = await requestBatch(server, ["projects.layout", "projects.show"]);
+      const body = (await response.json()) as { kind: string; results: unknown[] };
+
+      expect(response.status).toBe(200);
+      expect(body.kind).toBe("batch");
+      expect(body.results).toHaveLength(2);
+      expect(calls).toEqual({ route: 1, layout: 1 });
+    });
+  });
+
   test("treats missing internal resource handlers as faults instead of explicit errors", async () => {
     const server = createServer({
       manifest: {

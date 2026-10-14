@@ -73,3 +73,30 @@ export async function parseInternalRequestBody(request: Request): Promise<Intern
     },
   };
 }
+
+// Each batched target may run at most once and a batch can never exceed the route's match chain,
+// so duplicate, oversized, or non-string target lists are rejected before any loader runs.
+export function parseInternalRouteTargets(
+  targets: unknown,
+  maxTargets: number,
+): string[] | undefined {
+  if (targets === undefined || targets === null) {
+    return undefined;
+  }
+
+  if (!Array.isArray(targets) || targets.length > maxTargets) {
+    throw new MalformedInternalRequestError();
+  }
+
+  const uniqueTargets = new Set<string>();
+
+  for (const target of targets) {
+    if (typeof target !== "string" || uniqueTargets.has(target)) {
+      throw new MalformedInternalRequestError();
+    }
+
+    uniqueTargets.add(target);
+  }
+
+  return [...uniqueTargets];
+}
