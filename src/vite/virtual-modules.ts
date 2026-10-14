@@ -61,10 +61,12 @@ export function createClientProjectedFileSet(
   resources: DiscoveredResource[],
   apiRoutes: DiscoveredApiRoute[],
 ): Set<string> {
+  // Server modules with a `.client` sibling are still projected: the generated manifests import
+  // the sibling, but an app object can import the server module directly into the browser graph.
   return new Set(
-    [...routes, ...layouts, ...resources, ...apiRoutes]
-      .filter((entry) => !entry.clientModulePath)
-      .map((entry) => path.resolve(root, entry.modulePath)),
+    [...routes, ...layouts, ...resources, ...apiRoutes].map((entry) =>
+      path.resolve(root, entry.modulePath),
+    ),
   );
 }
 
