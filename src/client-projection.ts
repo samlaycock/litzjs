@@ -93,12 +93,10 @@ function createProjectedModule(
   const projectionStatements = sourceFile.statements.filter((statement) =>
     requiredStatements.has(statement),
   );
-  const needsPlaceholder = projectionStatements.some((statement) =>
-    projectionNeedsPlaceholder(statement, resolveCallee),
-  );
   const transformedStatements = projectionStatements.map((statement) =>
     transformStatement(statement, resolveCallee),
   );
+  const needsPlaceholder = transformedStatements.some(referencesServerPlaceholder);
   const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
   const placeholder = needsPlaceholder
     ? [
@@ -307,6 +305,10 @@ function createLitzCalleeResolver(imports: readonly ts.ImportDeclaration[]): Lit
 
   return (expression) => {
     if (ts.isIdentifier(expression)) {
+      if (isShadowedByEnclosingScope(expression)) {
+        return null;
+      }
+
       // Unaliased names keep resolving by name so modules that re-export Litz helpers stay stripped.
       return namedImports.get(expression.text) ?? expression.text;
     }
@@ -314,13 +316,30 @@ function createLitzCalleeResolver(imports: readonly ts.ImportDeclaration[]): Lit
     if (
       ts.isPropertyAccessExpression(expression) &&
       ts.isIdentifier(expression.expression) &&
-      namespaceImports.has(expression.expression.text)
+      namespaceImports.has(expression.expression.text) &&
+      !isShadowedByEnclosingScope(expression.expression)
     ) {
       return expression.name.text;
     }
 
     return null;
   };
+}
+
+// Local parameters and declarations can reuse an imported Litz name, e.g. a `mark` callback
+// parameter alongside `server as mark`; those calls must not be treated as Litz calls.
+function isShadowedByEnclosingScope(identifier: ts.Identifier): boolean {
+  for (
+    let current: ts.Node | undefined = identifier.parent;
+    current && !ts.isSourceFile(current);
+    current = current.parent
+  ) {
+    if (collectProjectionScopeBindings(current)?.has(identifier.text)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function collectReferencedNames(
@@ -640,31 +659,18 @@ function projectImportStatement(
   );
 }
 
-function projectionNeedsPlaceholder(
-  statement: ts.Statement,
-  resolveCallee: LitzCalleeResolver,
-): boolean {
-  let required = false;
-
-  function visit(node: ts.Node): void {
-    if (required) {
-      return;
+// Checked against transformed output so every replaced handler (server() calls, plain or
+// method-style loaders and actions, API handlers) gets the placeholder declaration.
+function referencesServerPlaceholder(statement: ts.Statement): boolean {
+  function visit(node: ts.Node): boolean {
+    if (ts.isIdentifier(node) && node.text === "__litz_server_placeholder__") {
+      return true;
     }
 
-    if (ts.isCallExpression(node)) {
-      const callee = resolveCallee(node.expression);
-
-      if (callee === "server" || callee === "defineApiRoute") {
-        required = true;
-        return;
-      }
-    }
-
-    ts.forEachChild(node, visit);
+    return ts.forEachChild(node, visit) ?? false;
   }
 
-  visit(statement);
-  return required;
+  return visit(statement);
 }
 
 function transformClientProjectionStatement(
@@ -714,6 +720,24 @@ function transformClientProjectionStatement(
                 }
 
                 return property;
+              }
+
+              if (ts.isMethodDeclaration(property)) {
+                const name = getObjectPropertyName(property.name);
+
+                if (name === "loader" || name === "action") {
+                  return ts.factory.createPropertyAssignment(
+                    property.name,
+                    ts.factory.createIdentifier("__litz_server_placeholder__"),
+                  );
+                }
+
+                if (name === "middleware") {
+                  return ts.factory.createPropertyAssignment(
+                    property.name,
+                    ts.factory.createArrayLiteralExpression(),
+                  );
+                }
               }
 
               if (!ts.isPropertyAssignment(property)) {
