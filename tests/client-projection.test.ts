@@ -382,6 +382,86 @@ export const api = defineApiRoute("/api/x", {
     expect(projected).not.toContain("auth.server");
     expect(projected).not.toContain("API_INPUT_CANARY");
   });
+
+  test.each(['["input"]', "[`input`]", "'input'"])(
+    "strips %s static input keys from client output",
+    (key) => {
+      const source = `
+import { defineRoute } from "litzjs";
+import { verify } from "./auth.server";
+
+const SECRET = "COMPUTED_INPUT_CANARY";
+
+export const route = defineRoute("/x", {
+  component: Page,
+  ${key}: {
+    headers: () => verify(SECRET),
+  },
+});
+
+function Page() {
+  return <main>Page</main>;
+}
+`;
+
+      const projected = createClientModuleProjection("/virtual/routes/x.tsx", source);
+
+      expect(projected).toContain("component: Page");
+      expect(projected).not.toContain("verify");
+      expect(projected).not.toContain("auth.server");
+      expect(projected).not.toContain("COMPUTED_INPUT_CANARY");
+    },
+  );
+
+  test("replaces static computed loader keys with placeholders", () => {
+    const source = `
+import { defineRoute, data } from "litzjs";
+
+const SECRET = "COMPUTED_LOADER_CANARY";
+
+export const route = defineRoute("/x", {
+  component: Page,
+  ["loader"]: async () => data(SECRET),
+});
+
+function Page() {
+  return <main>Page</main>;
+}
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/x.tsx", source);
+
+    expect(projected).toContain('["loader"]: __litz_server_placeholder__');
+    expect(projected).not.toContain("COMPUTED_LOADER_CANARY");
+  });
+
+  test.each([
+    ["spread properties", "...options,"],
+    ["dynamic computed keys", "[inputKey]: options.input,"],
+    ["getter accessors", "get input() { return options.input; },"],
+  ])("rejects route definitions with %s", (_label, property) => {
+    const source = `
+import { defineRoute } from "litzjs";
+
+const inputKey = "input";
+const options = {
+  input: { headers: () => "INDIRECT_INPUT_CANARY" },
+};
+
+export const route = defineRoute("/x", {
+  component: Page,
+  ${property}
+});
+
+function Page() {
+  return <main>Page</main>;
+}
+`;
+
+    expect(() => createClientModuleProjection("/virtual/routes/x.tsx", source)).toThrow(
+      'Litz cannot safely project defineRoute("/x") in /virtual/routes/x.tsx',
+    );
+  });
 });
 
 describe("server projection", () => {

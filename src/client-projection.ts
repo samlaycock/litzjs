@@ -626,6 +626,7 @@ function transformClientProjectionStatement(statement: ts.Statement): ts.Stateme
             ts.isObjectLiteralExpression(node.arguments[1])
           ) {
             const pathArgument = node.arguments[0] ?? ts.factory.createStringLiteral("");
+            assertStaticDefinitionProperties(node, node.arguments[1]);
             // Input parsers only run on the server, so drop them from client definitions.
             const clientProperties = node.arguments[1].properties.filter(
               (property) => getProjectionNodePropertyName(property) !== "input",
@@ -772,7 +773,47 @@ function getObjectPropertyName(name: ts.PropertyName): string | null {
     return name.text;
   }
 
+  if (
+    ts.isComputedPropertyName(name) &&
+    (ts.isStringLiteral(name.expression) ||
+      ts.isNoSubstitutionTemplateLiteral(name.expression) ||
+      ts.isNumericLiteral(name.expression))
+  ) {
+    return name.expression.text;
+  }
+
   return null;
+}
+
+// Server-only options are stripped by name, so definition properties whose names cannot be
+// resolved statically (spreads, dynamic computed keys, accessors) could smuggle server code
+// into client output. Fail the build instead of emitting them.
+function assertStaticDefinitionProperties(
+  call: ts.CallExpression,
+  options: ts.ObjectLiteralExpression,
+): void {
+  for (const property of options.properties) {
+    let reason: string | null = null;
+
+    if (ts.isSpreadAssignment(property)) {
+      reason = "spread properties are not supported";
+    } else if (ts.isGetAccessorDeclaration(property) || ts.isSetAccessorDeclaration(property)) {
+      reason = "accessor properties are not supported";
+    } else if (getProjectionNodePropertyName(property) === null) {
+      reason = "property names must be static";
+    }
+
+    if (reason) {
+      const callee = call.expression.getText();
+      const path = call.arguments[0]?.getText() ?? "";
+      const fileName = call.getSourceFile().fileName;
+
+      throw new Error(
+        `Litz cannot safely project ${callee}(${path}) in ${fileName}: ${reason}. ` +
+          "Declare definition options inline with static names so server-only options can be stripped from client code.",
+      );
+    }
+  }
 }
 
 function getProjectionNodePropertyName(node: ts.Node): string | null {
