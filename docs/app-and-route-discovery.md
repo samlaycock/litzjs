@@ -41,7 +41,7 @@ Filesystem discovery scans:
 - `src/routes/resources/**/*.{ts,tsx,js,jsx}` for resources.
 - `src/routes/api/**/*.{ts,tsx,js,jsx}` for API routes.
 
-Files ending in `.client.ts`, `.client.tsx`, `.client.js`, or `.client.jsx` are client boundary companions and are not manifest entries. For server builds, route-like modules with client companions are projected so client-only exports stay out of server code and server-only handlers stay out of client bundles.
+Files ending in `.client.ts`, `.client.tsx`, `.client.js`, or `.client.jsx` are client boundary companions and are not manifest entries. Generated client manifests import the companion instead of the server module. The server module is still projected for the client as well, because `defineApp(...)` imports it directly and the browser reaches it through the app object, so its server-only handlers stay out of client bundles. For server builds, route-like modules with client companions are projected so client-only exports stay out of server code.
 
 ## Manifests and Matching
 

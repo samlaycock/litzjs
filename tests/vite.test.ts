@@ -814,6 +814,97 @@ describe("vite production server helpers", () => {
     }
   }, 60000);
 
+  test("production client assets do not contain handlers from app-registered routes with client siblings", async () => {
+    const repoRoot = process.cwd();
+    const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
+    const root = mkdtempSync(path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-client-sibling-"));
+
+    function readAllFiles(directory: string): string {
+      return readdirSync(directory, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => readFileSync(path.join(entry.parentPath, entry.name), "utf8"))
+        .join("\n");
+    }
+
+    try {
+      cpSync(path.join(sourceFixtureRoot, "."), root, { recursive: true });
+      rmSync(path.join(root, "dist"), { recursive: true, force: true });
+      writeFileSync(
+        path.join(root, "src", "routes", "features", "client-sibling.tsx"),
+        [
+          'import { data, defineRoute, server } from "litzjs";',
+          "",
+          'export const route = defineRoute("/features/client-sibling", {',
+          "  component: ClientSiblingPage,",
+          '  loader: server(async () => data({ secret: "COMPANION_CANARY" })),',
+          "});",
+          "",
+          "function ClientSiblingPage() {",
+          "  return <main>SERVER_MODULE_COMPONENT</main>;",
+          "}",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(root, "src", "routes", "features", "client-sibling.client.tsx"),
+        [
+          'import { defineRoute } from "litzjs";',
+          "",
+          'export const route = defineRoute("/features/client-sibling", {',
+          "  component: ClientSiblingPage,",
+          "});",
+          "",
+          "function ClientSiblingPage() {",
+          "  return <main>CLIENT_SIBLING_COMPONENT</main>;",
+          "}",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const appPath = path.join(root, "src", "app.ts");
+      const appSource = readFileSync(appPath, "utf8");
+
+      writeFileSync(
+        appPath,
+        appSource
+          .replace(
+            'import { defineApp } from "litzjs";\n',
+            [
+              'import { defineApp } from "litzjs";',
+              'import { route as clientSiblingRoute } from "./routes/features/client-sibling";',
+              "",
+            ].join("\n"),
+          )
+          .replace(
+            "export const app = defineApp({\n  routes: [\n",
+            ["export const app = defineApp({", "  routes: [", "    clientSiblingRoute,", ""].join(
+              "\n",
+            ),
+          ),
+        "utf8",
+      );
+
+      await buildLitzApp({
+        configFile: path.join(root, "vite.config.ts"),
+        root,
+      });
+
+      const clientAssets = readAllFiles(path.join(root, "dist", "client"));
+      const serverAssets = readAllFiles(path.join(root, "dist", "server"));
+
+      // The generated route manifest keeps importing the client sibling.
+      expect(clientAssets).toContain("CLIENT_SIBLING_COMPONENT");
+      // The app object still imports the server module, which must be projected.
+      expect(clientAssets).toContain("SERVER_MODULE_COMPONENT");
+      expect(serverAssets).toContain("COMPANION_CANARY");
+      expect(clientAssets).not.toContain("COMPANION_CANARY");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 60000);
+
   test("production builds reject app registrations that cannot be resolved statically", async () => {
     const repoRoot = process.cwd();
     const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
@@ -1144,7 +1235,7 @@ describe("dev server hot updates", () => {
     }
   });
 
-  test("client route manifests import explicit client boundary modules without projection", async () => {
+  test("client route manifests import explicit client boundary modules and still project the server module", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "litz-route-client-boundary-"));
 
     try {
@@ -1237,7 +1328,7 @@ describe("dev server hot updates", () => {
         {} as never,
       ) as string;
       const routeFile = path.join(root, "src", "routes", "index.tsx");
-      const transformResult = await transform.call(
+      const transformResult = (await transform.call(
         {
           environment: {
             name: "client",
@@ -1245,11 +1336,13 @@ describe("dev server hot updates", () => {
         } as never,
         readFileSync(routeFile, "utf8"),
         routeFile,
-      );
+      )) as { code: string } | null;
 
       expect(manifestSource).toContain("index.client.tsx");
       expect(manifestSource).not.toContain("index.tsx");
-      expect(transformResult).toBeNull();
+      // An app object may still import the server module, so it must be projected too.
+      expect(transformResult?.code).toContain("__litz_server_placeholder__");
+      expect(transformResult?.code).not.toContain("kind: 'data'");
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
