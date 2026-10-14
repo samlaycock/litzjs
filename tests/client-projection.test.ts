@@ -271,6 +271,117 @@ export const route = defineRoute("/", {
     expect(projected).toContain("<h1>Home</h1>");
     expect(projected).not.toContain("< /h1>");
   });
+
+  test.each([
+    ["defineRoute", "route"],
+    ["defineLayout", "layout"],
+    ["defineResource", "resource"],
+  ])(
+    "strips server-only input parsers and their dependencies from %s client output",
+    (factory, exportName) => {
+      const source = `
+import { ${factory}, data, server } from "litzjs";
+import { verify } from "./auth.server";
+
+const SECRET = "INPUT_CANARY";
+
+export const ${exportName} = ${factory}("/x", {
+  component: Page,
+  input: {
+    headers(headers) {
+      return verify(headers.get("token"), SECRET);
+    },
+  },
+  loader: server(async () => data("ok")),
+});
+
+function Page() {
+  return <main>Page</main>;
+}
+`;
+
+      const projected = createClientModuleProjection("/virtual/routes/x.tsx", source);
+
+      expect(projected).toContain(`${factory}("/x"`);
+      expect(projected).toContain("component: Page");
+      expect(projected).not.toContain("input");
+      expect(projected).not.toContain("verify");
+      expect(projected).not.toContain("auth.server");
+      expect(projected).not.toContain("INPUT_CANARY");
+    },
+  );
+
+  test("strips shorthand input properties from client output", () => {
+    const source = `
+import { defineRoute } from "litzjs";
+import { parseHeaders } from "./input.server";
+
+const input = {
+  headers: (headers) => parseHeaders(headers, "SHORTHAND_INPUT_CANARY"),
+};
+
+export const route = defineRoute("/", {
+  component: Page,
+  input,
+});
+
+function Page() {
+  return <main>Page</main>;
+}
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/home.tsx", source);
+
+    expect(projected).toContain("component: Page");
+    expect(projected).not.toContain("parseHeaders");
+    expect(projected).not.toContain("input.server");
+    expect(projected).not.toContain("SHORTHAND_INPUT_CANARY");
+  });
+
+  test("strips method input properties from client output", () => {
+    const source = `
+import { defineLayout } from "litzjs";
+
+export const layout = defineLayout("/", {
+  component: Shell,
+  input() {
+    return "METHOD_INPUT_CANARY";
+  },
+});
+
+function Shell() {
+  return <main>Shell</main>;
+}
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/shell.tsx", source);
+
+    expect(projected).toContain("component: Shell");
+    expect(projected).not.toContain("METHOD_INPUT_CANARY");
+  });
+
+  test("strips API route input parsers from client output", () => {
+    const source = `
+import { defineApiRoute } from "litzjs";
+import { verify } from "./auth.server";
+
+export const api = defineApiRoute("/api/x", {
+  input: {
+    headers: (headers) => verify(headers.get("token"), "API_INPUT_CANARY"),
+  },
+  GET() {
+    return Response.json({ ok: true });
+  },
+});
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/api/x.ts", source);
+
+    expect(projected).toContain("input: __litz_server_placeholder__");
+    expect(projected).not.toContain("verify");
+    expect(projected).not.toContain("auth.server");
+    expect(projected).not.toContain("API_INPUT_CANARY");
+  });
 });
 
 describe("server projection", () => {
