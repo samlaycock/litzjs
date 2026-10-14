@@ -689,9 +689,9 @@ describe("vite production server helpers", () => {
         [
           'import { data, defineRoute, server } from "litzjs";',
           "",
-          'const r = defineRoute("/features/export-clause", {',
+          'export const secret = "SIBLING_CANARY", r = defineRoute("/features/export-clause", {',
           "  component: ExportClausePage,",
-          '  loader: server(async () => data({ secret: "EXPORT_CANARY" })),',
+          '  loader: server(async () => data({ secret: "EXPORT_CANARY", sibling: secret })),',
           "});",
           "",
           "function ExportClausePage() {",
@@ -725,8 +725,10 @@ describe("vite production server helpers", () => {
       const serverAssets = readAllFiles(path.join(root, "dist", "server"));
 
       expect(clientAssets).toContain("/features/export-clause");
-      expect(serverAssets).toContain("EXPORT_CANARY");
-      expect(clientAssets).not.toContain("EXPORT_CANARY");
+      for (const canary of ["EXPORT_CANARY", "SIBLING_CANARY"]) {
+        expect(serverAssets).toContain(canary);
+        expect(clientAssets).not.toContain(canary);
+      }
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

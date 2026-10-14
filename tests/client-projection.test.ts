@@ -896,9 +896,107 @@ function Page() {
     expect(projected).toContain("definition: mod.route");
     expect(projected).not.toContain("EXPORT_CANARY");
   });
+  test("drops sibling declarations that only server handlers reference", () => {
+    const source = `
+import { data, defineRoute } from "litzjs";
+
+export const secret = "PRIVATE_CANARY", label = "KEPT_LABEL", route = defineRoute("/x", {
+  component: Page,
+  loader: () => data(secret),
+});
+
+function Page() {
+  return <main>{label}</main>;
+}
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/x.tsx", source);
+
+    expect(projected).toContain("loader: __litz_server_placeholder__");
+    expect(projected).toContain("KEPT_LABEL");
+    expect(projected).not.toContain("PRIVATE_CANARY");
+    expect(projected).not.toContain("secret");
+  });
+
+  test("keeps every definition exported from one module", () => {
+    const source = `
+import { data, defineResource, defineRoute, server } from "litzjs";
+
+const r = defineRoute("/x", {
+  component: Page,
+  loader: server(() => data("ROUTE_CANARY")),
+});
+const res = defineResource("/resource/x", {
+  component: Page,
+  loader: server(() => data("RESOURCE_CANARY")),
+});
+
+function Page() {
+  return <main>Shared</main>;
+}
+
+export { r as route, res as resource };
+`;
+
+    const projected = createClientModuleProjection("/virtual/routes/x.tsx", source);
+
+    expect(projected).toContain("export { r as route, res as resource };");
+    expect(projected).toContain("definition: mod.route");
+    expect(projected).toContain("definition: mod.resource");
+    expect(projected).not.toContain("ROUTE_CANARY");
+    expect(projected).not.toContain("RESOURCE_CANARY");
+  });
 });
 
 describe("server projection", () => {
+  test("keeps every definition and sibling export from export clauses", () => {
+    const source = `
+import { data, defineResource, defineRoute, server } from "litzjs";
+
+const helper = () => "SERVER_HELPER";
+const r = defineRoute("/x", {
+  component: Page,
+  loader: server(() => data(helper())),
+});
+const res = defineResource("/resource/x", {
+  component: Page,
+  loader: server(() => data("RESOURCE_LOADER")),
+});
+
+function Page() {
+  return <main>Client-only page</main>;
+}
+
+export { helper, r as route, res as resource };
+`;
+
+    const projected = createServerModuleProjection("/virtual/routes/x.tsx", source);
+
+    expect(projected).toContain("export { helper, r as route, res as resource };");
+    expect(projected).toContain("SERVER_HELPER");
+    expect(projected).toContain("RESOURCE_LOADER");
+    expect(projected).not.toContain("Client-only page");
+  });
+
+  test("keeps sibling declarations of exported definitions", () => {
+    const source = `
+import { defineRoute } from "litzjs";
+
+export const label = "SERVER_LABEL", route = defineRoute("/x", {
+  component: Page,
+});
+
+function Page() {
+  return <main>Client-only page</main>;
+}
+`;
+
+    const projected = createServerModuleProjection("/virtual/routes/x.tsx", source);
+
+    expect(projected).toContain("SERVER_LABEL");
+    expect(projected).not.toContain("Client-only page");
+  });
+
   test("strips route component code from server output", () => {
     const source = `
 import { Link, defineRoute, server } from "litzjs";
