@@ -626,7 +626,11 @@ function transformClientProjectionStatement(statement: ts.Statement): ts.Stateme
             ts.isObjectLiteralExpression(node.arguments[1])
           ) {
             const pathArgument = node.arguments[0] ?? ts.factory.createStringLiteral("");
-            const properties = node.arguments[1].properties.map((property) => {
+            // Input parsers only run on the server, so drop them from client definitions.
+            const clientProperties = node.arguments[1].properties.filter(
+              (property) => getProjectionNodePropertyName(property) !== "input",
+            );
+            const properties = clientProperties.map((property) => {
               if (ts.isShorthandPropertyAssignment(property)) {
                 const name = property.name.text;
 
@@ -811,7 +815,12 @@ function isServerOnlyProjectionProperty(
     call.expression.text === "defineLayout" ||
     call.expression.text === "defineResource"
   ) {
-    return propertyName === "loader" || propertyName === "action" || propertyName === "middleware";
+    return (
+      propertyName === "loader" ||
+      propertyName === "action" ||
+      propertyName === "middleware" ||
+      propertyName === "input"
+    );
   }
 
   if (call.expression.text === "defineApiRoute") {

@@ -504,6 +504,83 @@ describe("vite production server helpers", () => {
     }
   }, 60000);
 
+  test("production client assets do not contain server-only input parsers", async () => {
+    const repoRoot = process.cwd();
+    const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
+    const root = mkdtempSync(path.join(repoRoot, "fixtures", ".tmp-rsc-smoke-input-"));
+    const canaries = ["ROUTE_INPUT_CANARY", "LAYOUT_INPUT_CANARY", "RESOURCE_INPUT_CANARY"];
+
+    function injectInput(file: string, search: string, replacement: string): void {
+      const filePath = path.join(root, "src", ...file.split("/"));
+      const source = readFileSync(filePath, "utf8");
+
+      if (!source.includes(search)) {
+        throw new Error(`Input injection into ${file} failed.`);
+      }
+
+      writeFileSync(filePath, source.replace(search, replacement), "utf8");
+    }
+
+    function readAllFiles(directory: string): string {
+      return readdirSync(directory, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => readFileSync(path.join(entry.parentPath, entry.name), "utf8"))
+        .join("\n");
+    }
+
+    try {
+      cpSync(path.join(sourceFixtureRoot, "."), root, { recursive: true });
+      rmSync(path.join(root, "dist"), { recursive: true, force: true });
+      writeFileSync(
+        path.join(root, "src", "data", "input-guard.ts"),
+        [
+          "export function guardInput(value: string | null, secret: string): string {",
+          "  return value === secret ? value : `rejected:${secret}`;",
+          "}",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      injectInput(
+        "routes/features/input-validation.tsx",
+        'import { data, defineRoute, server } from "litzjs";',
+        'import { data, defineRoute, server } from "litzjs";\n\nimport { guardInput } from "../../data/input-guard";\n\nconst ROUTE_SECRET = "ROUTE_INPUT_CANARY";',
+      );
+      injectInput(
+        "routes/features/input-validation.tsx",
+        '        requestId: headers.get("x-fixture-request-id") ?? "missing",',
+        '        requestId: guardInput(headers.get("x-fixture-request-id"), ROUTE_SECRET),',
+      );
+      injectInput(
+        "routes/_layouts/features-shell.tsx",
+        "  component: FeaturesShell,",
+        '  component: FeaturesShell,\n  input: {\n    headers: (headers) => headers.get("x-layout") ?? "LAYOUT_INPUT_CANARY",\n  },',
+      );
+      injectInput(
+        "routes/resources/validated-card.tsx",
+        "        id: params.id.toUpperCase(),",
+        '        id: params.id === "RESOURCE_INPUT_CANARY" ? "" : params.id.toUpperCase(),',
+      );
+
+      await buildLitzApp({
+        configFile: path.join(root, "vite.config.ts"),
+        root,
+      });
+
+      const clientAssets = readAllFiles(path.join(root, "dist", "client"));
+      const serverAssets = readAllFiles(path.join(root, "dist", "server"));
+
+      for (const canary of canaries) {
+        expect(serverAssets).toContain(canary);
+        expect(clientAssets).not.toContain(canary);
+      }
+
+      expect(clientAssets).not.toContain("guardInput");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 60000);
+
   test("built smoke fixture serves document and API routes", async () => {
     const repoRoot = process.cwd();
     const sourceFixtureRoot = path.join(repoRoot, "fixtures", "rsc-smoke");
