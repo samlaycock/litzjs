@@ -1,5 +1,11 @@
 import ts from "typescript";
 
+// Resolves a call target to the Litz export it refers to (for example `make` imported as
+// `defineRoute as make`, or `litz.server` from `import * as litz`), or null when it is not one.
+type LitzCalleeResolver = (expression: ts.Expression) => string | null;
+
+const routeLikeFactoryNames = new Set(["defineRoute", "defineLayout", "defineResource"]);
+
 export function createClientModuleProjection(filePath: string, source: string): string | null {
   return createProjectedModule(
     filePath,
@@ -23,8 +29,8 @@ export function createServerModuleProjection(filePath: string, source: string): 
 function createProjectedModule(
   filePath: string,
   source: string,
-  shouldSkipSubtree: (node: ts.Node) => boolean,
-  transformStatement: (statement: ts.Statement) => ts.Statement,
+  createShouldSkipSubtree: (resolveCallee: LitzCalleeResolver) => (node: ts.Node) => boolean,
+  transformStatement: (statement: ts.Statement, resolveCallee: LitzCalleeResolver) => ts.Statement,
   includeHotAccept: boolean,
 ): string | null {
   const scriptKind = getScriptKind(filePath);
@@ -39,6 +45,8 @@ function createProjectedModule(
   const importStatements = sourceFile.statements.filter(ts.isImportDeclaration);
   const topLevelNames = new Set(topLevelDeclarations.keys());
   const importBindings = collectImportBindings(importStatements);
+  const resolveCallee = createLitzCalleeResolver(importStatements);
+  const shouldSkipSubtree = createShouldSkipSubtree(resolveCallee);
   const rootStatement = findProjectionRootStatement(sourceFile);
 
   if (!rootStatement) {
@@ -86,10 +94,10 @@ function createProjectedModule(
     requiredStatements.has(statement),
   );
   const needsPlaceholder = projectionStatements.some((statement) =>
-    projectionNeedsPlaceholder(statement),
+    projectionNeedsPlaceholder(statement, resolveCallee),
   );
   const transformedStatements = projectionStatements.map((statement) =>
-    transformStatement(statement),
+    transformStatement(statement, resolveCallee),
   );
   const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
   const placeholder = needsPlaceholder
@@ -263,6 +271,56 @@ function collectImportBindings(imports: readonly ts.ImportDeclaration[]): Set<st
   }
 
   return bindings;
+}
+
+function createLitzCalleeResolver(imports: readonly ts.ImportDeclaration[]): LitzCalleeResolver {
+  const namedImports = new Map<string, string>();
+  const namespaceImports = new Set<string>();
+
+  for (const statement of imports) {
+    if (
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      statement.moduleSpecifier.text !== "litzjs" ||
+      !statement.importClause ||
+      statement.importClause.isTypeOnly
+    ) {
+      continue;
+    }
+
+    const namedBindings = statement.importClause.namedBindings;
+
+    if (!namedBindings) {
+      continue;
+    }
+
+    if (ts.isNamespaceImport(namedBindings)) {
+      namespaceImports.add(namedBindings.name.text);
+      continue;
+    }
+
+    for (const element of namedBindings.elements) {
+      if (!element.isTypeOnly) {
+        namedImports.set(element.name.text, element.propertyName?.text ?? element.name.text);
+      }
+    }
+  }
+
+  return (expression) => {
+    if (ts.isIdentifier(expression)) {
+      // Unaliased names keep resolving by name so modules that re-export Litz helpers stay stripped.
+      return namedImports.get(expression.text) ?? expression.text;
+    }
+
+    if (
+      ts.isPropertyAccessExpression(expression) &&
+      ts.isIdentifier(expression.expression) &&
+      namespaceImports.has(expression.expression.text)
+    ) {
+      return expression.name.text;
+    }
+
+    return null;
+  };
 }
 
 function collectReferencedNames(
@@ -506,34 +564,31 @@ function isIgnoredIdentifierReference(node: ts.Identifier): boolean {
   return false;
 }
 
-function shouldSkipClientProjectionSubtree(node: ts.Node): boolean {
-  if (
-    ts.isCallExpression(node) &&
-    ts.isIdentifier(node.expression) &&
-    node.expression.text === "server"
-  ) {
-    return true;
-  }
+function shouldSkipClientProjectionSubtree(
+  resolveCallee: LitzCalleeResolver,
+): (node: ts.Node) => boolean {
+  return (node) => {
+    if (ts.isCallExpression(node) && resolveCallee(node.expression) === "server") {
+      return true;
+    }
 
-  if (
-    (ts.isPropertyAssignment(node) ||
-      ts.isMethodDeclaration(node) ||
-      ts.isShorthandPropertyAssignment(node)) &&
-    isServerOnlyProjectionProperty(node)
-  ) {
-    return true;
-  }
-
-  return false;
+    return (
+      (ts.isPropertyAssignment(node) ||
+        ts.isMethodDeclaration(node) ||
+        ts.isShorthandPropertyAssignment(node)) &&
+      isServerOnlyProjectionProperty(node, resolveCallee)
+    );
+  };
 }
 
-function shouldSkipServerProjectionSubtree(node: ts.Node): boolean {
-  return (
+function shouldSkipServerProjectionSubtree(
+  resolveCallee: LitzCalleeResolver,
+): (node: ts.Node) => boolean {
+  return (node) =>
     (ts.isPropertyAssignment(node) ||
       ts.isMethodDeclaration(node) ||
       ts.isShorthandPropertyAssignment(node)) &&
-    isServerComponentProjectionProperty(node)
-  );
+    isServerComponentProjectionProperty(node, resolveCallee);
 }
 
 function projectImportStatement(
@@ -585,7 +640,10 @@ function projectImportStatement(
   );
 }
 
-function projectionNeedsPlaceholder(statement: ts.Statement): boolean {
+function projectionNeedsPlaceholder(
+  statement: ts.Statement,
+  resolveCallee: LitzCalleeResolver,
+): boolean {
   let required = false;
 
   function visit(node: ts.Node): void {
@@ -593,13 +651,13 @@ function projectionNeedsPlaceholder(statement: ts.Statement): boolean {
       return;
     }
 
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      (node.expression.text === "server" || node.expression.text === "defineApiRoute")
-    ) {
-      required = true;
-      return;
+    if (ts.isCallExpression(node)) {
+      const callee = resolveCallee(node.expression);
+
+      if (callee === "server" || callee === "defineApiRoute") {
+        required = true;
+        return;
+      }
     }
 
     ts.forEachChild(node, visit);
@@ -609,24 +667,30 @@ function projectionNeedsPlaceholder(statement: ts.Statement): boolean {
   return required;
 }
 
-function transformClientProjectionStatement(statement: ts.Statement): ts.Statement {
+function transformClientProjectionStatement(
+  statement: ts.Statement,
+  resolveCallee: LitzCalleeResolver,
+): ts.Statement {
   const result = ts.transform(statement, [
     (context) => {
       const visit: ts.Visitor = (node) => {
-        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-          if (node.expression.text === "server") {
+        const callee = ts.isCallExpression(node) ? resolveCallee(node.expression) : null;
+
+        if (ts.isCallExpression(node) && callee) {
+          if (callee === "server") {
             return ts.factory.createIdentifier("__litz_server_placeholder__");
           }
 
+          if (routeLikeFactoryNames.has(callee) || callee === "defineApiRoute") {
+            assertProjectableDefinitionOptions(node);
+          }
+
           if (
-            (node.expression.text === "defineRoute" ||
-              node.expression.text === "defineLayout" ||
-              node.expression.text === "defineResource") &&
+            routeLikeFactoryNames.has(callee) &&
             node.arguments[1] &&
             ts.isObjectLiteralExpression(node.arguments[1])
           ) {
             const pathArgument = node.arguments[0] ?? ts.factory.createStringLiteral("");
-            assertStaticDefinitionProperties(node, node.arguments[1]);
             // Input parsers only run on the server, so drop them from client definitions.
             const clientProperties = node.arguments[1].properties.filter(
               (property) => getProjectionNodePropertyName(property) !== "input",
@@ -684,7 +748,7 @@ function transformClientProjectionStatement(statement: ts.Statement): ts.Stateme
           }
 
           if (
-            node.expression.text === "defineApiRoute" &&
+            callee === "defineApiRoute" &&
             node.arguments[1] &&
             ts.isObjectLiteralExpression(node.arguments[1])
           ) {
@@ -733,16 +797,16 @@ function transformClientProjectionStatement(statement: ts.Statement): ts.Stateme
   return transformed ?? statement;
 }
 
-function transformServerProjectionStatement(statement: ts.Statement): ts.Statement {
+function transformServerProjectionStatement(
+  statement: ts.Statement,
+  resolveCallee: LitzCalleeResolver,
+): ts.Statement {
   const result = ts.transform(statement, [
     (context) => {
       const visit: ts.Visitor = (node) => {
         if (
           ts.isCallExpression(node) &&
-          ts.isIdentifier(node.expression) &&
-          (node.expression.text === "defineRoute" ||
-            node.expression.text === "defineLayout" ||
-            node.expression.text === "defineResource") &&
+          routeLikeFactoryNames.has(resolveCallee(node.expression) ?? "") &&
           node.arguments[1] &&
           ts.isObjectLiteralExpression(node.arguments[1])
         ) {
@@ -785,14 +849,19 @@ function getObjectPropertyName(name: ts.PropertyName): string | null {
   return null;
 }
 
-// Server-only options are stripped by name, so definition properties whose names cannot be
-// resolved statically (spreads, dynamic computed keys, accessors) could smuggle server code
-// into client output. Fail the build instead of emitting them.
-function assertStaticDefinitionProperties(
-  call: ts.CallExpression,
-  options: ts.ObjectLiteralExpression,
-): void {
-  for (const property of options.properties) {
+// Server-only options are stripped by name, so definition options that are not inline object
+// literals, or whose property names cannot be resolved statically (spreads, dynamic computed
+// keys, accessors), could smuggle server code into client output. Fail the build instead of
+// emitting them.
+function assertProjectableDefinitionOptions(call: ts.CallExpression): void {
+  const options = call.arguments[1];
+  const properties = options && ts.isObjectLiteralExpression(options) ? options.properties : [];
+
+  if (options && !ts.isObjectLiteralExpression(options)) {
+    throwUnprojectableDefinition(call, "options must be an inline object literal");
+  }
+
+  for (const property of properties) {
     let reason: string | null = null;
 
     if (ts.isSpreadAssignment(property)) {
@@ -804,16 +873,20 @@ function assertStaticDefinitionProperties(
     }
 
     if (reason) {
-      const callee = call.expression.getText();
-      const path = call.arguments[0]?.getText() ?? "";
-      const fileName = call.getSourceFile().fileName;
-
-      throw new Error(
-        `Litz cannot safely project ${callee}(${path}) in ${fileName}: ${reason}. ` +
-          "Declare definition options inline with static names so server-only options can be stripped from client code.",
-      );
+      throwUnprojectableDefinition(call, reason);
     }
   }
+}
+
+function throwUnprojectableDefinition(call: ts.CallExpression, reason: string): never {
+  const callee = call.expression.getText();
+  const path = call.arguments[0]?.getText() ?? "";
+  const fileName = call.getSourceFile().fileName;
+
+  throw new Error(
+    `Litz cannot safely project ${callee}(${path}) in ${fileName}: ${reason}. ` +
+      "Declare definition options inline with static names so server-only options can be stripped from client code.",
+  );
 }
 
 function getProjectionNodePropertyName(node: ts.Node): string | null {
@@ -830,6 +903,7 @@ function getProjectionNodePropertyName(node: ts.Node): string | null {
 
 function isServerOnlyProjectionProperty(
   node: ts.PropertyAssignment | ts.MethodDeclaration | ts.ShorthandPropertyAssignment,
+  resolveCallee: LitzCalleeResolver,
 ): boolean {
   const parent = node.parent;
 
@@ -839,9 +913,11 @@ function isServerOnlyProjectionProperty(
 
   const call = parent.parent;
 
-  if (!ts.isCallExpression(call) || !ts.isIdentifier(call.expression)) {
+  if (!ts.isCallExpression(call)) {
     return false;
   }
+
+  const callee = resolveCallee(call.expression);
 
   const propertyName = ts.isShorthandPropertyAssignment(node)
     ? node.name.text
@@ -851,11 +927,7 @@ function isServerOnlyProjectionProperty(
     return false;
   }
 
-  if (
-    call.expression.text === "defineRoute" ||
-    call.expression.text === "defineLayout" ||
-    call.expression.text === "defineResource"
-  ) {
+  if (callee && routeLikeFactoryNames.has(callee)) {
     return (
       propertyName === "loader" ||
       propertyName === "action" ||
@@ -864,7 +936,7 @@ function isServerOnlyProjectionProperty(
     );
   }
 
-  if (call.expression.text === "defineApiRoute") {
+  if (callee === "defineApiRoute") {
     return true;
   }
 
@@ -873,6 +945,7 @@ function isServerOnlyProjectionProperty(
 
 function isServerComponentProjectionProperty(
   node: ts.PropertyAssignment | ts.MethodDeclaration | ts.ShorthandPropertyAssignment,
+  resolveCallee: LitzCalleeResolver,
 ): boolean {
   if (getProjectionNodePropertyName(node) !== "component") {
     return false;
@@ -888,10 +961,7 @@ function isServerComponentProjectionProperty(
 
   return (
     ts.isCallExpression(call) &&
-    ts.isIdentifier(call.expression) &&
-    (call.expression.text === "defineRoute" ||
-      call.expression.text === "defineLayout" ||
-      call.expression.text === "defineResource") &&
+    routeLikeFactoryNames.has(resolveCallee(call.expression) ?? "") &&
     call.arguments[1] === parent
   );
 }
