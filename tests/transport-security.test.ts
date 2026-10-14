@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
-import { createPublicResultHeaders } from "../src/client/result-headers";
 import {
   configureDataSerializer,
   parseActionResponse,
   parseLoaderBatchResponse,
   parseLoaderResponse,
 } from "../src/client/transport";
+import { createPublicResultHeaders } from "../src/result-headers";
 
 const bigintSerializer = {
   stringify(value: unknown): string {

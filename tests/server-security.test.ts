@@ -836,6 +836,144 @@ describe("server security", () => {
     ]);
   });
 
+  test("applies batched loader cookies and cache policy to the response instead of the JSON body", async () => {
+    const server = createServer({
+      manifest: {
+        routes: [
+          {
+            id: "projects.show",
+            path: "/projects/:id",
+            route: {
+              loader() {
+                const headers = new Headers({
+                  "cache-control": "private, max-age=60",
+                  "x-litzjs-public-source": "route",
+                  "x-internal-trace": "route-trace",
+                });
+                headers.append("set-cookie", "theme=dark; Path=/");
+
+                return {
+                  kind: "data",
+                  headers,
+                  data: { source: "route" },
+                };
+              },
+              options: {
+                layout: {
+                  id: "projects.layout",
+                  path: "/projects",
+                  options: {
+                    loader() {
+                      return {
+                        kind: "data",
+                        headers: {
+                          "set-cookie": "session=TEST_ONLY; Path=/; HttpOnly; Secure",
+                          "cache-control": "no-store",
+                        },
+                        data: { source: "layout" },
+                      };
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/route", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          path: "/projects/:id",
+          targets: ["projects.layout", "projects.show"],
+          operation: "loader",
+          request: {
+            params: { id: "42" },
+          },
+        }),
+      }),
+    );
+    const bodyText = await response.text();
+    const body = JSON.parse(bodyText) as {
+      kind: "batch";
+      results: Array<{ status: number; headers?: Array<[string, string]> }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(response.headers.getSetCookie()).toEqual([
+      "session=TEST_ONLY; Path=/; HttpOnly; Secure",
+      "theme=dark; Path=/",
+    ]);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(bodyText).not.toContain("TEST_ONLY");
+    expect(bodyText).not.toContain("theme=dark");
+    expect(bodyText).not.toContain("route-trace");
+    expect(body.results[0]?.headers).toBeUndefined();
+    expect(body.results[1]?.headers).toEqual([["x-litzjs-public-source", "route"]]);
+  });
+
+  test("marks batched loader responses private when any loader response is private", async () => {
+    const server = createServer({
+      manifest: {
+        routes: [
+          {
+            id: "projects.show",
+            path: "/projects/:id",
+            route: {
+              loader() {
+                return {
+                  kind: "data",
+                  headers: { "cache-control": "private, max-age=60" },
+                  data: { source: "route" },
+                };
+              },
+              options: {
+                layout: {
+                  id: "projects.layout",
+                  path: "/projects",
+                  options: {
+                    loader() {
+                      return {
+                        kind: "data",
+                        headers: { "cache-control": "public, max-age=300" },
+                        data: { source: "layout" },
+                      };
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const response = await server.fetch(
+      new Request("https://app.example.com/_litzjs/route", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          path: "/projects/:id",
+          targets: ["projects.layout", "projects.show"],
+          operation: "loader",
+          request: {
+            params: { id: "42" },
+          },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-cache");
+  });
+
   test("executes batched internal route loader requests concurrently", async () => {
     const startedTargets: string[] = [];
     const routeDeferred = createDeferred<string>();

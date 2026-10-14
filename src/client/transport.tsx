@@ -1,7 +1,7 @@
 import type { ActionHookResult, LoaderHookResult } from "../index";
 
 import { jsonDataSerializer, type DataSerializer } from "../data-serializer";
-import { createPublicResultHeaders } from "./result-headers";
+import { createPublicResultHeaders } from "../result-headers";
 
 export type LitzJsonBody =
   | {

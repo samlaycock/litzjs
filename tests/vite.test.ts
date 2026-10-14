@@ -2887,6 +2887,86 @@ describe("dev server error masking", () => {
     });
   });
 
+  test("applies batched dev loader cookies and cache policy to the response instead of the JSON body", async () => {
+    const server = createMockViteDevServer(async () => ({
+      route: {
+        loader() {
+          const headers = new Headers({
+            "x-litzjs-public-source": "route",
+            "x-internal-trace": "route-trace",
+          });
+          headers.append("set-cookie", "theme=dark; Path=/");
+
+          return {
+            kind: "data",
+            headers,
+            data: { source: "route" },
+          };
+        },
+        options: {
+          layout: {
+            id: "projects.layout",
+            path: "/projects",
+            options: {
+              loader() {
+                return {
+                  kind: "data",
+                  headers: {
+                    "set-cookie": "session=TEST_ONLY; Path=/; HttpOnly; Secure",
+                    "cache-control": "no-store",
+                  },
+                  data: { source: "layout" },
+                };
+              },
+            },
+          },
+        },
+      },
+    }));
+    const request = createMockRequest({
+      url: "/_litzjs/route",
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        path: "/projects/:id",
+        targets: ["projects.layout", "projects.show"],
+        operation: "loader",
+        request: {
+          params: { id: "42" },
+        },
+      }),
+    });
+    const response = createMockResponse();
+    const next = mock(() => {});
+
+    await handleLitzRouteRequest(
+      server,
+      [{ id: "projects.show", path: "/projects/:id", modulePath: "src/routes/projects.ts" }],
+      request,
+      response,
+      next,
+    );
+
+    const bodyText = response.getBody();
+    const body = JSON.parse(bodyText) as {
+      results: Array<{ headers?: Array<[string, string]> }>;
+    };
+
+    expect(response.statusCode).toBe(200);
+    expect(response.getHeaderValue("set-cookie") as unknown).toEqual([
+      "session=TEST_ONLY; Path=/; HttpOnly; Secure",
+      "theme=dark; Path=/",
+    ]);
+    expect(response.getHeaderValue("cache-control")).toBe("no-store");
+    expect(bodyText).not.toContain("TEST_ONLY");
+    expect(bodyText).not.toContain("theme=dark");
+    expect(bodyText).not.toContain("route-trace");
+    expect(body.results[0]?.headers).toBeUndefined();
+    expect(body.results[1]?.headers).toEqual([["x-litzjs-public-source", "route"]]);
+  });
+
   test.each([204, 205, 304])("returns bodyless dev route results for status %p", async (status) => {
     const server = createMockViteDevServer(async () => ({
       route: {
