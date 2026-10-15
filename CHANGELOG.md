@@ -1,5 +1,40 @@
 # litzjs
 
+## 0.8.0
+
+### Minor Changes
+
+- f06d380: Add app-level custom data serializers for `data(...)` result transport across route loaders, route actions, resources, and batched loader responses.
+- 549e6de: Remove the unused `LitzRouteRule` type from the `litzjs/vite` public API so the 1.0 type surface does not imply unsupported route rule behavior.
+
+### Patch Changes
+
+- ba19054: Strip server-only definition options from client builds when Litz factories and `server` are imported with aliases (`import { defineRoute as make, server as mark } from "litzjs"`) or through a namespace (`import * as litz from "litzjs"`). Local variables and parameters that shadow those imports are left untouched. Method-style `loader() {}` and `action() {}` handlers are now replaced in client output, and the server placeholder is declared whenever any handler is replaced, so plain function loaders and actions no longer crash the client with a `ReferenceError`. Client projection also fails the build instead of emitting raw server code when a route, layout, resource, or API route definition's options are not an inline object literal.
+- c7ecff0: Resolve `defineApp(...)` registrations that use spreads of top-level `const` arrays, `const` array bindings, shorthand properties, `const` aliases of imported definitions, and spreads of `const` option objects, so those routes, resources, and API routes are discovered and their server handlers are stripped from client builds. Registrations that cannot be resolved statically (function calls, conditionals, `let` bindings, definitions declared in the app file, computed option keys, or unresolvable spreads) now fail the build with an error naming the expression instead of being silently dropped from discovery and shipping raw server code to the client. Build-time discovery also rejects `const` registration bindings that are mutated, passed to functions, aliased outside registrations, or exported, and `defineApp(...)` now freezes copies of its `routes`, `resources`, and `apiRoutes` lists, so registrations cannot change after discovery has read them.
+- b522056: Stop serializing loader `Set-Cookie` and other private headers into batched loader JSON responses. Batched loader cookies are now applied to the real HTTP response, the batch response respects `no-store`/`private` cache policies from any target, and only public `x-litzjs-*` result headers are exposed per target.
+- 4f7c430: Reject batched route loader requests whose `targets` contain duplicates, exceed the route's match chain, or include non-array/non-string values. These now return a safe `400` malformed-request fault before any middleware or loader runs, so one target executes at most once per batch in both the production server and the dev middleware.
+- 7fca99d: Coalesce intent link prefetches and abort in-flight data prefetches when intent ends.
+- b095508: Strip server-only handlers from route, layout, resource, and API route modules that have a `.client` companion file. Generated client manifests still import the companion, but an app passed to `defineApp(...)` imports the server module directly, and the browser imported it unprojected. Loaders, actions, middleware, and their dependencies were then shipped in client assets. The server module is now always projected when it is reached from the client graph.
+- 104531b: Preserve dynamic API route params for base-prefixed requests in the Vite dev middleware.
+- c80adb8: Restore Vite dev middleware parity with production server context and internal request validation.
+- 4d8c252: Fail manifest discovery when routes, resources, or API routes define duplicate paths, including the files involved in the diagnostic.
+- 945918a: Derive Vite route, resource, and API manifests from explicit `defineApp(...)` registration so registered modules work outside route folders and unregistered files are not enrolled by placement.
+- 2ed3f69: Strip server code from route, layout, resource, and API definitions exported through local export clauses such as `export { r as route }`, and from definitions that are not the first declaration in an exported `const` statement. Client output now keeps only the definition exports, so sibling declarations and export clause entries that only server code uses no longer reach the browser. Modules that export more than one definition (for example a route and a resource) keep all of them in both client and server output. Client builds now fail with an error, instead of shipping the original server module, when a discovered definition module cannot be projected.
+- 955c8f5: Add HEAD fallback for API GET handlers and include Allow headers on method-not-allowed responses.
+- 661696f: Parse `.jsx` route-like modules as JSX during client and server projection.
+- bd3eeb3: Return safe 400 fault responses for malformed internal JSON bodies and request metadata headers.
+- 07d1ffd: Support namespace imports when discovering route, layout, resource, and API route definitions.
+- f55d2a8: Improve README open-source onboarding with package badges, a concise project description, a minimal Hello World app, contribution guidance, and a license link.
+- c7dda74: Avoid rerunning successful sibling route loaders when a batched loader request partially fails.
+- 7f14666: Replace the stale project plan with focused implementation documentation covering discovery, server handlers, RSC view responses, Vite build behavior, and deployment/runtime details.
+- 7d90c18: Require the publish workflow to pass Playwright e2e coverage before creating a release PR or publishing.
+- ae24178: Keep README `mountApp` examples aligned with explicit app registration.
+- 58099f7: Apply the configured client base URL to resource action redirects.
+- 10cd563: Revalidate resource loader data after successful resource actions when submit options or action response headers request it.
+- f7bf9a2: Strip server-only `input` parsers from client projections of `defineRoute`, `defineLayout` and `defineResource`. Input validators run only on the server, but client builds previously kept the `input` option and every import and top-level value it referenced, which could ship authentication or validation logic and secrets in public browser assets.
+
+  Client projection now also resolves static computed option keys such as `["input"]` and `["loader"]`, and fails the build with an explicit error when a route, layout or resource definition uses spread properties, dynamic computed keys or accessors, since server-only options inside them cannot be stripped safely.
+
 ## 0.7.0
 
 ### Minor Changes
